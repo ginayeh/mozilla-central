@@ -25,6 +25,7 @@ CPPSRCS += \
   BluetoothDeviceEvent.cpp \
   BluetoothPropertyEvent.cpp \
   BluetoothReplyRunnable.cpp \
+  BluetoothPropertyContainer.cpp \
   $(NULL)
 
 XPIDLSRCS = \
