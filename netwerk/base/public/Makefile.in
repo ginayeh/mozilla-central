@@ -33,6 +33,7 @@ XPIDLSRCS	= \
 		nsIApplicationCacheChannel.idl \
 		nsIApplicationCacheContainer.idl \
 		nsIApplicationCacheService.idl \
+    nsIApplicationCacheUpdateService.idl \
 		nsIAuthInformation.idl \
 		nsIAuthPrompt.idl \
 		nsIAuthPrompt2.idl \
