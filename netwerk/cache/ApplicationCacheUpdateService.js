@@ -5,12 +5,13 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-//Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const DEBUG = true;
 const DB_NAME = "appcache";
 const DB_VERSION = 1;
 const STORE_NAME = "applications";
+const TOPIC_DATABASE_READY = "database-ready";
 
 const appcaches = [
 	{manifestURI: "URI1"},
@@ -20,6 +21,7 @@ const appcaches = [
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
 const APPLICATIONCACHE_UPDATESERVICE_CID = Components.ID("{ac83ae97-69a0-4217-9c1f-0e3d47973b84}");
 const OFFLINECACHE_UPDATESERVICE_CONTRACEID = "@mozilla.org/offlinecacheupdate-service;1";
+const OBSERVERSERVICE_CONTRACEID = "@mozilla.org/observer-service;1";
 
 var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"]
 								 .getService(Components.interfaces.nsIIndexedDatabaseManager);
@@ -27,14 +29,17 @@ idbManager.initWindowless(this);
 
 function ApplicationCacheUpdateService() {
 	dump("register\n");
-//	this.register();
+	let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
+													.getService(Ci.nsIObserverService);
+	observerService.addObserver(this, TOPIC_DATABASE_READY, false);
+	this.init();
 }
 
 ApplicationCacheUpdateService.prototype = {
 	classID: APPLICATIONCACHE_UPDATESERVICE_CID,
 	contractID: APPLICATIONCACHE_UPDATESERVICE_CONTRACTID,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationCacheUpdateService]),
-//                                         Ci.nsIObserver]),	
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationCacheUpdateService,
+                                         Ci.nsIObserver]),	
 
 	db: null,
 
@@ -64,6 +69,10 @@ ApplicationCacheUpdateService.prototype = {
 			dump("end no name function(1)\n");
 		});
 		dump("end of init().\n");
+
+		let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
+													.getService(Ci.nsIObserverService);
+		observerService.notifyObservers(null, TOPIC_DATABASE_READY, null);
 	},
 
   initDB: function initDB(callback) {
@@ -126,26 +135,17 @@ ApplicationCacheUpdateService.prototype = {
   /**
    * nsIObserver
    */
-/*
 	observe: function observe(subject, topic, data) {
 		switch(topic) {
-			case "applicationcache-update":
-				dump("got notification.\n");
+			case TOPIC_DATABASE_READY:
+				dump("got notification of " + topic + "\n");
+				let manifestURI = Services.io.newURI("http://example.com", null, null);
+				//this.removeEntries(manifestURI);
 				break;
 		}
 	},
-  register: function() {
-    let observerService = Cc["@mozilla.org/observer-service;1"]
-                          .getService(Ci.nsIObserverService);
-    observerService.addObserver(this, "applicationcache-update", false);
-  },
-  unregister: function() {
-    let observerService = Cc["@mozilla.org/observer-service;1"]
-                          .getService(Ci.nsIObserverService);
-    observerService.removeObserver(this, "applicationcache-update");
-  },
-*/
-  /**
+  
+	/**
    * nsIApplicationCacheUpdateService API
    */
 
@@ -169,8 +169,6 @@ ApplicationCacheUpdateService.prototype = {
 
 	removeEntries: function removeEntries(manifestURI) {
 		dump("remove entry.\n");
-//		Services.obs.notifyObservers("remove entry", "applicationcache-update", null);
-		this.init();
 	},
   
 	setUpdateFrequency: function setUpdateFrequency(second) {
