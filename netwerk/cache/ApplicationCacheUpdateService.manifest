@@ -1,0 +1,2 @@
+component {ac83ae97-69a0-4217-9c1f-0e3d47973b84} ApplicationCacheUpdateService.js
+contract @mozilla.org/network/applicationcacheupdateservice;1 {ac83ae97-69a0-4217-9c1f-0e3d47973b84}
