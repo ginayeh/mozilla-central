@@ -18,6 +18,11 @@ GRE_MODULE     = 1
 
 FORCE_STATIC_LIB = 1
 
+EXTRA_COMPONENTS = \
+  ApplicationCacheUpdateService.js \
+  ApplicationCacheUpdateService.manifest \
+  $(NULL)
+
 XPIDLSRCS = \
   nsICache.idl \
   nsICacheEntryDescriptor.idl \
