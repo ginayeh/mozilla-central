@@ -61,6 +61,9 @@ ApplicationCacheUpdateService.prototype = {
 				}	
 				else {
 					dump("no more entries.\n");
+			    let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
+																.getService(Ci.nsIObserverService);
+			    observerService.notifyObservers(null, TOPIC_DATABASE_READY, null);
 				}
 			};
 			request.onerror = function (event) {
@@ -69,10 +72,6 @@ ApplicationCacheUpdateService.prototype = {
 			dump("end no name function(1)\n");
 		});
 		dump("end of init().\n");
-
-		let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
-													.getService(Ci.nsIObserverService);
-		observerService.notifyObservers(null, TOPIC_DATABASE_READY, null);
 	},
 
   initDB: function initDB(callback) {
@@ -139,8 +138,10 @@ ApplicationCacheUpdateService.prototype = {
 		switch(topic) {
 			case TOPIC_DATABASE_READY:
 				dump("got notification of " + topic + "\n");
+
+				dump("call removeEntries...\n");
 				let manifestURI = Services.io.newURI("http://example.com", null, null);
-				//this.removeEntries(manifestURI);
+				this.removeEntries(manifestURI);
 				break;
 		}
 	},
@@ -151,7 +152,6 @@ ApplicationCacheUpdateService.prototype = {
 
 	addEntries: function addEntries(manifestURI, documentURI) {
 		dump("add entry");
-//		Services.obs.notifyObservers("add entry", "applicationcache-update", null);
 		this.newTxn(function(error, txn, store){
 			if (error)	return;
 
