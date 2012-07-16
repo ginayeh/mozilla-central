@@ -462,6 +462,9 @@
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
+@BINPATH@/components/ApplicationCacheUpdateService.js
+@BINPATH@/components/ApplicationCacheUpdateService.manifest
+
 
 ; Modules
 @BINPATH@/modules/*
