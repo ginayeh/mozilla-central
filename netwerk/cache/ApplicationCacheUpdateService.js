@@ -4,24 +4,30 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+//const IDBTransaction = Ci.nsIIDBTransaction;
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 const DEBUG = true;
 const DB_NAME = "appcache";
+
 const DB_VERSION = 1;
 const STORE_NAME = "applications";
 const TOPIC_DATABASE_READY = "database-ready";
+const TXN_READONLY = "readonly";
+const TXN_READWRITE = "readwrite";
 
 const appcaches = [
-	{manifestURI: "URI1"},
-	{manifestURI: "URI2"}
+	{manifestURI: "URI1", documentURI:"URI3"},
+	{manifestURI: "URI2", documentURI:"URI4"}
 ];
 
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
 const APPLICATIONCACHE_UPDATESERVICE_CID = Components.ID("{ac83ae97-69a0-4217-9c1f-0e3d47973b84}");
-const OFFLINECACHE_UPDATESERVICE_CONTRACEID = "@mozilla.org/offlinecacheupdate-service;1";
-const OBSERVERSERVICE_CONTRACEID = "@mozilla.org/observer-service;1";
+const OFFLINECACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/offlinecacheupdate-service;1";
+const OBSERVERSERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
+const TIMER_CONTRACTID = "@mozilla.org/timer;1";
 
 var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"]
 								 .getService(Components.interfaces.nsIIndexedDatabaseManager);
@@ -29,7 +35,7 @@ idbManager.initWindowless(this);
 
 function ApplicationCacheUpdateService() {
 	dump("register\n");
-	let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
+	let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 													.getService(Ci.nsIObserverService);
 	observerService.addObserver(this, TOPIC_DATABASE_READY, false);
 	this.init();
@@ -39,42 +45,33 @@ ApplicationCacheUpdateService.prototype = {
 	classID: APPLICATIONCACHE_UPDATESERVICE_CID,
 	contractID: APPLICATIONCACHE_UPDATESERVICE_CONTRACTID,
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationCacheUpdateService,
-                                         Ci.nsIObserver]),	
-
+                                         Ci.nsIObserver]),
 	db: null,
+	mUpdateFrequency: null,	
+	mUpdateTimer: null,
 
   /** 
    *  
    */
 	init: function init() {
 		dump("init()\n");
-		this.newTxn(function(error, txn, store){
-			dump("no name function(1)\n");
+
+		this.mUpdateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
+		this.setUpdateFrequency(300);
+
+		this.newTxn(TXN_READONLY, function(error, txn, store){
 			if (error)	return;
 
-			let request = store.openCursor();
-			request.onsuccess = function (event) {
-				let cursor = event.target.result;
-				if (cursor) {
-					dump(cursor.key + "\n");
-					cursor.continue();
-				}	
-				else {
-					dump("no more entries.\n");
-			    let observerService = Cc[OBSERVERSERVICE_CONTRACEID]
-																.getService(Ci.nsIObserverService);
-			    observerService.notifyObservers(null, TOPIC_DATABASE_READY, null);
-				}
-			};
-			request.onerror = function (event) {
-				dump("Can't get cursor.\n");
-			};
-			dump("end no name function(1)\n");
+			let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
+														.getService(Ci.nsIObserverService);
+			observerService.notifyObservers(null, TOPIC_DATABASE_READY, null);
 		});
 		dump("end of init().\n");
 	},
 
   initDB: function initDB(callback) {
+		let self = this;
+
 		if (this.db) {
 			dump("database existed. go back.\n");
 			callback(null, this.db);
@@ -84,7 +81,7 @@ ApplicationCacheUpdateService.prototype = {
 		let request = mozIndexedDB.open(DB_NAME, 1);
 		request.onsuccess = function (event) {
 			dump("Opened database: " + DB_NAME +  "\n");
-			this.db = event.target.result;
+			self.db = event.target.result;
 			callback(null, event.target.result);
 		};
 		request.onupgradeneeded = function (event) {
@@ -92,13 +89,8 @@ ApplicationCacheUpdateService.prototype = {
 			let db = event.target.result;
 			
 			let objectStore = db.createObjectStore(STORE_NAME, { keyPath: "manifestURI" });
-			objectStore.createIndex("manifestURI", "manifestURI", { unique: true });
+			objectStore.createIndex("documentURI", "documentURI", { unique: true });
 			dump("Create object store(" + STORE_NAME + ") and index\n");
-
-			for (var i in appcaches) {
-				dump("Add new record.\n");
-				objectStore.add(appcaches[i]);
-			}
 		};
 		request.onerror = function (event) {
 			dump("go back: onerror: " + event.target.error.name + "\n");
@@ -110,26 +102,42 @@ ApplicationCacheUpdateService.prototype = {
 		};
 	},
 
-	newTxn: function newTxn(callback) {
+	newTxn: function newTxn(txn_type, callback) {
 		this.initDB(function (error, db) {
-			dump("no name function(2)\n");
 			if (error) {
 				dump("Can't open database: " + error + "\n");
 				return;
 			}
-			let txn = db.transaction([STORE_NAME]);
+			let txn = db.transaction([STORE_NAME], txn_type);
 			let store = txn.objectStore(STORE_NAME);
 			callback(null, txn, store);
-			dump("end no name function(2)\n");
 		});
 	},
-/*
+
 	update: function update() {
-		let updateService = Cc[OFFLINECACHE_UPDATESERVICE_CONTRACEID]
+		dump("start update()...\n");
+		let updateService = Cc[OFFLINECACHE_UPDATESERVICE_CONTRACTID]
                        	.getService(Ci.nsIOfflineCacheUpdateService);
-		updateService.scheduleUpdate(manifestURI, documentURI, null);
-	}
-*/
+		
+		this.newTxn(TXN_READONLY, function(error, txn, store){
+			if (error)	return;
+
+			let enumRequest = store.openCursor();
+			enumRequest.onsuccess = function (event) {
+				let cursor = event.target.result;
+				if (cursor) {
+					dump(cursor.key + "\t" + cursor.value.documentURI + "\n");
+					updateService.scheduleUpdate(cursor.key, cursor.value.documentURI, null);
+					dump("next\n");
+					cursor.continue();
+				}	
+				else	dump("no more entries.\n");
+			};
+			request.onerror = function (event) {
+				dump("Can't get cursor.\n");
+			};
+		});
+	},
 
   /**
    * nsIObserver
@@ -139,9 +147,19 @@ ApplicationCacheUpdateService.prototype = {
 			case TOPIC_DATABASE_READY:
 				dump("got notification of " + topic + "\n");
 
-				dump("call removeEntries...\n");
+				dump("call addEntries...\n");
 				let manifestURI = Services.io.newURI("http://example.com", null, null);
-				this.removeEntries(manifestURI);
+				this.addEntries(manifestURI, manifestURI);
+				
+				manifestURI = Services.io.newURI("http://home.org", null, null);
+				this.addEntries(manifestURI, manifestURI);
+
+/*
+				dump("call removeEntries...\n");
+				this.removeEntries(manifestURI);   */	
+		
+//				this.setUpdateFrequency(60);
+				this.enableUpdate();
 				break;
 		}
 	},
@@ -149,38 +167,60 @@ ApplicationCacheUpdateService.prototype = {
 	/**
    * nsIApplicationCacheUpdateService API
    */
+	addEntries: function addEntries(aManifestURI, aDocumentURI) {
+		dump("start addEntries()...\n");
 
-	addEntries: function addEntries(manifestURI, documentURI) {
-		dump("add entry");
-		this.newTxn(function(error, txn, store){
-			if (error)	return;
+    this.newTxn(TXN_READWRITE, function(error, txn, store){
+      if (error)	return;
 
-			let index = store.index("manifestURI");
-			let request = index.get("URI2");
-			request.onsuccess = function (event) {
-				dump("Search success: " + event.target.result.key + "\n");
+			let record = {manifestURI: aManifestURI.spec, 
+										documentURI: aDocumentURI.spec};
+      let addRequest = store.add(record);
+			addRequest.onsuccess = function(event) {
+				dump("add new record " + record.manifestURI + " " + record.documentURI +"\n");
 			};
-			request.onerror = function (event) {	
-				dump("Cannot find.\n");
+			addRequest.onerror = function(event) {
+				dump("Failed to add record.\n");
 			};
-			dump("end no name function(1)\n");
+    });
+    dump("end of addEntries().\n");
+	},
+
+	removeEntries: function removeEntries(aManifestURI) {
+		dump("start removeEntries()...\n");
+
+		this.newTxn(TXN_READWRITE, function(error, txn, store){
+			if (error)  return;
+
+      let removeRequest = store.delete(aManifestURI.spec);
+      removeRequest.onsuccess = function(event) {
+        dump("remove record " + aManifestURI.spec + "\n");
+      };
+      removeRequest.onerror = function(event) {
+        dump("Failed to remove record.\n");
+      };
 		});
 	},
-
-	removeEntries: function removeEntries(manifestURI) {
-		dump("remove entry.\n");
-	},
   
-	setUpdateFrequency: function setUpdateFrequency(second) {
-		dump("set up frequency\n");
+	setUpdateFrequency: function setUpdateFrequency(aSecond) {
+		this.mUpdateFrequency = aSecond * 1000;
+		dump("setUpdateFrequency(" + this.mUpdateFrequency + ")\n");
 	},
 
   enableUpdate: function enableUpdate() {
-		dump("enable service\n");
+		let self = this;
+		dump("start enableUpdate()...\n");
+		dump("update every " + this.mUpdateFrequency + "mSec.\n");
+		this.mUpdateTimer.initWithCallback(
+			{ notify: function(timer) { self.update(); } },
+			this.mUpdateFrequency,
+			Ci.nsITimer.TYPE_REPEATING_SLACK
+		);
 	},
 
 	disableUpdate: function disableUpdate() {
-		dump("disable service\n");
+		dump("start disableUpdate()...\n");
+		this.mUpdateTimer.cancel();
 	} 
 };
 
