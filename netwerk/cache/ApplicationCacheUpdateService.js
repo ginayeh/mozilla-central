@@ -1,22 +1,20 @@
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
-//const IDBTransaction = Ci.nsIIDBTransaction;
+let Cc = Components.classes;
+let Ci = Components.interfaces;
+let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const DEBUG = true;
 const DB_NAME = "appcache";
-
-const DB_VERSION = 1;
 const STORE_NAME = "applications";
 const TOPIC_DATABASE_READY = "database-ready";
+const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
+const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
 const TXN_READONLY = "readonly";
 const TXN_READWRITE = "readwrite";
+const DEBUG = "true";
 
 const appcaches = [
 	{manifestURI: "URI1", documentURI:"URI3"},
@@ -34,7 +32,7 @@ var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"]
 idbManager.initWindowless(this);
 
 function ApplicationCacheUpdateService() {
-	dump("register\n");
+	if (DEBUG)	dump("register observer\n");
 	let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 													.getService(Ci.nsIObserverService);
 	observerService.addObserver(this, TOPIC_DATABASE_READY, false);
@@ -47,17 +45,23 @@ ApplicationCacheUpdateService.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationCacheUpdateService,
                                          Ci.nsIObserver]),
 	db: null,
-	mUpdateFrequency: null,	
-	mUpdateTimer: null,
 
-  /** 
-   *  
-   */
+	set updateFrequency(aUpdateFrequency) {
+		this._updateFrequency = aUpdateFrequency * 60 * 60 * 1000;
+		dump("set updateFrequency to (" + this._updateFrequency + ")\n");
+	},
+
+	get updateFrequency() {
+		return this._updateFrequency;
+	},
+
+	updateTimer: null,
+
 	init: function init() {
 		dump("init()\n");
 
-		this.mUpdateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
-		this.setUpdateFrequency(300);
+		this.updateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
+		this._updateFrequency = 1 * 60 * 60 * 1000;
 
 		this.newTxn(TXN_READONLY, function(error, txn, store){
 			if (error)	return;
@@ -72,13 +76,14 @@ ApplicationCacheUpdateService.prototype = {
   initDB: function initDB(callback) {
 		let self = this;
 
+
 		if (this.db) {
 			dump("database existed. go back.\n");
 			callback(null, this.db);
 		  return;
 		}
 		
-		let request = mozIndexedDB.open(DB_NAME, 1);
+		let request = mozIndexedDB.open(DB_NAME);
 		request.onsuccess = function (event) {
 			dump("Opened database: " + DB_NAME +  "\n");
 			self.db = event.target.result;
@@ -143,23 +148,14 @@ ApplicationCacheUpdateService.prototype = {
    * nsIObserver
    */
 	observe: function observe(subject, topic, data) {
+		dump("got notification of " + topic + "\n");
 		switch(topic) {
 			case TOPIC_DATABASE_READY:
-				dump("got notification of " + topic + "\n");
-
-				dump("call addEntries...\n");
-				let manifestURI = Services.io.newURI("http://example.com", null, null);
-				this.addEntries(manifestURI, manifestURI);
-				
-				manifestURI = Services.io.newURI("http://home.org", null, null);
-				this.addEntries(manifestURI, manifestURI);
-
-/*
-				dump("call removeEntries...\n");
-				this.removeEntries(manifestURI);   */	
-		
-//				this.setUpdateFrequency(60);
-				this.enableUpdate();
+			//	dump("got notification of " + topic + "\n");
+				break;
+			case TOPIC_DATABASE_ADD_COMPLETED:
+				break;
+			case TOPIC_DATABASE_REMOVE_COMPLETED:
 				break;
 		}
 	},
@@ -178,6 +174,10 @@ ApplicationCacheUpdateService.prototype = {
       let addRequest = store.add(record);
 			addRequest.onsuccess = function(event) {
 				dump("add new record " + record.manifestURI + " " + record.documentURI +"\n");
+				
+				let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
+															.getService(Ci.nsIObserverService);
+				observerService.notifyObservers(null, TOPIC_DATABASE_ADD_COMPLETED, null);
 			};
 			addRequest.onerror = function(event) {
 				dump("Failed to add record.\n");
@@ -202,25 +202,20 @@ ApplicationCacheUpdateService.prototype = {
 		});
 	},
   
-	setUpdateFrequency: function setUpdateFrequency(aSecond) {
-		this.mUpdateFrequency = aSecond * 1000;
-		dump("setUpdateFrequency(" + this.mUpdateFrequency + ")\n");
-	},
-
   enableUpdate: function enableUpdate() {
 		let self = this;
 		dump("start enableUpdate()...\n");
-		dump("update every " + this.mUpdateFrequency + "mSec.\n");
-		this.mUpdateTimer.initWithCallback(
+		dump("update every " + this._updateFrequency + "mSec.\n");
+		this.updateTimer.initWithCallback(
 			{ notify: function(timer) { self.update(); } },
-			this.mUpdateFrequency,
+			this._updateFrequency,
 			Ci.nsITimer.TYPE_REPEATING_SLACK
 		);
 	},
 
 	disableUpdate: function disableUpdate() {
 		dump("start disableUpdate()...\n");
-		this.mUpdateTimer.cancel();
+		this.updateTimer.cancel();
 	} 
 };
 
