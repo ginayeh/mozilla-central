@@ -5,6 +5,8 @@ interface nsIURI;
 [scriptable, uuid(ac83ae97-69a0-4217-9c1f-0e3d47973b84)]
 interface nsIApplicationCacheUpdateService : nsISupports
 {
+	attribute unsigned long updateFrequency; 
+
   /**
    * Add an application cache into update service.
    * The offline caches of these applications will be 
@@ -16,11 +18,6 @@ interface nsIApplicationCacheUpdateService : nsISupports
    * Remove an application cache from update service.
    */
   void removeEntries(in nsIURI aManifestURI);
-
-  /**
-   * Set up update frequency. The unit is second.
-   */
-  void setUpdateFrequency(in PRUint64 aSecond);
 
   /**
    * Enable the application cache update service. Applications 
