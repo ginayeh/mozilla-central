@@ -16,6 +16,10 @@ const TXN_READONLY = "readonly";
 const TXN_READWRITE = "readwrite";
 const DEBUG = "true";
 
+const UPDATE_FINISHED = Ci.nsIOfflineCacheUpdateObserver.STATE_FINISHED;
+const UPDATE_ERROR = Ci.nsIOfflineCacheUpdateObserver.STATE_ERROR;
+const UPDATE_CHECKING = Ci.nsIOfflineCacheUpdateObserver.STATE_CHECKING;
+
 const appcaches = [
 	{manifestURI: "URI1", documentURI:"URI3"},
 	{manifestURI: "URI2", documentURI:"URI4"}
@@ -32,10 +36,10 @@ var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"]
 idbManager.initWindowless(this);
 
 function ApplicationCacheUpdateService() {
-	if (DEBUG)	dump("register observer\n");
+/*	if (DEBUG)	dump("register observer\n");
 	let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 													.getService(Ci.nsIObserverService);
-	observerService.addObserver(this, TOPIC_DATABASE_READY, false);
+	observerService.addObserver(this, TOPIC_DATABASE_READY, false);*/
 	this.init();
 }
 
@@ -47,12 +51,20 @@ ApplicationCacheUpdateService.prototype = {
 	db: null,
 
 	set updateFrequency(aUpdateFrequency) {
-		this._updateFrequency = aUpdateFrequency * 60 * 60 * 1000;
-		dump("set updateFrequency to (" + this._updateFrequency + ")\n");
+		this.updateFrequency = aUpdateFrequency * 60 * 60 * 1000;
+		dump("set updateFrequency to (" + this.updateFrequency + ")\n");
 	},
 
 	get updateFrequency() {
-		return this._updateFrequency;
+		return this.updateFrequency;
+	},
+
+	set lastUpdate(timestamp) {
+		this.lastUpdate = timestamp;
+	},  
+
+	get lastUpdate() {
+		return this.lastUpdate;
 	},
 
 	updateTimer: null,
@@ -61,7 +73,7 @@ ApplicationCacheUpdateService.prototype = {
 		dump("init()\n");
 
 		this.updateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
-		this._updateFrequency = 1 * 60 * 60 * 1000;
+		this.updateFrequency = 60 * 1000;
 
 		this.newTxn(TXN_READONLY, function(error, txn, store){
 			if (error)	return;
@@ -131,9 +143,9 @@ ApplicationCacheUpdateService.prototype = {
 			enumRequest.onsuccess = function (event) {
 				let cursor = event.target.result;
 				if (cursor) {
-					dump(cursor.key + "\t" + cursor.value.documentURI + "\n");
-					updateService.scheduleUpdate(cursor.key, cursor.value.documentURI, null);
-					dump("next\n");
+					dump("[" + new Date().getTime() + "] " + cursor.key + "\t" + cursor.value.documentURI + "\n");
+					let update = updateService.scheduleUpdate(cursor.key, cursor.value.documentURI, null);
+					watchUpdate(update);
 					cursor.continue();
 				}	
 				else	dump("no more entries.\n");
@@ -144,6 +156,34 @@ ApplicationCacheUpdateService.prototype = {
 		});
 	},
 
+	watchUpdate: function watchUpdate(update) {
+		let observer = {
+			QueryInterface: function QueryInterface(iftype) {
+				return this;
+			},
+
+			updateStateChanged: function(update, state) {
+				switch(state) {
+					case UPDATE_FINISHED:
+						this.lastUpdate = new Date().getTime();
+						dump("scheduleUpdate has been finished.\n");
+						break;
+					case UPDATE_CHECKING:
+						dump("scheduleUpdate is checking.\n");
+						break;
+					case UPDATE_ERROR:
+						dump("scheduleUpdate returned a error.\n");
+				}
+			},
+
+			applicationCacheAvailable: function(appcache) {
+				dump("app1 avail " + appcache + "\n");
+			} 
+		};
+		update.addObserver(observer, false);
+		return update;
+	},
+
   /**
    * nsIObserver
    */
@@ -151,7 +191,6 @@ ApplicationCacheUpdateService.prototype = {
 		dump("got notification of " + topic + "\n");
 		switch(topic) {
 			case TOPIC_DATABASE_READY:
-			//	dump("got notification of " + topic + "\n");
 				break;
 			case TOPIC_DATABASE_ADD_COMPLETED:
 				break;
@@ -195,6 +234,10 @@ ApplicationCacheUpdateService.prototype = {
       let removeRequest = store.delete(aManifestURI.spec);
       removeRequest.onsuccess = function(event) {
         dump("remove record " + aManifestURI.spec + "\n");
+
+        let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
+                              .getService(Ci.nsIObserverService);
+        observerService.notifyObservers(null, TOPIC_DATABASE_REMOVE_COMPLETED, null);
       };
       removeRequest.onerror = function(event) {
         dump("Failed to remove record.\n");
@@ -205,10 +248,10 @@ ApplicationCacheUpdateService.prototype = {
   enableUpdate: function enableUpdate() {
 		let self = this;
 		dump("start enableUpdate()...\n");
-		dump("update every " + this._updateFrequency + "mSec.\n");
+		dump("update every " + this.updateFrequency + "mSec.\n");
 		this.updateTimer.initWithCallback(
 			{ notify: function(timer) { self.update(); } },
-			this._updateFrequency,
+			this.updateFrequency,
 			Ci.nsITimer.TYPE_REPEATING_SLACK
 		);
 	},
