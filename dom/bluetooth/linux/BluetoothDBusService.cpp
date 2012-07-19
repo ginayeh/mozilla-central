@@ -57,9 +57,11 @@ USING_BLUETOOTH_NAMESPACE
 #define LOG(args...) if (BTDEBUG) printf(args);
 #endif
 
+#define B2G_AGENT_CAPABILITIES "DisplayYesNo"
 #define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC ".Manager"
 #define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC ".Adapter"
 #define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC ".Device"
+#define DBUS_AGENT_IFACE BLUEZ_DBUS_BASE_IFC ".Agent"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
@@ -614,7 +616,7 @@ BluetoothDBusService::StartInternal()
     StopDBus();
     return NS_ERROR_FAILURE;
   }
-	
+
   // Add a filter for all incoming messages_base
   if (!dbus_connection_add_filter(mConnection, EventFilter,
                                   NULL, NULL)) {
@@ -642,6 +644,255 @@ BluetoothDBusService::StopInternal()
   return NS_OK;
 }
 
+DBusHandlerResult 
+AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
+{
+  if (dbus_message_get_type(msg) != DBUS_MESSAGE_TYPE_METHOD_CALL) {
+    LOG("%s: agent handler not interested (not a method call).\n", __FUNCTION__);
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+  }
+
+  DBusError err;
+  nsString signalPath;
+  nsString signalName;
+  dbus_error_init(&err);
+  signalPath = NS_ConvertUTF8toUTF16(dbus_message_get_path(msg));
+  signalName = NS_ConvertUTF8toUTF16(dbus_message_get_member(msg));
+  nsString errorStr;
+  BluetoothValue v;
+  InfallibleTArray<BluetoothNamedValue> parameters;
+
+  // The following descriptions of each signal are retrieved from:
+  //
+  // http://maemo.org/api_refs/5.0/beta/bluez/agent.html
+  //
+  if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "RequestConfirmation")) {
+    // This method gets called when the service daemon needs to confirm a passkey for
+    // an authentication.
+    char *object_path;
+    uint32_t passkey;
+    if (!dbus_message_get_args(msg, NULL,
+                               DBUS_TYPE_OBJECT_PATH, &object_path,
+                               DBUS_TYPE_UINT32, &passkey,
+                               DBUS_TYPE_INVALID)) {
+      LOG("%s: Invalid arguments for RequestConfirmation() method", __FUNCTION__);
+      errorStr.AssignLiteral("Invalid arguments for RequestConfirmation() method");
+    } else {
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"),
+                                                   NS_ConvertUTF8toUTF16(object_path)));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("MessageAddress"),
+                                                   (uint32_t)msg));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
+
+      // We still need this msg, so increase its ref count and will unref 
+      // when setPairingConfirmationInternal() is called.
+      dbus_message_ref(msg);
+
+      v = parameters;
+    }
+  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Cancel")) {
+    // This method gets called to indicate that the agent request failed before a reply
+    // was returned.
+
+    // Return directly
+    DBusMessage *reply = dbus_message_new_method_return(msg);
+
+    if (!reply) {
+      errorStr.AssignLiteral("Memory can't be allocated for the message.");
+    } else {
+      dbus_connection_send(conn, reply, NULL);
+      dbus_message_unref(reply);
+    }
+  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Authorize")) {
+    // This method gets called when the service daemon needs to authorize a
+    // connection/service request.
+    char *object_path;
+    const char *uuid;
+    if (!dbus_message_get_args(msg, NULL,
+                               DBUS_TYPE_OBJECT_PATH, &object_path,
+                               DBUS_TYPE_STRING, &uuid,
+                               DBUS_TYPE_INVALID)) {
+      LOG("%s: Invalid arguments for Authorize() method", __FUNCTION__);
+      errorStr.AssignLiteral("Invalid arguments for Authorize() method");
+    } else {
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"),
+                                                   NS_ConvertUTF8toUTF16(object_path)));      
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("MessageAddress"),
+                                                   (uint32_t)msg));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("UUID"),
+                                                   NS_ConvertUTF8toUTF16(uuid)));
+      // We still need this msg, so increase its ref count and will unref 
+      // when setAuthorization() is called.
+      dbus_message_ref(msg);
+
+      v = parameters;
+    }
+  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "RequestPinCode")) {
+    // This method gets called when the service daemon needs to get the passkey for an
+    // authentication. The return value should be a string of 1-16 characters length.
+    // The string can be alphanumeric.
+    char *object_path;
+    if (!dbus_message_get_args(msg, NULL,
+                               DBUS_TYPE_OBJECT_PATH, &object_path,
+                               DBUS_TYPE_INVALID)) {
+      LOG("%s: Invalid arguments for RequestPinCode() method", __FUNCTION__);
+      errorStr.AssignLiteral("Invalid arguments for RequestPinCode() method");
+    } else {
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"),
+                                                   NS_ConvertUTF8toUTF16(object_path)));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("MessageAddress"),
+                                                   (uint32_t)msg));
+      // We still need this msg, so increase its ref count and will unref 
+      // when setPinCodeInternal() is called.
+      dbus_message_ref(msg);
+
+      v = parameters;
+    }
+  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "RequestPasskey")) {
+    // This method gets called when the service daemon needs to get the passkey for an
+    // authentication. The return value should be a numeric value between 0-999999.
+    char *object_path;
+    if (!dbus_message_get_args(msg, NULL,
+                               DBUS_TYPE_OBJECT_PATH, &object_path,
+                               DBUS_TYPE_INVALID)) {
+      LOG("%s: Invalid arguments for RequestPasskey() method", __FUNCTION__);
+      errorStr.AssignLiteral("Invalid arguments for RequestPasskey() method");
+    } else {
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"),
+                                                   NS_ConvertUTF8toUTF16(object_path)));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("MessageAddress"),
+                                                   (uint32_t)msg));
+      // We still need this msg, so increase its ref count and will unref 
+      // when setPasskeyInternal() is called.
+      dbus_message_ref(msg);
+
+      v = parameters;
+    }
+  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Release")) {
+    // This method gets called when the service daemon unregisters the agent. An agent
+    // can use it to do cleanup tasks. There is no need to unregister the agent, because
+    // when this method gets called it has already been unregistered.
+
+    DBusMessage *reply = dbus_message_new_method_return(msg);
+
+    if (!reply) {
+      errorStr.AssignLiteral("Memory can't be allocated for the message.");
+    } else {
+      dbus_connection_send(conn, reply, NULL);
+      dbus_message_unref(reply);
+
+      // Do not send an notification to upper layer, too annoying.
+      return DBUS_HANDLER_RESULT_HANDLED;
+    }
+  } else {
+    LOG("agent handler %s: Unhandled event. Ignore.", __FUNCTION__);
+  }
+
+  if(!errorStr.IsEmpty()) {
+    NS_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+  }
+
+  BluetoothSignal signal(signalName, signalPath, v);
+
+  nsRefPtr<DistributeBluetoothSignalTask>
+    t = new DistributeBluetoothSignalTask(signal);
+
+  if (NS_FAILED(NS_DispatchToMainThread(t))) {
+     NS_WARNING("Failed to dispatch to main thread!");
+  }
+
+  return DBUS_HANDLER_RESULT_HANDLED;
+}
+
+static const DBusObjectPathVTable agentVtable = {
+  NULL, AgentEventFilter, NULL, NULL, NULL, NULL
+};
+
+// Local agent means agent for Adapter, not agent for Device. Some signals
+// will be passed to local agent, some will be passed to device agent.
+// For example, if a remote device would like to pair with us, then the
+// signal will be passed to local agent. If we start pairing process with
+// calling CreatePairedDevice, we'll get signal which should be passed to
+// device agent.
+bool 
+BluetoothDBusService::RegisterLocalAgent(const char* adapterPath,
+                                         const char* agentPath, 
+                                         const char* capabilities)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  DBusMessage *msg, *reply;
+  DBusError err;
+
+  if (!dbus_connection_register_object_path(mConnection, agentPath, &agentVtable, NULL)) {
+    LOG("%s: Can't register object path %s for agent!",
+        __FUNCTION__, agentPath);
+    return false;
+  }
+
+  msg = dbus_message_new_method_call("org.bluez", adapterPath, 
+                                     DBUS_ADAPTER_IFACE, "RegisterAgent");
+  if (!msg) {
+    LOG("%s: Can't allocate new method call for agent!", __FUNCTION__);
+    return false;
+  }
+
+  if (!dbus_message_append_args(msg,
+                                DBUS_TYPE_OBJECT_PATH, &agentPath,
+                                DBUS_TYPE_STRING, &capabilities,
+                                DBUS_TYPE_INVALID)) {
+    LOG("%s: Couldn't append arguments to dbus message.", __FUNCTION__);
+    return false;
+  }
+
+  dbus_error_init(&err);
+  reply = dbus_connection_send_with_reply_and_block(mConnection, msg, -1, &err);
+  dbus_message_unref(msg);
+
+  if (!reply) {
+    if (dbus_error_is_set(&err)) {
+      if(!strcmp(err.name, "org.bluez.Error.AlreadyExists") != 0) {
+        LOG_AND_FREE_DBUS_ERROR(&err);
+        LOG("Agent already registered, still returning true");
+      } else {
+        LOG_AND_FREE_DBUS_ERROR(&err);
+        LOG("%s: Can't register agent!", __FUNCTION__);
+        return false;
+      }
+    }
+  } else {
+    dbus_message_unref(reply);
+  }
+  
+  dbus_connection_flush(mConnection);
+  return true;
+}
+
+bool
+BluetoothDBusService::RegisterAgent(const nsAString& aAdapterPath)
+{
+  if (!RegisterLocalAgent(NS_ConvertUTF16toUTF8(aAdapterPath).get(), 
+                          LOCAL_AGENT_PATH, 
+                          B2G_AGENT_CAPABILITIES)) {
+    return false;
+  }
+
+  // There is no "RegisterAgent" function defined in device interface.
+  // When we call "CreatePairedDevice", it will do device agent registration for us.
+  // (See maemo.org/api_refs/5.0/beta/bluez/adapter.html)
+  if (!dbus_connection_register_object_path(mConnection,
+                                            REMOTE_AGENT_PATH,
+                                            &agentVtable,
+                                            NULL)) {
+    LOG("%s: Can't register object path %s for remote device agent!",
+        __FUNCTION__, REMOTE_AGENT_PATH);
+
+    return false;
+  }
+
+  return true;
+}
+
 nsresult
 BluetoothDBusService::GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable)
 {
@@ -649,6 +900,7 @@ BluetoothDBusService::GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRun
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;
   }
+
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
@@ -837,4 +1089,154 @@ BluetoothDBusService::GetDevicePath(const nsAString& aAdapterPath,
 {
   aDevicePath = GetObjectPathFromAddress(aAdapterPath, aDeviceAddress);
   return true;
+}
+
+nsresult
+BluetoothDBusService::CreatePairedDeviceInternal(const nsAString& aAdapterPath,
+                                                 const nsAString& aDeviceAddress,
+                                                 int aTimeout,
+                                                 BluetoothReplyRunnable* aRunnable)
+{
+  const char *capabilities = B2G_AGENT_CAPABILITIES;
+  const char *deviceAgentPath = REMOTE_AGENT_PATH;
+  const char *adapterPath = NS_ConvertUTF16toUTF8(aAdapterPath).get();
+  const char *deviceAddress = NS_ConvertUTF16toUTF8(aDeviceAddress).get();
+  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
+  // Then send CreatePairedDevice, it will register a temp device agent then
+  // unregister it after pairing process is over
+  bool ret = dbus_func_args_async(mConnection,
+                                  aTimeout,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  adapterPath,
+                                  DBUS_ADAPTER_IFACE,
+                                  "CreatePairedDevice",
+                                  DBUS_TYPE_STRING, &deviceAddress,
+                                  DBUS_TYPE_OBJECT_PATH, &deviceAgentPath,
+                                  DBUS_TYPE_STRING, &capabilities,
+                                  DBUS_TYPE_INVALID);
+
+  if (!ret) {
+    NS_WARNING("Could not start async function!");
+    return NS_ERROR_FAILURE;
+  }
+
+  runnable.forget();
+  return NS_OK;
+}
+
+nsresult
+BluetoothDBusService::RemoveDeviceInternal(const nsAString& aAdapterPath,
+                                           const nsAString& aDeviceAddress,
+                                           BluetoothReplyRunnable* aRunnable)
+{
+  const char* adapterPath = NS_ConvertUTF16toUTF8(aAdapterPath).get();
+  const char* deviceObjectPath = NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(aAdapterPath,
+                                                                                aDeviceAddress)).get();
+  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
+
+  // We don't really care about how long it would take on removing a device,
+  // just to make sure that the value of timeout is reasonable. So, we use 
+  // -1 for the timeout, then a sane default timeout will be used.
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  adapterPath,
+                                  DBUS_ADAPTER_IFACE,
+                                  "RemoveDevice",
+                                  DBUS_TYPE_OBJECT_PATH, &deviceObjectPath,
+                                  DBUS_TYPE_INVALID);
+   if (!ret) {
+    NS_WARNING("Could not start async function!");
+    return NS_ERROR_FAILURE;
+  }
+
+  runnable.forget();
+  return NS_OK;
+}
+
+bool
+BluetoothDBusService::SetPinCodeInternal(const nsAString& aPinCode, PRUint32 aMsgAddress)
+{
+  bool result;
+  const char *pinCode = NS_ConvertUTF16toUTF8(aPinCode).get();
+
+  DBusMessage *msg = (DBusMessage*)aMsgAddress;
+  DBusMessage *reply = dbus_message_new_method_return(msg);
+
+  if (!reply) {
+    LOG("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    dbus_message_unref(msg);
+    return false;
+  }
+
+  if (!dbus_message_append_args(reply,
+                                DBUS_TYPE_STRING, &pinCode,
+                                DBUS_TYPE_INVALID)) {
+    LOG("%s: Couldn't append arguments to dbus message.", __FUNCTION__);
+    result = false;
+  } else {
+    result = dbus_connection_send(mConnection, reply, NULL);
+  }
+
+  dbus_message_unref(msg);
+  dbus_message_unref(reply);
+
+  return result;
+}
+
+bool
+BluetoothDBusService::SetPasskeyInternal(PRUint32 aPasskey, PRUint32 aMsgAddress)
+{
+  bool result;
+  uint32_t passkey = aPasskey;
+
+  DBusMessage *msg = (DBusMessage*)aMsgAddress;
+  DBusMessage *reply = dbus_message_new_method_return(msg);
+
+  if (!reply) {
+    LOG("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    dbus_message_unref(msg);
+    return false;
+  }
+
+  if (!dbus_message_append_args(reply,
+                                DBUS_TYPE_UINT32, (uint32_t *)&passkey,
+                                DBUS_TYPE_INVALID)) {
+    LOG("%s: Couldn't append arguments to dbus message.", __FUNCTION__);
+    result = false;
+  } else {
+    result = dbus_connection_send(mConnection, reply, NULL);
+  }
+
+  dbus_message_unref(msg);
+  dbus_message_unref(reply);
+
+  return result;
+}
+
+bool
+BluetoothDBusService::SetPairingConfirmationInternal(bool aConfirm, PRUint32 aMsgAddress)
+{
+  DBusMessage *msg = (DBusMessage*)aMsgAddress;
+  DBusMessage *reply;
+
+  if (aConfirm) {
+    reply = dbus_message_new_method_return(msg);   
+  } else {
+    reply = dbus_message_new_error(msg, "org.bluez.Error.Rejected", "User rejected confirmation");
+  }
+
+  if (!reply) {
+    LOG("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    dbus_message_unref(msg);
+    return false;
+  }
+
+  bool result = dbus_connection_send(mConnection, reply, NULL);
+  dbus_message_unref(msg);
+  dbus_message_unref(reply);
+
+  return result;
 }

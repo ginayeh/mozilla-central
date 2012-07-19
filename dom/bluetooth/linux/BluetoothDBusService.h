@@ -45,6 +45,28 @@ public:
                 const nsAString& aDeviceAddress,
                 nsAString& aDevicePath);
 
+  virtual nsresult
+  CreatePairedDeviceInternal(const nsAString& aAdapterPath,
+                             const nsAString& aDeviceAddress,
+                             int aTimeout,
+                             BluetoothReplyRunnable* aRunnable);
+
+  virtual nsresult
+  RemoveDeviceInternal(const nsAString& aAdapterPath,
+                       const nsAString& aDeviceObjectPath,
+                       BluetoothReplyRunnable* aRunnable);
+
+  virtual bool RegisterAgent(const nsAString& aAdapterPath);
+
+  virtual bool
+  SetPinCodeInternal(const nsAString& aPinCode, PRUint32 aMsgAddress);
+
+  virtual bool
+  SetPasskeyInternal(PRUint32 aPasskey, PRUint32 aMsgAddress);
+
+  virtual bool 
+  SetPairingConfirmationInternal(bool aConfirm, PRUint32 aMsgAddress);
+
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,
                                   const char* aInterface,
@@ -56,6 +78,9 @@ private:
   nsresult SendSetPropertyMessage(const nsString& aPath, const char* aInterface,
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable);
+  bool RegisterLocalAgent(const char* adapterPath,
+                          const char* agentPath,
+                          const char* capabilities);
 };
 
 END_BLUETOOTH_NAMESPACE
