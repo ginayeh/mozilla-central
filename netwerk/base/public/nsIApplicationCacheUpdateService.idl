@@ -6,9 +6,8 @@ interface nsIURI;
 interface nsIApplicationCacheUpdateService : nsISupports
 {
 	attribute unsigned long updateFrequency; 
-
-	attribute PRTime lastUpdate; 
-  /**
+  
+	/**
    * Add an application cache into update service.
    * The offline caches of these applications will be 
    * automatically updated after certain period of time.
