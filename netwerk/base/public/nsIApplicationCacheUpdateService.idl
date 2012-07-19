@@ -19,6 +19,11 @@ interface nsIApplicationCacheUpdateService : nsISupports
    */
   void removeEntries(in nsIURI aManifestURI);
 
+	/**
+   * Set up update frequency. The unit is second.
+   */
+  void setUpdateFrequency(in PRUint64 aHour);
+
   /**
    * Enable the application cache update service. Applications 
    * that have been added into this service will be automatically 
