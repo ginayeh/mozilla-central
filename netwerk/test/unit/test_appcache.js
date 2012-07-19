@@ -1,11 +1,12 @@
 do_load_httpd_js();
 
-//Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 const TOPIC_DATABASE_READY = "database-ready";
 const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
 const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
+const TOPIC_APPCACHE_UPDATE_ALL_COMPLETED = "appcache-update-all-completed";
 
 const OBSERVERSERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
@@ -62,6 +63,7 @@ function ApplicationCacheUpdateObserver(tcase) {
   observerService.addObserver(this, TOPIC_DATABASE_READY, false);
   observerService.addObserver(this, TOPIC_DATABASE_ADD_COMPLETED, false);
   observerService.addObserver(this, TOPIC_DATABASE_REMOVE_COMPLETED, false);
+  observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_ALL_COMPLETED, false);
 	
 	this.updateService = Cc[APPLICATIONCACHE_UPDATESERVICE_CONTRACTID]
 											.getService(Ci.nsIApplicationCacheUpdateService);
@@ -73,45 +75,47 @@ ApplicationCacheUpdateObserver.prototype = {
 	test_case: null,
 	updateService: null,
 	req_num: 1,
-	flag : true,
+	flag1: true,
+	flag2: true,
 
   observe: function observe(subject, topic, data) {
 		dump("observer got notification!\n");
-		dump("test_case: " + this.test_case + "\n");
 		let manifestURI;
 		let documentURI;
 		switch (topic) {
 			case TOPIC_DATABASE_READY:
 				manifestURI = Services.io.newURI("http://example.com", null, null);
 				this.updateService.addEntries(manifestURI, manifestURI);
-				manifestURI = Services.io.newURI("http://localhost:4444/app1.appcache", null, null);
-				documentURI = Services.io.newURI("http://localhost:4444/app1", null, null);
+				manifestURI = Services.io.newURI("http://127.0.0.1:4444/app1.appcache", null, null);
+	  		documentURI = Services.io.newURI("http://127.0.0.1:4444/app1", null, null);
 				this.updateService.addEntries(manifestURI, documentURI);
-				manifestURI = Services.io.newURI("http://localhost:4444/app2.appcache", null, null);
-				documentURI = Services.io.newURI("http://localhost:4444/app2", null, null);
+				manifestURI = Services.io.newURI("http://127.0.0.1:4444/app2.appcache", null, null);
+				documentURI = Services.io.newURI("http://127.0.0.1:4444/app2", null, null);
 				this.updateService.addEntries(manifestURI, documentURI);
-
 				break;
 			case TOPIC_DATABASE_ADD_COMPLETED:
-				if (this.flag) {
+				if (this.flag1) {
 					manifestURI = Services.io.newURI("http://example.com", null, null);
 					this.updateService.removeEntries(manifestURI);
-					this.flag = false;
+					this.flag1 = false;
 				}
 				break;
 			case TOPIC_DATABASE_REMOVE_COMPLETED:
-				this.updateService.enableUpdate();
-
+				if (this.flag2) {
+					this.updateService.enableUpdate();
+					this.flag2 = false;
+				}
 				break;
-/*					case "disableUpdate":
-						this.updateService.disableUpdate();
-						break;*/
+			case TOPIC_APPCACHE_UPDATE_ALL_COMPLETED:
+				dump("all entries has been updated. bye!\n");
+//				do_test_finished();
+				break;
 		}
 	}
 }
 
 function start_add_app() {
-	dump("Start add app");
+	dump("Start add app\n");
 	new ApplicationCacheUpdateObserver("addEntries");
 }
 
@@ -130,7 +134,7 @@ function init_http_server() {
 function init_profile() {
   var ps = Cc["@mozilla.org/preferences-service;1"]
     .getService(Ci.nsIPrefBranch);
-  dump(ps.getBoolPref("browser.cache.offline.enable"));
+  dump(ps.getBoolPref("browser.cache.offline.enable") + "\n");
   ps.setBoolPref("browser.cache.offline.enable", true);
   ps.setComplexValue("browser.cache.offline.parent_directory",
          Ci.nsILocalFile, do_get_profile());
@@ -148,15 +152,14 @@ function clean_app_cache() {
 
 function run_test() {
   if (typeof _XPCSHELL_PROCESS == "undefined" ||
-      _XPCSHELL_PROCESS != "child") 
-	{
+      _XPCSHELL_PROCESS != "child") { 
     init_profile();
     init_cache_capacity();
     clean_app_cache();
   }
 
 	init_http_server();
-//	start_add_app();
+	start_add_app();
 	do_test_pending();
 }
 
