@@ -7,6 +7,7 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+const DEBUG = "true";
 const DB_NAME = "appcache";
 const STORE_NAME = "applications";
 const TOPIC_DATABASE_READY = "database-ready";
@@ -14,7 +15,7 @@ const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
 const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
 const TOPIC_DATABASE_UPDATE_COMPLETED = "database-update-completed";
 const TOPIC_APPCACHE_UPDATE_COMPLETED = "appcache-update-completed";
-const TOPIC_APPCACHE_UPDATE_ALL_COMPLETED = "appcache-update-all-completed";
+const TOPIC_APPCACHE_UPDATE_COMPLETED_ALL = "appcache-update-completed-all";
 const TXN_READONLY = "readonly";
 const TXN_READWRITE = "readwrite";
 const DEBUG = "true";
@@ -23,17 +24,11 @@ const UPDATE_FINISHED = Ci.nsIOfflineCacheUpdateObserver.STATE_FINISHED;
 const UPDATE_ERROR = Ci.nsIOfflineCacheUpdateObserver.STATE_ERROR;
 const UPDATE_CHECKING = Ci.nsIOfflineCacheUpdateObserver.STATE_CHECKING;
 
-const appcaches = [
-	{manifestURI: "URI1", documentURI:"URI3"},
-	{manifestURI: "URI2", documentURI:"URI4"}
-];
-
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
 const APPLICATIONCACHE_UPDATESERVICE_CID = Components.ID("{ac83ae97-69a0-4217-9c1f-0e3d47973b84}");
 const OFFLINECACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/offlinecacheupdate-service;1";
 const OBSERVERSERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
 const TIMER_CONTRACTID = "@mozilla.org/timer;1";
-
 
 let GLOBAL_SCOPE = this;
 
@@ -42,7 +37,6 @@ var idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"]
 idbManager.initWindowless(GLOBAL_SCOPE);
 
 function ApplicationCacheUpdateService() {
-	dump("constructor.\n");
   let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
                         .getService(Ci.nsIObserverService);	
 	observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED, false);
@@ -68,7 +62,7 @@ ApplicationCacheUpdateService.prototype = {
 
 	init: function init() {
 		this.updateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
-		this.setUpdateFrequency(1/6/60);
+		this.setUpdateFrequency(1);
 		this.entries = new Array();
 		this.newTxn(TXN_READONLY, function(error, txn, store){
 			if (error)	return;
@@ -89,25 +83,27 @@ ApplicationCacheUpdateService.prototype = {
 		
 		let request = mozIndexedDB.open(DB_NAME);
 		request.onsuccess = function (event) {
-			dump("Opened database: " + DB_NAME +  "\n");
+			if (DEBUG)	dump("Opened database: " + DB_NAME +  "\n");
+
 			self.db = event.target.result;
 			callback(null, event.target.result);
 		};
 		request.onupgradeneeded = function (event) {
-			dump("Database upgrade: " + DB_NAME + "\n");
-			let db = event.target.result;
-			
+			if (DEBUG)	dump("Database upgrade: " + DB_NAME + "\n");
+
+			let db = event.target.result;			
 			let objectStore = db.createObjectStore(STORE_NAME, { keyPath: "manifestURI" });
 			objectStore.createIndex("documentURI", "documentURI", { unique: true });
 			objectStore.createIndex("lastUpdate", "lastUpdate", { unique: false });
-			dump("Create object store(" + STORE_NAME + ") and index\n");
+			if (DEBUG) {
+				dump("Create object store(" + STORE_NAME + ") and index\n");
+				dump("Database upgrade: " + DB_NAME + "\n");
+			}
 		};
 		request.onerror = function (event) {
-			dump("go back: onerror: " + event.target.error.name + "\n");
 			callback("Failed to open database.\n", null);
 		};
 		request.onblocked = function (event) {
-			dump("go back: on blocked\n");
 			callback("Open request is blocked.\n", null);
 		};
 	},
@@ -118,6 +114,7 @@ ApplicationCacheUpdateService.prototype = {
 				dump("Can't open database: " + error + "\n");
 				return;
 			}
+
 			let txn = db.transaction([STORE_NAME], txn_type);
 			let store = txn.objectStore(STORE_NAME);
 			callback(null, txn, store);
@@ -125,7 +122,6 @@ ApplicationCacheUpdateService.prototype = {
 	},
 
 	update: function update() {
-		dump("call update()\n");
 		let updateService = Cc[OFFLINECACHE_UPDATESERVICE_CONTRACTID]
                        	.getService(Ci.nsIOfflineCacheUpdateService);
 

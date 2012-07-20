@@ -6,7 +6,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 const TOPIC_DATABASE_READY = "database-ready";
 const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
 const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
-const TOPIC_APPCACHE_UPDATE_ALL_COMPLETED = "appcache-update-all-completed";
+const TOPIC_APPCACHE_UPDATE_COMPLETED_ALL = "appcache-update-completed-all";
 
 const OBSERVERSERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
@@ -63,7 +63,7 @@ function ApplicationCacheUpdateObserver(tcase) {
   observerService.addObserver(this, TOPIC_DATABASE_READY, false);
   observerService.addObserver(this, TOPIC_DATABASE_ADD_COMPLETED, false);
   observerService.addObserver(this, TOPIC_DATABASE_REMOVE_COMPLETED, false);
-  observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_ALL_COMPLETED, false);
+  observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED_ALL, false);
 	
 	this.updateService = Cc[APPLICATIONCACHE_UPDATESERVICE_CONTRACTID]
 											.getService(Ci.nsIApplicationCacheUpdateService);
@@ -106,7 +106,7 @@ ApplicationCacheUpdateObserver.prototype = {
 					this.flag2 = false;
 				}
 				break;
-			case TOPIC_APPCACHE_UPDATE_ALL_COMPLETED:
+			case TOPIC_APPCACHE_UPDATE_COMPLETED_ALL:
 				dump("all entries has been updated. bye!\n");
 //				do_test_finished();
 				break;
