@@ -7,18 +7,17 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const DEBUG = "true";
+const DEBUG = true;
 const DB_NAME = "appcache";
 const STORE_NAME = "applications";
 const TOPIC_DATABASE_READY = "database-ready";
 const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
 const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
 const TOPIC_DATABASE_UPDATE_COMPLETED = "database-update-completed";
+const TOPIC_APPCACHE_UPDATE = "appcache-update";
 const TOPIC_APPCACHE_UPDATE_COMPLETED = "appcache-update-completed";
-const TOPIC_APPCACHE_UPDATE_COMPLETED_ALL = "appcache-update-completed-all";
 const TXN_READONLY = "readonly";
 const TXN_READWRITE = "readwrite";
-const DEBUG = "true";
 
 const UPDATE_FINISHED = Ci.nsIOfflineCacheUpdateObserver.STATE_FINISHED;
 const UPDATE_ERROR = Ci.nsIOfflineCacheUpdateObserver.STATE_ERROR;
@@ -39,7 +38,7 @@ idbManager.initWindowless(GLOBAL_SCOPE);
 function ApplicationCacheUpdateService() {
   let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
                         .getService(Ci.nsIObserverService);	
-	observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED, false);
+	observerService.addObserver(this, TOPIC_APPCACHE_UPDATE, false);
 	this.init();
 }
 
@@ -60,9 +59,13 @@ ApplicationCacheUpdateService.prototype = {
 	
 	entries: [],
 
+	/*
+   * initialization
+   */ 
 	init: function init() {
-		this.updateTimer = Cc[TIMER_CONTRACTID].createInstance(Ci.nsITimer);
-		this.setUpdateFrequency(1);
+		this.updateTimer = Cc[TIMER_CONTRACTID]
+                       .createInstance(Ci.nsITimer);
+		this.setUpdateFrequency(1/60/5);
 		this.entries = new Array();
 		this.newTxn(TXN_READONLY, function(error, txn, store){
 			if (error)	return;
@@ -73,7 +76,12 @@ ApplicationCacheUpdateService.prototype = {
 		});
 	},
 
-  initDB: function initDB(callback) {
+	/*
+   * return database if it has been created.
+   * otherwise, create database, object store and indexes, 
+   * and then return the database back.
+   */
+  getDB: function getDB(callback) {
 		let self = this;
 
 		if (this.db) {
@@ -108,8 +116,13 @@ ApplicationCacheUpdateService.prototype = {
 		};
 	},
 
+	/*
+   * make a new transaction request and return it and its objectstore
+   *
+   * @param txn_type: TXN_READONLY/TXN_READWRITE 
+   */
 	newTxn: function newTxn(txn_type, callback) {
-		this.initDB(function (error, db) {
+		this.getDB(function (error, db) {
 			if (error) {
 				dump("Can't open database: " + error + "\n");
 				return;
@@ -121,6 +134,10 @@ ApplicationCacheUpdateService.prototype = {
 		});
 	},
 
+	/*
+   * get all entries from database first, and then check the last 
+   * update time for each entry.
+   */ 
 	update: function update() {
 		let updateService = Cc[OFFLINECACHE_UPDATESERVICE_CONTRACTID]
                        	.getService(Ci.nsIOfflineCacheUpdateService);
@@ -133,6 +150,8 @@ ApplicationCacheUpdateService.prototype = {
 			enumRequest.onsuccess = function (event) {
 				let cursor = event.target.result;
 				let index = self.numEntry;
+
+				// get all entries from the database
 				if (cursor) {
 					let record = { manifestURI: Services.io.newURI(cursor.key, null, null),
 										     documentURI: Services.io.newURI(cursor.value.documentURI, null, null),
@@ -143,24 +162,10 @@ ApplicationCacheUpdateService.prototype = {
 					self.numEntry++;
 				}	
 				else{
-					let time = new Date().getTime();
-					if (time - self.entries[self.updateIndex].lastUpdate > self._updateFrequency) {
-						dump("request a update for " +  self.entries[self.updateIndex].manifestURI.spec + " ...[" + time + "] [" + self.entries[self.updateIndex].lastUpdate+ "] ["+ (time-self.entries[self.updateIndex].lastUpdate) + "]\n");
-						let update = updateService.scheduleUpdate(self.entries[self.updateIndex].manifestURI, 
-																											self.entries[self.updateIndex].documentURI, 
-																											null);
-						self.watchUpdate(update, function(lastUpdate) {
-							dump(self.entries[self.updateIndex].manifestURI.spec + " has been updated at " + lastUpdate + "\n");
-							self.updateDB(lastUpdate, 
-														self.entries[self.updateIndex].manifestURI,
-														self.entries[self.updateIndex].documentURI,
-														self.updateIndex );
-							self.updateIndex++;
-						});
-					}
-					else {
-						self.updateIndex++;
-					}
+					// start updating
+          let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
+                                .getService(Ci.nsIObserverService);
+          observerService.notifyObservers(null, TOPIC_APPCACHE_UPDATE, null);
 				}
 			};
 			enumRequest.onerror = function (event) {
@@ -169,16 +174,24 @@ ApplicationCacheUpdateService.prototype = {
 		});
 	},
 
+  /*
+   * update last update time into database and also property 'entries'
+   *
+   * @param aLastUpdate:	for database
+   * @param aManifestURI: for database
+   * @param aDocumentURI: for database
+   * @param aIndexUpdate:	for property 'entries'
+   */
 	updateDB: function updateDB(aLastUpdate, aManifestURI, aDocumentURI, aIndexUpdate) {
 		this.entries[aIndexUpdate].lastUpdate = aLastUpdate;
     this.newTxn(TXN_READWRITE, function(error, txn, store){
       if (error)  return;
+
       let record = {manifestURI: aManifestURI.spec,
                     documentURI: aDocumentURI.spec,
 										lastUpdate: aLastUpdate};
       let updateRequest = store.put(record);
       updateRequest.onsuccess = function(event) {
-        dump("update record " + record.manifestURI + " " + record.documentURI + " " + record.lastUpdate +"\n");
         let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
                               .getService(Ci.nsIObserverService);
         observerService.notifyObservers(null, TOPIC_DATABASE_UPDATE_COMPLETED, null);
@@ -187,11 +200,14 @@ ApplicationCacheUpdateService.prototype = {
         dump("Failed to add record.\n");
       };
     });
-
-
 	},
 
-	watchUpdate: function watchUpdate(update, callback) {
+	/*
+   * observe the scheduled update and notify observers when it has been done
+   * 
+   * @param	update: an update which has been scheduled and may not be finished	
+   */
+	observeUpdate: function observeUpdate(update, callback) {
 		let observer = {
 			QueryInterface: function QueryInterface(iftype) {
 				return this;
@@ -203,7 +219,7 @@ ApplicationCacheUpdateService.prototype = {
 						callback(new Date().getTime());
 	          let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 		                             .getService(Ci.nsIObserverService);
-			      observerService.notifyObservers(null, TOPIC_APPCACHE_UPDATE_COMPLETED, null);
+			      observerService.notifyObservers(null, TOPIC_APPCACHE_UPDATE, null);
 						break;
 					case UPDATE_ERROR:
 						dump("scheduleUpdate returned a error.\n");
@@ -220,25 +236,44 @@ ApplicationCacheUpdateService.prototype = {
 
   /**
    * nsIObserver
+   *
+   * TOPIC_DATABASE_UPDATE_COMPLETED
+   *
+   * TOPIC_APPCACHE_UPDATE: If the application cache is expired,
+   *   then schedule an update and continue on the next entry when the 
+   *   update completes.
    */
 	observe: function observe(subject, topic, data) {
-		dump("got notification of " + topic + "\n");
 		switch(topic) {
 			case TOPIC_DATABASE_UPDATE_COMPLETED:
-				dump("DB has been updated.\n");
+				if (DEBUG)	dump("DB has been updated.\n");
 				break;
-			case TOPIC_APPCACHE_UPDATE_COMPLETED:
+			case TOPIC_APPCACHE_UPDATE:
+				let time = new Date().getTime();
+
+				// for each entry, check whether the
 				if (this.updateIndex < this.numEntry) {
-					if (new Date().getTime() - self.entries[self.updateIndex].lastUpdate > self._updateFrequency) {
+					if (DEBUG)	dump("update " + this.entries[this.updateIndex].manifestURI + "\n");
+
+					// the application cache is out-dated
+					if (time - this.entries[this.updateIndex].lastUpdate > this._updateFrequency) {
 						let updateService = Cc[OFFLINECACHE_UPDATESERVICE_CONTRACTID]
 							                 	.getService(Ci.nsIOfflineCacheUpdateService);
 						let update = updateService.scheduleUpdate(this.entries[this.updateIndex].manifestURI, 
 																											this.entries[this.updateIndex].documentURI, 
 																											null);
 						let self = this;
-						this.watchUpdate(update, function(lastUpdate) {
-							dump(self.entries[self.updateIndex].manifestURI.spec + " has been updated at " + lastUpdate + "\n");
-							self.updateDB(lastUpdate, self.entries[self.updateIndex].manifestURI, self.entries[self.updateIndex].documentURI, self.updateIndex);
+						this.observeUpdate(update, function(lastUpdate) {
+							if (DEBUG) {
+								dump(self.entries[self.updateIndex].manifestURI.spec 
+										 + " has been updated at " 
+										 + lastUpdate + "\n");
+							}
+
+							self.updateDB(lastUpdate, 
+														self.entries[self.updateIndex].manifestURI, 
+														self.entries[self.updateIndex].documentURI, 
+														self.updateIndex);
 							self.updateIndex++;
 						});
 					}
@@ -247,19 +282,20 @@ ApplicationCacheUpdateService.prototype = {
 					}
 				}
 				else {
+					// notify observers that all application cache has been udpated 
 			    let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 						                    .getService(Ci.nsIObserverService);
-					observerService.notifyObservers(null, TOPIC_APPCACHE_UPDATE_ALL_COMPLETED, null);	
+					observerService.notifyObservers(null, TOPIC_APPCACHE_UPDATE_COMPLETED, null);	
 				}
 				break;
 		}
 	},
   
 	/**
-   * nsIApplicationCacheUpdateService API
+   * nsIApplicationCacheUpdateService
    */
 	addEntries: function addEntries(aManifestURI, aDocumentURI) {
-		dump("start addEntries()...\n");
+		if (DEBUG)	dump("start addEntries()...\n");
 
     this.newTxn(TXN_READWRITE, function(error, txn, store){
       if (error)	return;
@@ -269,7 +305,7 @@ ApplicationCacheUpdateService.prototype = {
 										lastUpdate: new Date().getTime() };
       let addRequest = store.add(record);
 			addRequest.onsuccess = function(event) {
-				dump("add new record " + record.manifestURI + " " + record.documentURI +"\n");
+				if (DEBUG)	dump("add new record " + record.manifestURI + " " + record.documentURI +"\n");
 				
 				let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
 															.getService(Ci.nsIObserverService);
@@ -279,18 +315,17 @@ ApplicationCacheUpdateService.prototype = {
 				dump("Failed to add record.\n");
 			};
     });
-    dump("end of addEntries().\n");
 	},
 
 	removeEntries: function removeEntries(aManifestURI) {
-		dump("start removeEntries()...\n");
+		if (DEBUG)	dump("start removeEntries()...\n");
 
 		this.newTxn(TXN_READWRITE, function(error, txn, store){
 			if (error)  return;
 
       let removeRequest = store.delete(aManifestURI.spec);
       removeRequest.onsuccess = function(event) {
-        dump("remove record " + aManifestURI.spec + "\n");
+        if (DEBUG)	dump("remove record " + aManifestURI.spec + "\n");
 
         let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
                               .getService(Ci.nsIObserverService);
@@ -307,18 +342,21 @@ ApplicationCacheUpdateService.prototype = {
 	},
 
   enableUpdate: function enableUpdate() {
+		if (DEBUG) {
+			dump("start enableUpdate()...\n");
+			dump("update every " + this._updateFrequency/60/60/1000 + " hour.\n");
+		}
+
 		let self = this;
-		dump("start enableUpdate()...\n");
-		dump("update every " + this._updateFrequency/60/60/1000 + " hour.\n");
 		this.updateTimer.init(
-			{ observe: function(subject, topic, data) { self.update(); dump("timer:[" + new Date().getTime() + "]\n"); } },
-			this._updateFrequency + 500,
+			{ observe: function(subject, topic, data) { self.update(); } },
+			this._updateFrequency,
 			Ci.nsITimer.TYPE_REPEATING_SLACK
 		);
 	},
 
 	disableUpdate: function disableUpdate() {
-		dump("start disableUpdate()...\n");
+		if (DEBUG)	dump("start disableUpdate()...\n");
 		this.updateTimer.cancel();
 	} 
 };
