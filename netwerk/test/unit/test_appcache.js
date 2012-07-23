@@ -6,7 +6,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 const TOPIC_DATABASE_READY = "database-ready";
 const TOPIC_DATABASE_ADD_COMPLETED = "database-add-completed";
 const TOPIC_DATABASE_REMOVE_COMPLETED = "database-remove-completed";
-const TOPIC_APPCACHE_UPDATE_COMPLETED_ALL = "appcache-update-completed-all";
+const TOPIC_APPCACHE_UPDATE_COMPLETED = "appcache-update-completed";
 
 const OBSERVERSERVICE_CONTRACTID = "@mozilla.org/observer-service;1";
 const APPLICATIONCACHE_UPDATESERVICE_CONTRACTID = "@mozilla.org/network/applicationcacheupdateservice;1";
@@ -23,28 +23,28 @@ const kManifest2 = "CACHE MANIFEST\n" +
   "/pages/foo8\n";
 
 function manifest1_handler(metadata, response) {
-	dump("manifest1\n");
+	do_print("manifest1\n");
   response.setHeader("content-type", "text/cache-manifest");
 
   response.write(kManifest1);
 }
 
 function manifest2_handler(metadata, response) {
-  dump("manifest2\n");
+  do_print("manifest2\n");
   response.setHeader("content-type", "text/cache-manifest");
 
   response.write(kManifest2);
 }
 
 function app_handler(metadata, response) {
-  dump("app_handler\n");
+  do_print("app_handler\n");
   response.setHeader("content-type", "text/html");
 
   response.write("<html></html>");
 }
 
 function datafile_handler(metadata, response) {
-  dump("datafile_handler\n");
+  do_print("datafile_handler\n");
   let data = "";
 
   while(data.length < 1024) {
@@ -57,66 +57,80 @@ function datafile_handler(metadata, response) {
 
 var httpServer;
 
-function ApplicationCacheUpdateObserver(tcase) {
+function ApplicationCacheUpdateObserver() {
   let observerService = Cc[OBSERVERSERVICE_CONTRACTID]
                         .getService(Ci.nsIObserverService);
   observerService.addObserver(this, TOPIC_DATABASE_READY, false);
   observerService.addObserver(this, TOPIC_DATABASE_ADD_COMPLETED, false);
   observerService.addObserver(this, TOPIC_DATABASE_REMOVE_COMPLETED, false);
-  observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED_ALL, false);
+  observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED, false);
 	
 	this.updateService = Cc[APPLICATIONCACHE_UPDATESERVICE_CONTRACTID]
 											.getService(Ci.nsIApplicationCacheUpdateService);
-
-	this.test_case = tcase;
 }
 
 ApplicationCacheUpdateObserver.prototype = {
-	test_case: null,
 	updateService: null,
-	req_num: 1,
-	flag1: true,
-	flag2: true,
+	add_completed: 0,
+	start_enable_test: true,
 
   observe: function observe(subject, topic, data) {
-		dump("observer got notification!\n");
-		let manifestURI;
-		let documentURI;
 		switch (topic) {
 			case TOPIC_DATABASE_READY:
-				manifestURI = Services.io.newURI("http://example.com", null, null);
-				this.updateService.addEntries(manifestURI, manifestURI);
-				manifestURI = Services.io.newURI("http://127.0.0.1:4444/app1.appcache", null, null);
-	  		documentURI = Services.io.newURI("http://127.0.0.1:4444/app1", null, null);
-				this.updateService.addEntries(manifestURI, documentURI);
-				manifestURI = Services.io.newURI("http://127.0.0.1:4444/app2.appcache", null, null);
-				documentURI = Services.io.newURI("http://127.0.0.1:4444/app2", null, null);
-				this.updateService.addEntries(manifestURI, documentURI);
+				dump(topic+"\n");
+				this.start_add_app();
 				break;
 			case TOPIC_DATABASE_ADD_COMPLETED:
-				if (this.flag1) {
-					manifestURI = Services.io.newURI("http://example.com", null, null);
-					this.updateService.removeEntries(manifestURI);
-					this.flag1 = false;
-				}
+				this.add_completed++;
+				this.start_remove_app();
 				break;
 			case TOPIC_DATABASE_REMOVE_COMPLETED:
-				if (this.flag2) {
-					this.updateService.enableUpdate();
-					this.flag2 = false;
-				}
+				this.start_enable_update();
 				break;
-			case TOPIC_APPCACHE_UPDATE_COMPLETED_ALL:
-				dump("all entries has been updated. bye!\n");
-//				do_test_finished();
+			case TOPIC_APPCACHE_UPDATE_COMPLETED:
+				this.start_disable_update();				
+				do_print("all entries has been updated. bye!\n");
+				do_test_finished();
 				break;
 		}
+	},
+
+	start_add_app: function start_add_app() {
+		do_print("start_add_app");
+    let manifestURI = Services.io.newURI("http://example.com", null, null);
+    this.updateService.addEntries(manifestURI, manifestURI);
+    manifestURI = Services.io.newURI("http://127.0.0.1:4444/app1.appcache", null, null);
+    let documentURI = Services.io.newURI("http://127.0.0.1:4444/app1", null, null);
+    this.updateService.addEntries(manifestURI, documentURI);
+    manifestURI = Services.io.newURI("http://127.0.0.1:4444/app2.appcache", null, null);
+    documentURI = Services.io.newURI("http://127.0.0.1:4444/app2", null, null);
+    this.updateService.addEntries(manifestURI, documentURI);
+	},
+
+	start_remove_app: function start_remove_app() {
+    if (this.add_completed == 3) {
+			do_print("start_remove_app");
+      let manifestURI = Services.io.newURI("http://example.com", null, null);
+      this.updateService.removeEntries(manifestURI);
+      this.start_remove_test = false;
+    }
+	},
+
+	start_enable_update: function start_update() {
+		do_print("start_enable_update");
+		this.updateService.enableUpdate();
+		this.flag2 = start_enable_test;
+	},
+
+	start_disable_update: function start_disable_update() {
+		do_print("start_disable_update");
+		this.updateService.disableUpdate();
 	}
 }
 
-function start_add_app() {
-	dump("Start add app\n");
-	new ApplicationCacheUpdateObserver("addEntries");
+function init_database() {
+	do_print("init database\n");
+	new ApplicationCacheUpdateObserver();
 }
 
 function init_http_server() {
@@ -134,7 +148,6 @@ function init_http_server() {
 function init_profile() {
   var ps = Cc["@mozilla.org/preferences-service;1"]
     .getService(Ci.nsIPrefBranch);
-  dump(ps.getBoolPref("browser.cache.offline.enable") + "\n");
   ps.setBoolPref("browser.cache.offline.enable", true);
   ps.setComplexValue("browser.cache.offline.parent_directory",
          Ci.nsILocalFile, do_get_profile());
@@ -159,7 +172,7 @@ function run_test() {
   }
 
 	init_http_server();
-	start_add_app();
+	init_database();
 	do_test_pending();
 }
 
