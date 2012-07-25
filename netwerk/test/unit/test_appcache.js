@@ -23,7 +23,7 @@ const kManifest2 = "CACHE MANIFEST\n" +
   "/pages/foo8\n";
 
 function manifest1_handler(metadata, response) {
-	do_print("manifest1\n");
+  do_print("manifest1\n");
   response.setHeader("content-type", "text/cache-manifest");
 
   response.write(kManifest1);
@@ -64,39 +64,39 @@ function ApplicationCacheUpdateObserver() {
   observerService.addObserver(this, TOPIC_DATABASE_ADD_COMPLETED, false);
   observerService.addObserver(this, TOPIC_DATABASE_REMOVE_COMPLETED, false);
   observerService.addObserver(this, TOPIC_APPCACHE_UPDATE_COMPLETED, false);
-	
-	this.updateService = Cc[APPLICATIONCACHE_UPDATESERVICE_CONTRACTID]
-											.getService(Ci.nsIApplicationCacheUpdateService);
+
+  this.updateService = Cc[APPLICATIONCACHE_UPDATESERVICE_CONTRACTID]
+                      .getService(Ci.nsIApplicationCacheUpdateService);
 }
 
 ApplicationCacheUpdateObserver.prototype = {
-	updateService: null,
-	add_completed: 0,
-	start_enable_test: true,
+  updateService: null,
+  add_completed: 0,
+  start_enable_test: true,
 
   observe: function observe(subject, topic, data) {
-		switch (topic) {
-			case TOPIC_DATABASE_READY:
-				dump(topic+"\n");
-				this.start_add_app();
-				break;
-			case TOPIC_DATABASE_ADD_COMPLETED:
-				this.add_completed++;
-				this.start_remove_app();
-				break;
-			case TOPIC_DATABASE_REMOVE_COMPLETED:
-				this.start_enable_update();
-				break;
-			case TOPIC_APPCACHE_UPDATE_COMPLETED:
-				this.start_disable_update();				
-				do_print("all entries has been updated. bye!\n");
-				do_test_finished();
-				break;
-		}
-	},
+    switch (topic) {
+      case TOPIC_DATABASE_READY:
+        dump(topic+"\n");
+        this.start_add_app();
+        break;
+      case TOPIC_DATABASE_ADD_COMPLETED:
+        this.add_completed++;
+        this.start_remove_app();
+        break;
+      case TOPIC_DATABASE_REMOVE_COMPLETED:
+        this.start_enable_update();
+        break;
+      case TOPIC_APPCACHE_UPDATE_COMPLETED:
+        this.start_disable_update();
+        do_print("all entries has been updated. bye!\n");
+        do_test_finished();
+        break;
+    }
+  },
 
-	start_add_app: function start_add_app() {
-		do_print("start_add_app");
+  start_add_app: function start_add_app() {
+    do_print("start_add_app");
     let manifestURI = Services.io.newURI("http://example.com", null, null);
     this.updateService.addEntries(manifestURI, manifestURI);
     manifestURI = Services.io.newURI("http://127.0.0.1:4444/app1.appcache", null, null);
@@ -105,32 +105,32 @@ ApplicationCacheUpdateObserver.prototype = {
     manifestURI = Services.io.newURI("http://127.0.0.1:4444/app2.appcache", null, null);
     documentURI = Services.io.newURI("http://127.0.0.1:4444/app2", null, null);
     this.updateService.addEntries(manifestURI, documentURI);
-	},
+  },
 
-	start_remove_app: function start_remove_app() {
+  start_remove_app: function start_remove_app() {
     if (this.add_completed == 3) {
-			do_print("start_remove_app");
+      do_print("start_remove_app");
       let manifestURI = Services.io.newURI("http://example.com", null, null);
       this.updateService.removeEntries(manifestURI);
       this.start_remove_test = false;
     }
-	},
+  },
 
-	start_enable_update: function start_update() {
-		do_print("start_enable_update");
-		this.updateService.enableUpdate();
-		this.flag2 = start_enable_test;
-	},
+  start_enable_update: function start_update() {
+    do_print("start_enable_update");
+    this.updateService.enableUpdate();
+    this.flag2 = start_enable_test;
+  },
 
-	start_disable_update: function start_disable_update() {
-		do_print("start_disable_update");
-		this.updateService.disableUpdate();
-	}
+  start_disable_update: function start_disable_update() {
+    do_print("start_disable_update");
+    this.updateService.disableUpdate();
+  }
 }
 
 function init_database() {
-	do_print("init database\n");
-	new ApplicationCacheUpdateObserver();
+  do_print("init database\n");
+  new ApplicationCacheUpdateObserver();
 }
 
 function init_http_server() {
@@ -165,14 +165,14 @@ function clean_app_cache() {
 
 function run_test() {
   if (typeof _XPCSHELL_PROCESS == "undefined" ||
-      _XPCSHELL_PROCESS != "child") { 
+      _XPCSHELL_PROCESS != "child") {
     init_profile();
     init_cache_capacity();
     clean_app_cache();
   }
 
-	init_http_server();
-	init_database();
-	do_test_pending();
+  init_http_server();
+  init_database();
+  do_test_pending();
 }
 
