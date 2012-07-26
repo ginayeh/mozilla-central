@@ -288,7 +288,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   } else {
 #ifdef DEBUG
     nsCString warningMsg;
-    warningMsg.AssignLiteral("Not handling manager signal: ");
+    warningMsg.AssignLiteral("Not handling adapter signal: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
     NS_WARNING(warningMsg.get());
 #endif
