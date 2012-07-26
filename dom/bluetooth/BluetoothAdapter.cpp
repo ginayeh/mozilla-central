@@ -217,11 +217,19 @@ void
 BluetoothAdapter::Notify(const BluetoothSignal& aData)
 {
   InfallibleTArray<BluetoothNamedValue> arr;
-
+  NS_WARNING(NS_ConvertUTF16toUTF8(aData.name()).get());
   if (aData.name().EqualsLiteral("DeviceFound")) {
     nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicefound"));
+  } else if (aData.name().EqualsLiteral("DeviceCreated")) {
+    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+    nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
+    e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicecreated"));
+  } else if (aData.name().EqualsLiteral("DeviceRemoved")) {
+    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+    nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
+    e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("deviceremoved"));
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     arr = aData.value().get_ArrayOfBluetoothNamedValue();

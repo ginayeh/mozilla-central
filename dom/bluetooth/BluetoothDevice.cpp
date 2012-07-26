@@ -56,10 +56,14 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
   mIsRooted(false)
 {
   BindToOwner(aOwner);
-  const InfallibleTArray<BluetoothNamedValue>& values =
-    aValue.get_ArrayOfBluetoothNamedValue();
-  for (uint32_t i = 0; i < values.Length(); ++i) {
-    SetPropertyByValue(values[i]);
+  if(aValue.type() == BluetoothValue::TnsString) {
+    mPath = aValue.get_nsString();
+  } else {
+    const InfallibleTArray<BluetoothNamedValue>& values =
+      aValue.get_ArrayOfBluetoothNamedValue();
+    for (uint32_t i = 0; i < values.Length(); ++i) {
+      SetPropertyByValue(values[i]);
+    }
   }
 }
 
