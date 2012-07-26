@@ -489,7 +489,7 @@ BluetoothAdapter::PairUnpair(bool aPair,
 
   nsString addr;
   aDevice->GetAddress(addr);
-  bool result;
+  nsresult result;
 
   if (aPair) {
     result = bs->CreatePairedDeviceInternal(mPath,
@@ -500,7 +500,7 @@ BluetoothAdapter::PairUnpair(bool aPair,
     result = bs->RemoveDeviceInternal(mPath, addr, results);
   }
 
-  if (!result) {
+  if (NS_FAILED(result)) {
     NS_WARNING("Pair/Unpair failed!");
     return NS_ERROR_FAILURE;
   }
