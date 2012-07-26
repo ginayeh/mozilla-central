@@ -187,6 +187,23 @@ public:
                 const nsAString& aDeviceAddress,
                 nsAString& aDevicePath) = 0;
 
+  virtual nsresult 
+  CreatePairedDeviceInternal(const nsAString& aAdapterPath,
+                             const nsAString& aAddress,
+                             int aTimeout,
+                             BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual nsresult 
+  RemoveDeviceInternal(const nsAString& aAdapterPath,
+                       const nsAString& aObjectPath,
+                       BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool RegisterAgent(const nsAString& aAdapterPath) = 0;
+  virtual bool SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode) = 0;
+  virtual bool SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey) = 0;
+  virtual bool SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm) = 0;
+  virtual bool SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow) = 0;
+  
   /**
    * Due to the fact that some operations require multiple calls, a
    * CommandThread is created that can run blocking, platform-specific calls

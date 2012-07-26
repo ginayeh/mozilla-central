@@ -45,6 +45,31 @@ public:
                 const nsAString& aDeviceAddress,
                 nsAString& aDevicePath);
 
+  virtual nsresult
+  CreatePairedDeviceInternal(const nsAString& aAdapterPath,
+                             const nsAString& aDeviceAddress,
+                             int aTimeout,
+                             BluetoothReplyRunnable* aRunnable);
+
+  virtual nsresult
+  RemoveDeviceInternal(const nsAString& aAdapterPath,
+                       const nsAString& aDeviceObjectPath,
+                       BluetoothReplyRunnable* aRunnable);
+
+  virtual bool RegisterAgent(const nsAString& aAdapterPath);
+
+  virtual bool
+  SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode);
+
+  virtual bool
+  SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey);
+
+  virtual bool 
+  SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm);
+
+  virtual bool 
+  SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow);
+
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,
                                   const char* aInterface,
@@ -56,6 +81,12 @@ private:
   nsresult SendSetPropertyMessage(const nsString& aPath, const char* aInterface,
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable);
+  bool RegisterLocalAgent(const char* adapterPath,
+                          const char* agentPath,
+                          const char* capabilities);
+
+  static PLDHashOperator 
+  UnrefDBusMessages(const nsAString& key, DBusMessage* value, void* arg);
 };
 
 END_BLUETOOTH_NAMESPACE
