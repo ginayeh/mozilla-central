@@ -921,15 +921,15 @@ static const DBusObjectPathVTable agentVtable = {
 // calling CreatePairedDevice, we'll get signal which should be passed to
 // device agent.
 bool 
-BluetoothDBusService::RegisterLocalAgent(const char* adapterPath,
-                                         const char* agentPath, 
-                                         const char* capabilities)
+RegisterLocalAgent(const char* adapterPath,
+                   const char* agentPath, 
+                   const char* capabilities)
 {
   MOZ_ASSERT(!NS_IsMainThread());
   DBusMessage *msg, *reply;
   DBusError err;
 
-  if (!dbus_connection_register_object_path(mConnection, agentPath, &agentVtable, NULL)) {
+  if (!dbus_connection_register_object_path(gThreadConnection->GetConnection(), agentPath, &agentVtable, NULL)) {
     LOG("%s: Can't register object path %s for agent!",
         __FUNCTION__, agentPath);
     return false;
@@ -951,7 +951,7 @@ BluetoothDBusService::RegisterLocalAgent(const char* adapterPath,
   }
 
   dbus_error_init(&err);
-  reply = dbus_connection_send_with_reply_and_block(mConnection, msg, -1, &err);
+  reply = dbus_connection_send_with_reply_and_block(gThreadConnection->GetConnection(), msg, -1, &err);
   dbus_message_unref(msg);
 
   if (!reply) {
@@ -971,16 +971,16 @@ BluetoothDBusService::RegisterLocalAgent(const char* adapterPath,
     dbus_message_unref(reply);
   }
   
-  dbus_connection_flush(mConnection);
+  dbus_connection_flush(gThreadConnection->GetConnection());
   return true;
 }
 
 bool
-BluetoothDBusService::RegisterAgent(const nsAString& aAdapterPath)
+RegisterAgent(const char* aAdapterPath)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  if (!RegisterLocalAgent(NS_ConvertUTF16toUTF8(aAdapterPath).get(), 
+  if (!RegisterLocalAgent(aAdapterPath,
                           LOCAL_AGENT_PATH, 
                           B2G_AGENT_CAPABILITIES)) {
     return false;
@@ -989,7 +989,7 @@ BluetoothDBusService::RegisterAgent(const nsAString& aAdapterPath)
   // There is no "RegisterAgent" function defined in device interface.
   // When we call "CreatePairedDevice", it will do device agent registration for us.
   // (See maemo.org/api_refs/5.0/beta/bluez/adapter.html)
-  if (!dbus_connection_register_object_path(mConnection,
+  if (!dbus_connection_register_object_path(gThreadConnection->GetConnection(),
                                             REMOTE_AGENT_PATH,
                                             &agentVtable,
                                             NULL)) {
@@ -1049,7 +1049,7 @@ public:
                                  "GetProperties",
                                  DBUS_TYPE_INVALID);
     UnpackAdapterPropertiesMessage(msg, &err, v, replyError);
-   
+    RegisterAgent(object_path);
     if(!replyError.IsEmpty()) {
       DispatchBluetoothReply(mRunnable, v, replyError);
       return NS_ERROR_FAILURE;

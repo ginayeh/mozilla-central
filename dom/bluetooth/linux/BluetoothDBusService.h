@@ -56,8 +56,6 @@ public:
                        const nsAString& aDeviceObjectPath,
                        BluetoothReplyRunnable* aRunnable);
 
-  virtual bool RegisterAgent(const nsAString& aAdapterPath);
-
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode);
 

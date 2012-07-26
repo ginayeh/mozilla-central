@@ -198,7 +198,6 @@ public:
                        const nsAString& aObjectPath,
                        BluetoothReplyRunnable* aRunnable) = 0;
 
-  virtual bool RegisterAgent(const nsAString& aAdapterPath) = 0;
   virtual bool SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode) = 0;
   virtual bool SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey) = 0;
   virtual bool SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm) = 0;
