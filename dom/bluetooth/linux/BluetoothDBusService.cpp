@@ -1340,7 +1340,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress, const 
   } else {
     result = dbus_connection_send(mConnection, reply, NULL);
   }
-
+  sPairingReqTable.Remove(aDeviceAddress);
   dbus_message_unref(msg);
   dbus_message_unref(reply);
 
@@ -1437,6 +1437,7 @@ BluetoothDBusService::SetAuthorizationInternal(const nsAString& aDeviceAddress, 
   }
 
   bool result = dbus_connection_send(mConnection, reply, NULL);
+  sAuthorizeReqTable.Remove(aDeviceAddress);
   dbus_message_unref(msg);
   dbus_message_unref(reply);
 
