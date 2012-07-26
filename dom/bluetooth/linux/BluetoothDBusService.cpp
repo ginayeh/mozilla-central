@@ -259,8 +259,6 @@ UnpackObjectPathMessage(DBusMessage* aMsg, DBusError* aErr,
     } else {
       aValue = NS_ConvertUTF8toUTF16(object_path);
     }
-  } else {
-    aErrorStr.AssignLiteral("Cannot parse dbus return message!");
   }
 }
 
@@ -302,8 +300,6 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       aErrorStr = NS_ConvertUTF8toUTF16(err.message);
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
-  } else {
-    aErrorStr.AssignLiteral("Cannot parse dbus return message!");
   }
 }
 
@@ -448,8 +444,6 @@ UnpackPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
       ParseProperties(&iter, aValue, aErrorStr, aPropertyTypes,
                       aPropertyTypeLen);
     }
-  } else {
-    aErrorStr.AssignLiteral("Cannot parse dbus return message!");
   }
 }
 
