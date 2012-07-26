@@ -606,6 +606,15 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       errorStr.AssignLiteral("Cannot parse device path!");
     }
     v = NS_ConvertUTF8toUTF16(str);
+  } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceRemoved")) {
+    const char* str;
+    if (!dbus_message_get_args(aMsg, &err,
+                               DBUS_TYPE_OBJECT_PATH, &str,
+                               DBUS_TYPE_INVALID)) {
+      LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
+      errorStr.AssignLiteral("Cannot parse device path!");
+    }
+    v = NS_ConvertUTF8toUTF16(str);
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
