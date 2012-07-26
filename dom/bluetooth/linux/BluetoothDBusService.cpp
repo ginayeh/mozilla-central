@@ -1262,7 +1262,7 @@ BluetoothDBusService::CreatePairedDeviceInternal(const nsAString& aAdapterPath,
   // unregister it after pairing process is over
   bool ret = dbus_func_args_async(mConnection,
                                   aTimeout,
-                                  GetVoidCallback,
+                                  GetObjectPathCallback,
                                   (void*)runnable,
                                   adapterPath,
                                   DBUS_ADAPTER_IFACE,
