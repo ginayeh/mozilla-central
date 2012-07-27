@@ -169,7 +169,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     if (sc) {
       rv =
         nsStringArrayToJSArray(sc->GetNativeContext(),
-                               sc->GetNativeGlobal(), mUuids, &mJsDeviceAddresses);
+                               sc->GetNativeGlobal(), mDeviceAddresses, &mJsDeviceAddresses);
       if (NS_FAILED(rv)) {
         NS_WARNING("Cannot set JS Devices Addresses object!");
         return;
@@ -471,6 +471,30 @@ BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
   BluetoothValue value(aDiscoverableTimeout);
   BluetoothNamedValue property(NS_LITERAL_STRING("DiscoverableTimeout"), value);
   return SetProperty(GetOwner(), property, aRequest);
+}
+
+NS_IMETHODIMP
+BluetoothAdapter::GetPairedDevices(nsAString & retString) {//(jsval* aDevices) {
+//	BluetoothService* bs = BluetoothService::Get();
+
+	for (int i = 0; i < mDeviceAddresses.Length(); i++) {
+	  nsString address(mDeviceAddresses[i]);
+	  address.Cut(0, address.Length() - 17);
+	  address.ReplaceChar('_', ':');
+		retString = address;
+	}
+
+//	nsString address = bs->GetAddressFromObjectPath(mDeviceAddresses[0]);
+
+  if (mJsDeviceAddresses) {
+//	  aDevices->setObject(*mJsDeviceAddresses);
+  }
+  else {
+    NS_WARNING("Addresses not yet set!\n");
+    return NS_ERROR_FAILURE;
+  }
+
+	return NS_OK;
 }
 
 nsresult
