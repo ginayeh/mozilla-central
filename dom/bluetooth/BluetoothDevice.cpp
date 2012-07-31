@@ -16,6 +16,15 @@
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 DOMCI_DATA(BluetoothDevice, BluetoothDevice)
@@ -56,9 +65,12 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
   mIsRooted(false)
 {
   BindToOwner(aOwner);
+//	LOG("BluetoothDevice aValue.type(): %s", aValue.type());
   if(aValue.type() == BluetoothValue::TnsString) {
-    mPath = aValue.get_nsString();
+		LOG("BluetoothDevice aValue: %s", NS_ConvertUTF16toUTF8(aValue.get_nsString()).get());
+    mAddress = aValue.get_nsString();
   } else {
+		LOG("BluetoothDevice aValue is not a string.");
     const InfallibleTArray<BluetoothNamedValue>& values =
       aValue.get_ArrayOfBluetoothNamedValue();
     for (uint32_t i = 0; i < values.Length(); ++i) {
@@ -162,6 +174,7 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
                                                          aValue);
   nsString path;
   path = device->GetPath();
+
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(path, device))) {
     NS_WARNING("Failed to register object with observer!");
     return nsnull;
