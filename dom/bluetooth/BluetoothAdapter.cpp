@@ -25,6 +25,15 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -76,6 +85,53 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
+
+template <class T>
+inline nsresult
+nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                  const nsTArray<nsRefPtr<T> >& aSourceArray,
+                  JSObject** aResultArray)
+{
+  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(aGlobal, "Null global!");
+
+  JSAutoRequest ar(aCx);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, aGlobal)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
+
+  JSObject* arrayObj;
+
+  if (aSourceArray.IsEmpty()) {
+    arrayObj = JS_NewArrayObject(aCx, 0, nsnull);
+  } else {
+    nsTArray<jsval> valArray;
+    valArray.SetLength(aSourceArray.Length());
+
+    for (PRUint32 index = 0; index < valArray.Length(); index++) {
+      nsISupports* obj = aSourceArray[index]->ToISupports();
+      nsresult rv =
+        nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
+  }
+
+  if (!arrayObj) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  // XXX This is not what Jonas wants. He wants it to be live.
+  if (!JS_FreezeObject(aCx, arrayObj)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  *aResultArray = arrayObj;
+  return NS_OK;
+}
+
+
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
@@ -225,6 +281,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   if (aData.name().EqualsLiteral("DeviceFound")) {
     nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
+/*    nsString lotsOfProperties;
+    nsString address;
+    nsRefPtr<BluetoothBasicEvent> e = BluetoothBasicEvent::Create(address, lotsOfProperties); */
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicefound"));
   } else if (aData.name().EqualsLiteral("DeviceCreated")) {
     nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
@@ -233,6 +292,8 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   } else if (aData.name().EqualsLiteral("DeviceRemoved")) {
     nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
+/*    nsString address;
+    nsRefPtr<BluetoothBasicEvent> e = BluetoothBasicEvent::Create(address, nsnull);*/
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("deviceremoved"));
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
@@ -474,26 +535,50 @@ BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::GetPairedDevices(nsAString & retString) {//(jsval* aDevices) {
-//	BluetoothService* bs = BluetoothService::Get();
+BluetoothAdapter::GetPairedDevices(jsval* aDevices) {
+	nsTArray<nsRefPtr<BluetoothDevice> > devices;
+	JSObject* JsDevices;
 
 	for (int i = 0; i < mDeviceAddresses.Length(); i++) {
-	  nsString address(mDeviceAddresses[i]);
-	  address.Cut(0, address.Length() - 17);
-	  address.ReplaceChar('_', ':');
-		retString = address;
+		nsString address(mDeviceAddresses[i]);
+		address.Cut(0, address.Length() - 17);
+		address.ReplaceChar('_', ':');
+		BluetoothValue value;
+		value = address;	
+		nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, value);
+		devices.AppendElement(d);
+		nsString temp;
+		d->GetAddress(temp);
+		//LOG("device address: %s", NS_ConvertUTF16toUTF8(temp).get());
+
+//		nsRefPtr<BluetoothDevice> getDevice = BluetoothDevice::GetProperties(address);
+
+		  BluetoothService* bs = BluetoothService::Get();
+		  if(!bs) {
+				NS_WARNING("Bluetooth service not available!");
+		    return NS_ERROR_FAILURE;
+			}
+//			nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, NULL);
+			bs->GetProperties(BluetoothObjectType::TYPE_DEVICE, mDeviceAddresses[i], results);
 	}
 
-//	nsString address = bs->GetAddressFromObjectPath(mDeviceAddresses[0]);
+	nsresult rv;
+	nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+	if (sc) {
+		rv =
+			nsTArrayToJSArray(sc->GetNativeContext(), 
+												sc->GetNativeGlobal(), devices, &JsDevices);
 
-  if (mJsDeviceAddresses) {
-//	  aDevices->setObject(*mJsDeviceAddresses);
-  }
-  else {
-    NS_WARNING("Addresses not yet set!\n");
-    return NS_ERROR_FAILURE;
-  }
+		if (NS_FAILED(rv)) {
+			NS_WARNING("Cannot set JS Devices Addresses object!");
+			return NS_ERROR_FAILURE;
+		}
+	}
+	else {
+		NS_WARNING("Cannot get sc!");
+	}
 
+	aDevices->setObject(*JsDevices);
 	return NS_OK;
 }
 
