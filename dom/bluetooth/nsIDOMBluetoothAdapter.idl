@@ -40,8 +40,8 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   void setPasskey(in DOMString aDeviceAddress, in unsigned long aPasskey);
   void setPairingConfirmation(in DOMString aDeviceAddress, in bool aConfirmation);
   void setAuthorization(in DOMString aDeviceAddress, in bool aAllow);
-  //jsval getPairedDevices();
-  DOMString getPairedDevices();
+  jsval getPairedDevices();
+//  DOMString getPairedDevices();
 
   // Fired when discoverying and any device is discovered.
   attribute nsIDOMEventListener ondevicefound;
