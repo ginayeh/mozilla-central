@@ -471,6 +471,7 @@
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
+@BINPATH@/components/AppsUpdater.js
 
 @BINPATH@/components/SystemMessageInternal.js
 @BINPATH@/components/SystemMessageManager.js

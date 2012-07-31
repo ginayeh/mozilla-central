@@ -12,6 +12,7 @@ include $(DEPTH)/config/autoconf.mk
 EXTRA_COMPONENTS = \
   AppsService.js \
   AppsService.manifest \
+	AppsUpdater.js \
   Webapps.js \
   Webapps.manifest \
   $(NULL)

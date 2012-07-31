@@ -219,6 +219,8 @@ let DOMApplicationRegistry = {
       receipts: aApp.receipts,
       installTime: aApp.installTime,
       manifestURL: aApp.manifestURL,
+			packageURL: aApp.packageURL,
+			etag: aApp.etag,
       progress: aApp.progress || 0.0,
       status: aApp.status || "installed"
     };
@@ -293,8 +295,10 @@ let DOMApplicationRegistry = {
 
     if (!aFromSync)
       this._saveApps((function() {
-        ppmm.sendAsyncMessage("Webapps:Install:Return:OK", aData);
-        Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+				if (!app.isUpdate) {					
+	        ppmm.sendAsyncMessage("Webapps:Install:Return:OK", aData);
+		      Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+				}
       }).bind(this));
 
 #ifdef MOZ_SYS_MSG
@@ -375,7 +379,9 @@ let DOMApplicationRegistry = {
     }).bind(this));
   },
 
-  installPackage: function(aData) {
+	// Installs a packaged app.
+	// If aIsUpdate is true, we treat it as a silent update.
+  installPackage: function(aData, aIsUpdate) {
     // Here are the steps when installing a package:
     // - create a temp directory where to store the app.
     // - download the zip in this directory.
@@ -420,13 +426,27 @@ let DOMApplicationRegistry = {
       try {
         dir.remove(true);
       } catch (e) { }
-      ppmm.sendAsyncMessage("Webapps:Install:Return:KO",
+			if (aError) {
+	      ppmm.sendAsyncMessage("Webapps:Install:Return:KO",
                             { oid: aData.oid,
                               requestID: aData.requestID,
                               error: aError });
+			}
     }
 
-    NetUtil.asyncFetch(aData.url, function(aInput, aResult, aRequest) {
+		// Create a channel so we can set the If-Modified-Since header when updating.
+		let requestChannel = NetUtil.newChannel(aData.url).QueryInterface(Ci.nsIHttpChannel);
+		if (aIsUpdate && requestChannel) {
+			requestChannel.setRequestHeader("If-None-Match", aData.etag, false);
+		}
+
+    NetUtil.asyncFetch(requestChannel, function(aInput, aResult, aRequest) {
+			let responseChannel = aRequest.QueryInterface(Ci.nsIHttpChannel);
+			if (responseChannel.responseStatus == 304) {
+				cleanup(null);
+				return;
+			}
+
       if (!Components.isSuccessCode(aResult)) {
         // We failed to fetch the zip.
         cleanup("NETWORK_ERROR");
@@ -455,6 +475,9 @@ let DOMApplicationRegistry = {
             installOrigin: aData.installOrigin,
             origin: "app://" + id,
             manifestURL: manifestURL,
+						packageURL: aData.url,
+						etag: responseChannel.getResponseHeader("Etag"),
+						isUpdate: aIsUpdate,
             receipts: aData.receipts
           }
         }
@@ -473,8 +496,13 @@ let DOMApplicationRegistry = {
             throw "Invalid manifest";
           }
 
-          Services.obs.notifyObservers(this, "webapps-ask-install",
-                                             JSON.stringify(msg));
+					if (aIsUpdate) {
+						// TODO: fire a notification to stop the app if it's already running.
+						DOMApplicationRegistry.confirmInstall(msg, false, null, null);
+					} else {						
+	          Services.obs.notifyObservers(this, "webapps-ask-install",
+                                         JSON.stringify(msg));
+					}
         } catch (e) {
           // XXX we may need new error messages.
           cleanup("INVALID_MANIFEST");
