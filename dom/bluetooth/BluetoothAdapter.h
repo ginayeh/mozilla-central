@@ -21,6 +21,7 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothNamedValue;
 class BluetoothValue;
+class BluetoothDevice;
 
 class BluetoothAdapter : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothAdapter
@@ -78,9 +79,11 @@ private:
   PRUint32 mDiscoverableTimeout;
   PRUint32 mClass;
   nsTArray<nsString> mDeviceAddresses;
+  nsTArray<nsRefPtr<BluetoothDevice> > mDevices;
   nsTArray<nsString> mUuids;
-  JSObject* mJsUuids;
   JSObject* mJsDeviceAddresses;
+  JSObject* mJsDevices;
+  JSObject* mJsUuids;
   bool mIsRooted;
   
   NS_DECL_EVENT_HANDLER(propertychanged)
