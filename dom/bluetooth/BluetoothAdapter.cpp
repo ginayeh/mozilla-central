@@ -77,6 +77,54 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 
+template <class T>
+inline nsresult
+nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                  const nsTArray<nsRefPtr<T> >& aSourceArray,
+                  JSObject** aResultArray)
+{
+  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(aGlobal, "Null global!");
+
+  JSAutoRequest ar(aCx);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, aGlobal)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
+
+  JSObject* arrayObj;
+
+  if (aSourceArray.IsEmpty()) {
+    arrayObj = JS_NewArrayObject(aCx, 0, nsnull);
+  } else {
+    nsTArray<jsval> valArray;
+    valArray.SetLength(aSourceArray.Length());
+
+    for (PRUint32 index = 0; index < valArray.Length(); index++) {
+      nsISupports* obj = aSourceArray[index]->ToISupports();
+      nsresult rv =
+        nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
+  }
+
+  if (!arrayObj) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  // XXX This is not what Jonas wants. He wants it to be live.
+  if (!JS_FreezeObject(aCx, arrayObj)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  *aResultArray = arrayObj;
+  return NS_OK;
+}
+
+
+
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
     , mJsUuids(nsnull)
@@ -556,7 +604,17 @@ BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  // Need to new an array of BluetoothDevices here and call GetProperties() of each BluetoothDevice
+  for (int i = 0; i < mDeviceAddresses.Length(); i++) {
+    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
+//    d->GetProperties();
+    mDevices.AppendElement(d);
+  }
+
+  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  if (sc) {
+    rv = nsTArrayToJSArray(sc->GetNativeContext(),
+                           sc->GetNativeGlobal(), mDevices, &mJsDevices);
+  }
 
   req.forget(aRequest);
 
