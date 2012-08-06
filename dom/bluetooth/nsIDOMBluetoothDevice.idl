@@ -6,6 +6,8 @@
 
 #include "nsIDOMEventTarget.idl"
 
+interface nsIDOMDOMRequest;
+
 [scriptable, builtinclass, uuid(2c446123-b5dd-4631-80f6-eda91befd8c9)]
 interface nsIDOMBluetoothDevice : nsIDOMEventTarget
 {
@@ -16,4 +18,5 @@ interface nsIDOMBluetoothDevice : nsIDOMEventTarget
   readonly attribute bool connected;
   readonly attribute bool paired;
   attribute nsIDOMEventListener onpropertychanged;
+  void getProperties();
 };
