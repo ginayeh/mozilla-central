@@ -12,6 +12,7 @@
 
 USING_BLUETOOTH_NAMESPACE
 
+/*
 nsresult
 BluetoothPropertyContainer::GetProperties()
 {
@@ -23,6 +24,7 @@ BluetoothPropertyContainer::GetProperties()
   nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, NULL);
   return bs->GetProperties(mObjectType, mPath, results);
 }
+*/
 
 nsresult
 BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
@@ -57,7 +59,7 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
   return NS_OK;
 }
 
-
+/*
 bool
 BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValue)
 {
@@ -74,3 +76,4 @@ BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValu
   }
   return true;
 }
+*/
