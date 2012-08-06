@@ -47,6 +47,83 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothDevice, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothDevice, nsDOMEventTargetHelper)
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+class GetPropertiesTask : public BluetoothReplyRunnable
+{
+public:
+
+  GetPropertiesTask(BluetoothPropertyContainer* aPropObj, nsIDOMDOMRequest* aReq) :
+      BluetoothReplyRunnable(aReq),
+      mPropObjPtr(aPropObj)
+  {
+    LOG("new GetPropertiesTask");
+    MOZ_ASSERT(aReq && aPropObj);
+  }
+
+  bool
+  ParseSuccessfulReply(jsval* aValue)
+  {
+//    nsCOMPtr<nsIDOMBluetoothAdapter> adapter;
+    *aValue = JSVAL_VOID;
+
+/*    const InfallibleTArray<BluetoothNamedValue>& v =
+      mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
+    adapter = BluetoothAdapter::Create(mManagerPtr->GetOwner(), v); */
+
+    BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
+    if(v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+      NS_WARNING("Not a BluetoothNamedValue array!");
+      LOG("Not a BluetoothNamedValue array!");
+      return false;
+    }
+    const InfallibleTArray<BluetoothNamedValue>& values =
+      mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
+    for (uint32_t i = 0; i < values.Length(); ++i) {
+      mPropObjPtr->SetPropertyByValue(values[i]);
+    }
+    return true;
+/*
+    nsresult rv;
+    nsIScriptContext* sc = mManagerPtr->GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      SetError(NS_LITERAL_STRING("BluetoothScriptContextError"));
+      return false;
+    }
+
+    rv = nsContentUtils::WrapNative(sc->GetNativeContext(),
+                                    sc->GetNativeGlobal(),
+                                    adapter,
+                                    aValue);
+    bool result = NS_SUCCEEDED(rv) ? true : false;
+    if (!result) {
+      NS_WARNING("Cannot create native object!");
+      SetError(NS_LITERAL_STRING("BluetoothNativeObjectError"));
+    }
+
+    return result;*/
+  }
+
+  void
+  ReleaseMembers()
+  {
+    BluetoothReplyRunnable::ReleaseMembers();
+    mPropObjPtr = nsnull;
+  }
+
+private:
+  BluetoothPropertyContainer* mPropObjPtr;
+};
+
+
 BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
                                  const nsAString& aAdapterPath,
                                  const BluetoothValue& aValue) :
@@ -187,6 +264,40 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
     NS_WARNING(warningMsg.get());
 #endif
   }
+}
+
+NS_IMETHODIMP
+BluetoothDevice::GetProperties()
+{
+  BluetoothService* bs = BluetoothService::Get();
+  if(!bs) {
+    NS_WARNING("Bluetooth service not available!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIDOMDOMRequest> request;
+  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Can't create DOMRequest!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, request);
+
+//  if (NS_FAILED(bs->GetDefaultAdapterPathInternal(results))) {
+  if (NS_FAILED(bs->GetDevicePropertiesInternal(results))) {
+//    return NS_ERROR_FAILURE;
+  }
+
+
+  return NS_OK;
+//  return bs->GetProperties(mObjectType, mPath, results);
 }
 
 NS_IMETHODIMP
