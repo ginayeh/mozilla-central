@@ -107,6 +107,14 @@ public:
    */
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
+  /**
+   * Returns the properties of the bluetooth device, implemented via a platform
+   * specific method.
+   * 
+   * @return properties on success, NULL otherwise
+   */
+  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable) = 0;
+
   /** 
    * Stop device discovery (platform specific implementation)
    *
