@@ -8,6 +8,16 @@
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+
 USING_BLUETOOTH_NAMESPACE
 
 nsresult
@@ -44,6 +54,7 @@ BluetoothReplyRunnable::FireErrorString()
 NS_IMETHODIMP
 BluetoothReplyRunnable::Run()
 {
+  LOG("BluetoothReplyRunnable::Run()");
   MOZ_ASSERT(NS_IsMainThread());
 
   nsresult rv;

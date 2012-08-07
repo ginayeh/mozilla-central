@@ -17,6 +17,7 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothReplyRunnable;
 class BluetoothNamedValue;
+class BluetoothValue;
 
 class BluetoothService : public nsIObserver
 {
@@ -113,7 +114,9 @@ public:
    * 
    * @return properties on success, NULL otherwise
    */
-  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable) = 0;
+  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
+																							 const nsAString& aPath, 
+																							 BluetoothValue& aValue) = 0;
 
   /** 
    * Stop device discovery (platform specific implementation)
@@ -160,10 +163,10 @@ public:
    *
    * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
    */
-  virtual nsresult
+/*  virtual nsresult
   GetProperties(BluetoothObjectType aType,
                 const nsAString& aPath,
-                BluetoothReplyRunnable* aRunnable) = 0;
+                BluetoothReplyRunnable* aRunnable) = 0; */
 
   /** 
    * Set a property for the specified object

@@ -132,7 +132,51 @@ nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   return NS_OK;
 }
 
+class GetPropertiesTask : public BluetoothReplyRunnable
+{
+public:
+  GetPropertiesTask(BluetoothPropertyContainer* aPropObj, 
+										nsIDOMDOMRequest* aReq) :
+    mPropObjPtr(aPropObj),
+    BluetoothReplyRunnable(aReq)
+  {
+    LOG("new GetPropertiesTask");
+    MOZ_ASSERT(aReq && aPropObj);
+  }
 
+  bool
+  ParseSuccessfulReply(jsval* aValue)
+  {
+    LOG("GetPropertiesTask::ParseSuccessfulReply()");
+		nsCOMPtr<nsIDOMBluetoothDevice> device;
+    *aValue = JSVAL_VOID;
+
+    BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
+    if(v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+      NS_WARNING("Not a BluetoothNamedValue array!");
+      LOG("Not a BluetoothNamedValue array!");
+      return false;
+    }
+
+    const InfallibleTArray<BluetoothNamedValue>& values =
+      v.get_ArrayOfBluetoothNamedValue();
+    LOG("getReply, length: %d", values.Length());
+    for (uint32_t i = 0; i < values.Length(); ++i) {
+      mPropObjPtr->SetPropertyByValue(values[i]);
+    }
+		return true;
+  }
+
+  void
+  ReleaseMembers()
+  {
+    BluetoothReplyRunnable::ReleaseMembers();
+    mPropObjPtr = nsnull;
+  }
+
+private:
+  BluetoothPropertyContainer* mPropObjPtr;
+};
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
@@ -606,28 +650,42 @@ BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIDOMDOMRequest> request;
-  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Can't create DOMRequest!");
+	LOG("---------------------------------------------------------");
+	LOG("### mDeviceAddresses.Length(): %d ###", mDeviceAddresses.Length());
+  for (int i = 0; i < mDeviceAddresses.Length(); i++) {
+	  nsCOMPtr<nsIDOMDOMRequest> request;
+		nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
+	  if (NS_FAILED(rv)) {
+		  NS_WARNING("Can't create DOMRequest!");
+			return NS_ERROR_FAILURE;
+	  }
+
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
+    mDevices.AppendElement(device);
+    LOG("found device address %s\n", NS_ConvertUTF16toUTF8(mDeviceAddresses[i]).get());
+//    device->GetProperties(mDeviceAddresses[i], request);
+
+		nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(device, request);
+
+		BluetoothValue value = mDeviceAddresses[i];
+		if (NS_FAILED(bs->GetDevicePropertiesInternal(results, mPath, value))) {
+	    return NS_ERROR_FAILURE;
+	  }
+		request.forget(aRequest);
+	}
+
+	nsresult rv;
+	nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  if (!sc) {
+    NS_WARNING("Cannot create script context!");
     return NS_ERROR_FAILURE;
   }
 
-  LOG("---------------------------------------------------------");
-  for (int i = 0; i < mDeviceAddresses.Length(); i++) {
-    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
-    LOG("found device address %s\n", NS_ConvertUTF16toUTF8(mDeviceAddresses[i]).get()); 
-    d->GetProperties();
-    mDevices.AppendElement(d);
-  }
+  LOG("nsTArrayToJSArray");
+  rv = nsTArrayToJSArray(sc->GetNativeContext(),
+                         sc->GetNativeGlobal(), mDevices, &mJsDevices);
 
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  if (sc) {
-    rv = nsTArrayToJSArray(sc->GetNativeContext(),
-                           sc->GetNativeGlobal(), mDevices, &mJsDevices);
-  }
 
-  request.forget(aRequest);
   return NS_OK;
 }
 

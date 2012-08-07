@@ -24,6 +24,16 @@
 
 #define DOM_BLUETOOTH_URL_PREF "dom.mozBluetooth.whitelist"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+
 using namespace mozilla;
 using mozilla::Preferences;
 
@@ -64,6 +74,7 @@ public:
   bool
   ParseSuccessfulReply(jsval* aValue)
   {
+		LOG("GetAdapterTask::ParseSuccessfulReply()");
     nsCOMPtr<nsIDOMBluetoothAdapter> adapter;
     *aValue = JSVAL_VOID;
 

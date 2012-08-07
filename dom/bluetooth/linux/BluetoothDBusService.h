@@ -27,15 +27,15 @@ public:
   virtual nsresult StartInternal();
   virtual nsresult StopInternal();
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable);
-  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable);
+  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, const nsAString & aPath, BluetoothValue& aValue);
   virtual nsresult StartDiscoveryInternal(const nsAString& aAdapterPath,
                                           BluetoothReplyRunnable* aRunnable);
   virtual nsresult StopDiscoveryInternal(const nsAString& aAdapterPath,
                                          BluetoothReplyRunnable* aRunnable);
-  virtual nsresult
+  /*virtual nsresult
   GetProperties(BluetoothObjectType aType,
                 const nsAString& aPath,
-                BluetoothReplyRunnable* aRunnable);
+                BluetoothReplyRunnable* aRunnable); */
   virtual nsresult
   SetProperty(BluetoothObjectType aType,
               const nsAString& aPath,
