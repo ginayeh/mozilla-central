@@ -10,6 +10,7 @@
 #include "BluetoothCommon.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "BluetoothService.h"
+#include "BluetoothDevice.h"
 
 class DBusMessage;
 
@@ -27,7 +28,7 @@ public:
   virtual nsresult StartInternal();
   virtual nsresult StopInternal();
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable);
-  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, const nsAString & aPath, BluetoothValue& aValue);
+  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, const nsAString & aPath, BluetoothDevice* aDevice);
   virtual nsresult StartDiscoveryInternal(const nsAString& aAdapterPath,
                                           BluetoothReplyRunnable* aRunnable);
   virtual nsresult StopDiscoveryInternal(const nsAString& aAdapterPath,

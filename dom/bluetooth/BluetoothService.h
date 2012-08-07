@@ -18,6 +18,7 @@ class BluetoothSignal;
 class BluetoothReplyRunnable;
 class BluetoothNamedValue;
 class BluetoothValue;
+class BluetoothDevice;
 
 class BluetoothService : public nsIObserver
 {
@@ -115,8 +116,8 @@ public:
    * @return properties on success, NULL otherwise
    */
   virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
-																							 const nsAString& aPath, 
-																							 BluetoothValue& aValue) = 0;
+																							 const nsAString& aPath,
+																							 BluetoothDevice* aDevice) = 0; 
 
   /** 
    * Stop device discovery (platform specific implementation)

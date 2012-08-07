@@ -1158,10 +1158,10 @@ BluetoothDBusService::StartDiscoveryInternal(const nsAString& aAdapterPath,
 class BluetoothDevicePropertiesRunnable : public nsRunnable
 {
 public:
-  BluetoothDevicePropertiesRunnable(BluetoothReplyRunnable* aRunnable, const nsAString & aPath, BluetoothValue& aValue)
+  BluetoothDevicePropertiesRunnable(BluetoothReplyRunnable* aRunnable, const nsAString & aPath, BluetoothDevice* aDevice)
     : mRunnable(dont_AddRef(aRunnable)),
       mPath(aPath),
-      mValue(aValue)
+			mDevice(mDevice)
   {
     LOG("Create BluetoothDevicePropertiesRunnable");
   }
@@ -1203,25 +1203,23 @@ public:
                                                                          NS_ConvertUTF8toUTF16(objectPath)));
 		LOG("UnpackDevicePropertiesMessage, %d", v.get_ArrayOfBluetoothNamedValue().Length());
 
-		LOG("DispatchBluetoothReply()");
-		DispatchBluetoothReply(mRunnable, v, replyError);
-//		mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(v)));
-//		if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {	// Run() 
-//			NS_WARNING("Failed to dispatch to main thread!");
-//		}
+//		mDevice->
+//		LOG("DispatchBluetoothReply()");
+//		DispatchBluetoothReply(mRunnable, v, replyError);
+
     return NS_OK;
   }
 
 private:
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   nsString mPath;
-  BluetoothValue& mValue;
+	nsRefPtr<BluetoothDevice> mDevice;
 };
 
 nsresult
 BluetoothDBusService::GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
-                                                  const nsAString & aPath, 
-                                                  BluetoothValue& aValue)
+                                                  const nsAString & aPath,
+																									BluetoothDevice* aDevice)
 {
   LOG("GetDevicePropertiesInternal");
 
@@ -1232,7 +1230,7 @@ BluetoothDBusService::GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunna
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
-  nsRefPtr<nsRunnable> func(new BluetoothDevicePropertiesRunnable(runnable, aPath, aValue));
+  nsRefPtr<nsRunnable> func(new BluetoothDevicePropertiesRunnable(runnable, aPath, aDevice));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch firmware loading task!");
     return NS_ERROR_FAILURE;

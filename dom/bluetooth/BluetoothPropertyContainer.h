@@ -30,6 +30,8 @@ public:
     return mPath;
   }
 
+//	virtual bool GetPaired() = 0;
+
   // Compatibility with nsRefPtr to make sure we don't hold a weakptr to
   // ourselves
   virtual nsrefcnt AddRef() = 0;

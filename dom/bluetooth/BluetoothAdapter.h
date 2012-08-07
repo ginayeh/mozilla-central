@@ -56,7 +56,10 @@ public:
   }
 
   void Unroot();
-  virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);  
+  virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);
+
+	void SetPairedDevices(BluetoothDevice* aDevicePtr);
+
 private:
   
   BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
@@ -79,10 +82,10 @@ private:
   PRUint32 mDiscoverableTimeout;
   PRUint32 mClass;
   nsTArray<nsString> mDeviceAddresses;
-  nsTArray<nsRefPtr<BluetoothDevice> > mDevices;
+  nsTArray<nsRefPtr<BluetoothDevice> > mPairedDevices;
   nsTArray<nsString> mUuids;
   JSObject* mJsDeviceAddresses;
-  JSObject* mJsDevices;
+  JSObject* mJsPairedDevices;
   JSObject* mJsUuids;
   bool mIsRooted;
   

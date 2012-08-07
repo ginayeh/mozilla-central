@@ -21,6 +21,9 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   readonly attribute jsval devices;
 
   [implicit_jscontext]
+	readonly attribute jsval paired;
+
+  [implicit_jscontext]
   readonly attribute jsval uuids;
   
   readonly attribute DOMString name;
