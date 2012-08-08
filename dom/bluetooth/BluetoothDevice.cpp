@@ -47,15 +47,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothDevice, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothDevice, nsDOMEventTargetHelper)
 
-#undef LOG
-#if defined(MOZ_WIDGET_GONK)
-#include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
-#else
-#define BTDEBUG true
-#define LOG(args...) if (BTDEBUG) printf(args);
-#endif
-
 BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
                                  const nsAString& aAdapterPath,
                                  const BluetoothValue& aValue) :
@@ -119,10 +110,8 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
   const BluetoothValue& value = aValue.value();
   if (name.EqualsLiteral("Name")) {
     mName = value.get_nsString();
-		LOG("mName: %s", NS_ConvertUTF16toUTF8(mName).get());
   } else if (name.EqualsLiteral("Address")) {
     mAddress = value.get_nsString();
-		LOG("mAddress: %s", NS_ConvertUTF16toUTF8(mAddress).get());
     BluetoothService* bs = BluetoothService::Get();
     if(!bs) {
       NS_WARNING("BluetoothService not available!");
@@ -132,13 +121,10 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     bs->GetDevicePath(mAdapterPath, mAddress, mPath);
   } else if (name.EqualsLiteral("Class")) {
     mClass = value.get_uint32_t();
-		LOG("mClass: %d", mClass);
   } else if (name.EqualsLiteral("Connected")) {
     mConnected = value.get_bool();
-		LOG("mConnected: %d", mConnected);
   } else if (name.EqualsLiteral("Paired")) {
     mPaired = value.get_bool();
-		LOG("mPaired: %d", mPaired);
   } else if (name.EqualsLiteral("UUIDs")) {
     mUuids = value.get_ArrayOfnsString();
     nsresult rv;
