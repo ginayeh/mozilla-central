@@ -100,7 +100,7 @@ BluetoothDevice::Unroot()
 bool
 BluetoothDevice::GetPaired()
 {
-	return mPaired;
+  return mPaired;
 }
   
 void

@@ -128,12 +128,12 @@ class GetPropertiesTask : public BluetoothReplyRunnable
 {
 public:
   GetPropertiesTask(BluetoothAdapter* aAdapterPtr,
-										nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray,
-										JSObject* aJsDevicePtr,
-										nsIDOMDOMRequest* aReq) :
-		mAdapterPtr(aAdapterPtr),
+                    nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray,
+                    JSObject* aJsDevicePtr,
+                    nsIDOMDOMRequest* aReq) :
+    mAdapterPtr(aAdapterPtr),
     mDeviceArray(aDeviceArray),
-		mJsDevicePtr(aJsDevicePtr),
+    mJsDevicePtr(aJsDevicePtr),
     BluetoothReplyRunnable(aReq)
   {
     MOZ_ASSERT(aReq && aAdapterPtr);
@@ -153,19 +153,19 @@ public:
     rv = nsTArrayToJSArray(sc->GetNativeContext(),
                            sc->GetNativeGlobal(), mDeviceArray, &mJsDevicePtr);
 
-		if (mJsDevicePtr) {
-			aValue->setObject(*mJsDevicePtr);
-	  }
-		else {
-			NS_WARNING("Paird not yet set!\n");
-			return NS_ERROR_FAILURE;
-		}
+    if (mJsDevicePtr) {
+      aValue->setObject(*mJsDevicePtr);
+    }
+    else {
+      NS_WARNING("Paird not yet set!\n");
+      return NS_ERROR_FAILURE;
+    }
 
 
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to set JS paired device objects!");
     }
-		return true;
+    return true;
   }
 
   void
@@ -175,9 +175,9 @@ public:
   }
 
 private:
-	nsRefPtr<BluetoothAdapter> mAdapterPtr;
-	nsTArray<nsRefPtr<BluetoothDevice> >& mDeviceArray;
-	JSObject* mJsDevicePtr;
+  nsRefPtr<BluetoothAdapter> mAdapterPtr;
+  nsTArray<nsRefPtr<BluetoothDevice> >& mDeviceArray;
+  JSObject* mJsDevicePtr;
 };
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
@@ -294,7 +294,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 void 
 BluetoothAdapter::SetPairedDevices(BluetoothDevice* aDevice)
 {
-	mPairedDevices.AppendElement(aDevice);
+  mPairedDevices.AppendElement(aDevice);
 }
 
 // static
@@ -535,14 +535,14 @@ BluetoothAdapter::GetDevices(JSContext* aCx, jsval* aDevices)
 NS_IMETHODIMP
 BluetoothAdapter::GetPaired(JSContext* aCx, jsval* aPaired)
 {
-	if (mJsPairedDevices) {
-		aPaired->setObject(*mJsPairedDevices);
-	}
-	else {
-		NS_WARNING("Paird not yet set!\n");
-		return NS_ERROR_FAILURE;
-	}
-	return NS_OK;
+  if (mJsPairedDevices) {
+    aPaired->setObject(*mJsPairedDevices);
+  }
+  else {
+    NS_WARNING("Paird not yet set!\n");
+    return NS_ERROR_FAILURE;
+  }
+  return NS_OK;
 }
 
 nsresult
@@ -671,24 +671,24 @@ BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-	nsCOMPtr<nsIDOMDOMRequest> request;
-	nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
-	if (NS_FAILED(rv)) {
-		NS_WARNING("Can't create DOMRequest!");
-		return NS_ERROR_FAILURE;
-	}
+  nsCOMPtr<nsIDOMDOMRequest> request;
+  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Can't create DOMRequest!");
+    return NS_ERROR_FAILURE;
+  }
 
-	nsRefPtr<BluetoothDevice> device;
+  nsRefPtr<BluetoothDevice> device;
   for (int i = 0; i < mDeviceAddresses.Length(); i++) {
     device = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
-		mPairedDevices.AppendElement(device);
-	}
-	nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, mPairedDevices, mJsPairedDevices, request);
+    mPairedDevices.AppendElement(device);
+  }
+  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, mPairedDevices, mJsPairedDevices, request);
 
-	if (NS_FAILED(bs->GetDevicePropertiesInternal(results, mPairedDevices))) {
-	  return NS_ERROR_FAILURE;
-	}
-	request.forget(aRequest);
+  if (NS_FAILED(bs->GetDevicePropertiesInternal(results, mPairedDevices))) {
+    return NS_ERROR_FAILURE;
+  }
+  request.forget(aRequest);
   return NS_OK;
 }
 

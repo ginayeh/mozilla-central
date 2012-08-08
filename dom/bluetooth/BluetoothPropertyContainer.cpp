@@ -12,20 +12,6 @@
 
 USING_BLUETOOTH_NAMESPACE
 
-/*
-nsresult
-BluetoothPropertyContainer::GetProperties()
-{
-  BluetoothService* bs = BluetoothService::Get();
-  if(!bs) {
-    NS_WARNING("Bluetooth service not available!");
-    return NS_ERROR_FAILURE;
-  }
-  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, NULL);
-  return bs->GetProperties(mObjectType, mPath, results);
-}
-*/
-
 nsresult
 BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
                                      const BluetoothNamedValue& aProperty,
@@ -58,22 +44,3 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
   req.forget(aRequest);
   return NS_OK;
 }
-
-/*
-bool
-BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValue)
-{
-  *aValue = JSVAL_VOID;
-  BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
-  if(v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-    NS_WARNING("Not a BluetoothNamedValue array!");
-    return false;
-  }
-  const InfallibleTArray<BluetoothNamedValue>& values =
-    mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
-  for (uint32_t i = 0; i < values.Length(); ++i) {
-    mPropObjPtr->SetPropertyByValue(values[i]);
-  }
-  return true;
-}
-*/
