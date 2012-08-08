@@ -532,19 +532,6 @@ BluetoothAdapter::GetDevices(JSContext* aCx, jsval* aDevices)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-BluetoothAdapter::GetPaired(JSContext* aCx, jsval* aPaired)
-{
-  if (mJsPairedDevices) {
-    aPaired->setObject(*mJsPairedDevices);
-  }
-  else {
-    NS_WARNING("Paird not yet set!\n");
-    return NS_ERROR_FAILURE;
-  }
-  return NS_OK;
-}
-
 nsresult
 BluetoothAdapter::GetUuids(JSContext* aCx, jsval* aValue)
 {
