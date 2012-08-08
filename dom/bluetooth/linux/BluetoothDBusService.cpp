@@ -405,7 +405,6 @@ ParseProperties(DBusMessageIter* aIter,
                 Properties* aPropertyTypes,
                 const int aPropertyTypeLen)
 {
-  LOG("ParseProperties");
   DBusMessageIter dict_entry, dict;
   int prop_index = -1;
 
@@ -436,15 +435,11 @@ UnpackPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
                         Properties* aPropertyTypes,
                         const int aPropertyTypeLen)
 {
-  LOG("UnpackPropertiesMessage(): %d %d", 
-    IsDBusMessageError(aMsg, aErr, aErrorStr),
-    dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN);
   if (!IsDBusMessageError(aMsg, aErr, aErrorStr) &&
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN) {
     DBusMessageIter iter;
     if (!dbus_message_iter_init(aMsg, &iter)) {
       aErrorStr.AssignLiteral("Cannot create dbus message iter!");
-      LOG("Cannot create dbus message iter!");
     } else {
       ParseProperties(&iter, aValue, aErrorStr, aPropertyTypes,
                       aPropertyTypeLen);
@@ -515,7 +510,6 @@ ParsePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                     nsAString& aErrorStr, Properties* aPropertyTypes,
                     const int aPropertyTypeLen)
 {
-  LOG("ParsePropertyChange");
   DBusMessageIter iter;
   DBusError err;
   int prop_index = -1;
@@ -1026,13 +1020,11 @@ public:
   DefaultAdapterPropertiesRunnable(BluetoothReplyRunnable* aRunnable)
     : mRunnable(dont_AddRef(aRunnable))
   {
-		LOG("create DefaultAdapterPropertiesRunnable");
   }
 
   nsresult
   Run()
   {
-		LOG("GetAdapterTask::Run()");
     MOZ_ASSERT(!NS_IsMainThread());
     DBusError err;
     dbus_error_init(&err);
@@ -1040,7 +1032,6 @@ public:
     BluetoothValue v;
     nsString replyError;
    
-		LOG("### getDefaultAdapter ###");
     const char* object_path;
     DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
                                               1000,
@@ -1059,8 +1050,7 @@ public:
     }
    
     object_path = NS_ConvertUTF16toUTF8(v.get_nsString()).get();
-   
-		LOG("### getDefaultAdapterProperties ###");
+
     v = InfallibleTArray<BluetoothNamedValue>();
     msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
                                  1000,
@@ -1081,7 +1071,6 @@ public:
     // We have to manually attach the path to the rest of the elements
     v.get_ArrayOfBluetoothNamedValue().AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Path"),
                                                                          NS_ConvertUTF8toUTF16(object_path)));
-		LOG("DispatchBluetoothReply()");
     DispatchBluetoothReply(mRunnable, v, replyError);
    
     return NS_OK;
@@ -1163,13 +1152,11 @@ public:
     : mRunnable(dont_AddRef(aRunnable)),
 			mDeviceArray(aDeviceArray)
   {
-    LOG("Create BluetoothDevicePropertiesRunnable");
   }
 
   nsresult
   Run()
   {
-    LOG("BluetoothDevicePropertiesRunnable::Run()");
     MOZ_ASSERT(!NS_IsMainThread());
     DBusError err;
     dbus_error_init(&err);
@@ -1179,12 +1166,11 @@ public:
 		BluetoothValue v;
 
 		const char* interface = sBluetoothDBusIfaces[2];
+		bool* paired = new bool[mDeviceArray.Length()];
 
 		for (int i = 0; i < mDeviceArray.Length(); i++) {
 			const char* objectPath = NS_ConvertUTF16toUTF8(mDeviceArray[i]->GetPath()).get();
-			LOG("objectPath:%s\tinterface:%s", objectPath, interface);
 			v = InfallibleTArray<BluetoothNamedValue>();
-			LOG("### getDeviceProperties ###");
 			msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
 		                               1000,
 				                           &err,
@@ -1192,7 +1178,6 @@ public:
 						                       interface,
 							                     "GetProperties",
 								                   DBUS_TYPE_INVALID);
-			LOG("dbus_func_args_timeout");
 		  UnpackDevicePropertiesMessage(msg, &err, v, replyError);
 	    if(!replyError.IsEmpty()) {
 		    DispatchBluetoothReply(mRunnable, v, replyError);
@@ -1202,22 +1187,28 @@ public:
 				dbus_message_unref(msg);
 			}
 			v.get_ArrayOfBluetoothNamedValue().AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Path"),
-                                                                         NS_ConvertUTF8toUTF16(objectPath)));
-			LOG("UnpackDevicePropertiesMessage, %d", v.get_ArrayOfBluetoothNamedValue().Length());
+                                                                           NS_ConvertUTF8toUTF16(objectPath)));
 
 	    const InfallibleTArray<BluetoothNamedValue>& values = v.get_ArrayOfBluetoothNamedValue();
-
-			LOG("property number: %d", values.Length());
 	    for (uint32_t p = 0; p < values.Length(); ++p) {
 		    mDeviceArray[i]->SetPropertyByValue(values[p]);
+				if (values[p].name().EqualsLiteral("Paired")) {
+					paired[i] = values[p].value().get_bool();
+				}
 			}
 		}
-		LOG("DispatchBluetoothReply()");
-	  mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(v)));
+
+		int len = mDeviceArray.Length();
+		int i = 0;
+		while (!paired[i++] || !(len--)) {
+			mDeviceArray.RemoveElementAt(i);
+			i--;
+		}
+
+		mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(v)));
 	  if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
 		  NS_WARNING("Failed to dispatch to main thread!");
 		}
-
     return NS_OK;
   }
 
@@ -1230,8 +1221,6 @@ nsresult
 BluetoothDBusService::GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
 																									nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray)
 {
-  LOG("GetDevicePropertiesInternal");
-
   if (!mConnection || !gThreadConnection) {
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;
