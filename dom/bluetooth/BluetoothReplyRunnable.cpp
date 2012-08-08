@@ -23,6 +23,7 @@ USING_BLUETOOTH_NAMESPACE
 nsresult
 BluetoothReplyRunnable::FireReply(const jsval& aVal)
 {
+	LOG("FireReply");
   nsCOMPtr<nsIDOMRequestService> rs =
     do_GetService("@mozilla.org/dom/dom-request-service;1");
   
@@ -30,8 +31,7 @@ BluetoothReplyRunnable::FireReply(const jsval& aVal)
     NS_WARNING("No DOMRequest Service!");
     return NS_ERROR_FAILURE;
   }
-  
-  
+   
   return mReply->type() == BluetoothReply::TBluetoothReplySuccess ?
     rs->FireSuccess(mDOMRequest, aVal) :
     rs->FireError(mDOMRequest, mReply->get_BluetoothReplyError().error());
