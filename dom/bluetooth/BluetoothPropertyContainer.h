@@ -20,7 +20,7 @@ class BluetoothNamedValue;
 class BluetoothPropertyContainer
 {
 public:
-//  nsresult GetProperties();
+  nsresult GetProperties();
   nsresult SetProperty(nsIDOMWindow* aOwner,
                        const BluetoothNamedValue& aProperty,
                        nsIDOMDOMRequest** aRequest);
@@ -43,7 +43,7 @@ protected:
   ~BluetoothPropertyContainer()
   {}
   
-/*  class GetPropertiesTask : public BluetoothReplyRunnable
+  class GetPropertiesTask : public BluetoothReplyRunnable
   {
   public:
     GetPropertiesTask(BluetoothPropertyContainer* aPropObj, nsIDOMDOMRequest* aReq) :
@@ -65,7 +65,7 @@ protected:
   private:
     BluetoothPropertyContainer* mPropObjPtr;    
   };
-*/
+
   nsString mPath;
   BluetoothObjectType mObjectType;
 };

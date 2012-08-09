@@ -115,8 +115,8 @@ public:
    * 
    * @return properties on success, NULL otherwise
    */
-  virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
-                                               nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray) = 0;
+  virtual nsresult GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
+                                                     nsTArray<nsString> aDeviceAddreses) = 0;
 
 
 

@@ -123,17 +123,16 @@ nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   return NS_OK;
 }
 
-
+/*
 class GetPropertiesTask : public BluetoothReplyRunnable
 {
 public:
+  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, mDeviceAddresses, request);
   GetPropertiesTask(BluetoothAdapter* aAdapterPtr,
-                    nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray,
-                    JSObject* aJsDevicePtr,
+                    nsTArray<nsString> aDeviceAddresses,
                     nsIDOMDOMRequest* aReq) :
     mAdapterPtr(aAdapterPtr),
-    mDeviceArray(aDeviceArray),
-    mJsDevicePtr(aJsDevicePtr),
+    mDeviceAddresses(aDeviceAddresses),
     BluetoothReplyRunnable(aReq)
   {
     MOZ_ASSERT(aReq && aAdapterPtr);
@@ -176,9 +175,9 @@ public:
 
 private:
   nsRefPtr<BluetoothAdapter> mAdapterPtr;
-  nsTArray<nsRefPtr<BluetoothDevice> >& mDeviceArray;
-  JSObject* mJsDevicePtr;
+  nsTArray<nsString> mDeviceAddresses;
 };
+*/
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
@@ -289,12 +288,6 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     NS_WARNING(warningMsg.get());
 #endif
   }
-}
-
-void 
-BluetoothAdapter::SetPairedDevices(BluetoothDevice* aDevice)
-{
-  mPairedDevices.AppendElement(aDevice);
 }
 
 // static
@@ -665,14 +658,15 @@ BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<BluetoothDevice> device;
+/*  nsRefPtr<BluetoothDevice> device;
   for (int i = 0; i < mDeviceAddresses.Length(); i++) {
     device = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
     mPairedDevices.AppendElement(device);
-  }
-  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, mPairedDevices, mJsPairedDevices, request);
+  }*/
 
-  if (NS_FAILED(bs->GetDevicePropertiesInternal(results, mPairedDevices))) {
+	BluetoothPropertyContainer::GetProperties();
+
+  if (NS_FAILED(bs->GetPairedDevicePropertiesInternal(results, mDeviceAddresses))) {
     return NS_ERROR_FAILURE;
   }
   request.forget(aRequest);

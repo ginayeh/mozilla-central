@@ -12,9 +12,30 @@
 
 USING_BLUETOOTH_NAMESPACE
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+nsresult
+BluetoothPropertyContainer::GetProperties()
+{
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    NS_WARNING("Bluetooth service not available!");
+    return NS_ERROR_FAILURE;
+  }
+  nsRefPtr<BluetoothReplyRunnable> task = new GetPropertiesTask(this, NULL);
+  return bs->GetProperties(mObjectType, mPath, task);
+}
+
 nsresult
 BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
-                                     const BluetoothNamedValue& aProperty,
+                                     const & aProperty,
                                      nsIDOMDOMRequest** aRequest)
 {
   BluetoothService* bs = BluetoothService::Get();
@@ -43,4 +64,25 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
   
   req.forget(aRequest);
   return NS_OK;
+}
+
+bool
+BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValue)
+{
+  *aValue = JSVAL_VOID;
+	LOG("response");
+/*	BluetoothNamedValue[] reply = mReply->get_BluetoothReplySuccess();
+	nsString deviceAddress = reply.name()
+  BluetoothNamedValue& v = reply.value();
+  if (v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+    NS_WARNING("Not a BluetoothNamedValue array!");
+    return false;
+  }
+  const InfallibleTArray<BluetoothNamedValue>& values =
+    mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
+  for (uint32_t i = 0; i < values.Length(); ++i) {
+    mPropObjPtr->SetPropertyByValue(values[i]);
+  }
+*/
+  return true;
 }
