@@ -290,13 +290,6 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 #endif
   }
 }
-
-void 
-BluetoothAdapter::SetPairedDevices(BluetoothDevice* aDevice)
-{
-  mPairedDevices.AppendElement(aDevice);
-}
-
 // static
 already_AddRefed<BluetoothAdapter>
 BluetoothAdapter::Create(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
@@ -526,7 +519,7 @@ BluetoothAdapter::GetDevices(JSContext* aCx, jsval* aDevices)
     aDevices->setObject(*mJsDeviceAddresses);
   }
   else {
-    NS_WARNING("UUIDs not yet set!\n");
+    NS_WARNING("Devices not yet set!\n");
     return NS_ERROR_FAILURE;
   }    
   return NS_OK;

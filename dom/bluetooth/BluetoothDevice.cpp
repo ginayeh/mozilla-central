@@ -96,12 +96,6 @@ BluetoothDevice::Unroot()
     mIsRooted = false;
   }
 }
-
-bool
-BluetoothDevice::GetPaired()
-{
-  return mPaired;
-}
   
 void
 BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)

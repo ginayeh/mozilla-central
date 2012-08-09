@@ -117,9 +117,7 @@ public:
    */
   virtual nsresult GetDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
                                                nsTArray<nsRefPtr<BluetoothDevice> >& aDeviceArray) = 0;
-
-
-
+											   
   /** 
    * Stop device discovery (platform specific implementation)
    *
@@ -156,19 +154,6 @@ public:
    */
   virtual nsresult StopInternal() = 0;
 
-  /** 
-   * Fetches the propertes for the specified object
-   *
-   * @param aType Type of the object (see BluetoothObjectType in BluetoothCommon.h)
-   * @param aPath Path of the object
-   * @param aRunnable Runnable to return to after receiving callback
-   *
-   * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
-   */
-/*  virtual nsresult
-  GetProperties(BluetoothObjectType aType,
-                const nsAString& aPath,
-                BluetoothReplyRunnable* aRunnable) = 0; */
 
   /** 
    * Set a property for the specified object
