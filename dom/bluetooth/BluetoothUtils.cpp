@@ -9,6 +9,8 @@
 #include "nsTArray.h"
 #include "nsString.h"
 #include "mozilla/Scoped.h"
+#include "nsContentUtils.h"
+#include "BluetoothDevice.h"
 
 nsresult
 mozilla::dom::bluetooth::StringArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
@@ -58,4 +60,50 @@ mozilla::dom::bluetooth::StringArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   *aResultArray = arrayObj;
   return NS_OK;
 }
+
+nsresult
+mozilla::dom::bluetooth::nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                  const nsTArray<nsRefPtr<BluetoothDevice> >& aSourceArray,
+                  JSObject** aResultArray)
+{
+  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(aGlobal, "Null global!");
+
+  JSAutoRequest ar(aCx);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, aGlobal)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
+
+  JSObject* arrayObj;
+
+  if (aSourceArray.IsEmpty()) {
+    arrayObj = JS_NewArrayObject(aCx, 0, nsnull);
+  } else {
+    nsTArray<jsval> valArray;
+    valArray.SetLength(aSourceArray.Length());
+
+    for (PRUint32 index = 0; index < valArray.Length(); index++) {
+      nsISupports* obj = aSourceArray[index]->ToISupports();
+      nsresult rv =
+        nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
+  }
+
+  if (!arrayObj) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  // XXX This is not what Jonas wants. He wants it to be live.
+  if (!JS_FreezeObject(aCx, arrayObj)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  *aResultArray = arrayObj;
+  return NS_OK;
+}
+
 

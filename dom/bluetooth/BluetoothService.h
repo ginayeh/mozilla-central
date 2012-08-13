@@ -17,6 +17,8 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothReplyRunnable;
 class BluetoothNamedValue;
+class BluetoothValue;
+class BluetoothDevice;
 
 class BluetoothService : public nsIObserver
 {
@@ -107,7 +109,18 @@ public:
    */
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
-  /** 
+  /**
+   * Returns the properties of the bluetooth device, implemented via a platform
+   * specific method.
+   *
+   * @return properties on success, NULL otherwise
+   */
+  virtual nsresult GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
+                                                     nsTArray<nsString> aDeviceAddreses) = 0;
+
+
+
+  /**
    * Stop device discovery (platform specific implementation)
    *
    * @param aAdapterPath Adapter to stop discovery on

@@ -27,6 +27,8 @@ public:
   virtual nsresult StartInternal();
   virtual nsresult StopInternal();
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable);
+  virtual nsresult GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
+                                                     nsTArray<nsString> aDeviceAddresses);
   virtual nsresult StartDiscoveryInternal(const nsAString& aAdapterPath,
                                           BluetoothReplyRunnable* aRunnable);
   virtual nsresult StopDiscoveryInternal(const nsAString& aAdapterPath,
