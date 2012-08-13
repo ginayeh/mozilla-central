@@ -852,7 +852,6 @@ public:
   nsresult
   Run()
   {
-		LOG("BluetoothPairedDevicePropertiesRunnable::Run()");
     MOZ_ASSERT(!NS_IsMainThread());
     DBusError err;
     dbus_error_init(&err);
@@ -861,11 +860,9 @@ public:
     DBusMessage* msg;
 		BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
 		const char* interface = sBluetoothDBusIfaces[2];
-		LOG("Device number: %d", mDeviceAddresses.Length());
 	
 		for (int i = 0; i < mDeviceAddresses.Length(); i++) {
 			BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
-			LOG("GetProperties from DBus: %s", NS_ConvertUTF16toUTF8(mDeviceAddresses[i]).get());
 			msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
 		                               1000,
 				                           &err,
@@ -893,29 +890,11 @@ public:
 							BluetoothNamedValue(mDeviceAddresses[i], 
 							v.get_ArrayOfBluetoothNamedValue())
 						);
-						LOG("Append");
 					}
-					else LOG("Not Append");
 					break;
 				}
 			}
-/*	    const InfallibleTArray<BluetoothNamedValue>& values = v.get_ArrayOfBluetoothNamedValue();
-	    for (uint32_t p = 0; p < values.Length(); ++p) {
-		    mDeviceArray[i]->SetPropertyByValue(values[p]);
-				if (values[p].name().EqualsLiteral("Paired")) {
-					paired[i] = values[p].value().get_bool();
-				}
-			}*/
-		}
 
-/*		int len = mDeviceArray.Length();
-		int i = 0;
-		while (!paired[i++] || !(len--)) {
-			mDeviceArray.RemoveElementAt(i);
-			i--;
-		}*/
-
-		LOG("SetReply");
 		mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(values)));
 	  if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
 		  NS_WARNING("Failed to dispatch to main thread!");
@@ -962,7 +941,6 @@ nsresult
 BluetoothDBusService::GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
 																									      nsTArray<nsString> aDeviceAddresses)
 {
-	LOG("GetPairedDevicePropertiesInternal");
   if (!mConnection || !gThreadConnection) {
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;
