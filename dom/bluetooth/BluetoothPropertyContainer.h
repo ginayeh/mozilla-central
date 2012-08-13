@@ -9,6 +9,7 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothReplyRunnable.h"
+#include "nsPIDOMWindow.h"
 
 class nsIDOMDOMRequest;
 class nsIDOMWindow;
@@ -46,9 +47,22 @@ protected:
   class GetPropertiesTask : public BluetoothReplyRunnable
   {
   public:
-    GetPropertiesTask(BluetoothPropertyContainer* aPropObj, nsIDOMDOMRequest* aReq) :
+    typedef nsresult (*GetPropertiesCallback)(const InfallibleTArray<BluetoothNamedValue>& aReply, 
+                                              jsval* aValue, 
+                                              nsPIDOMWindow* aOwner, 
+                                              nsString aPath, 
+                                              nsIScriptContext* aScriptContext);
+
+    GetPropertiesTask(BluetoothPropertyContainer* aPropObj, 
+                      nsIDOMDOMRequest* aReq, 
+                      GetPropertiesCallback aCallback, 
+                      nsPIDOMWindow* aOwner, 
+                      nsIScriptContext* aScriptContext) :
       BluetoothReplyRunnable(aReq),
-      mPropObjPtr(aPropObj)
+      mPropObjPtr(aPropObj),
+      mCallback(aCallback),
+      mOwner(aOwner),
+      mScriptContext(aScriptContext)
     {
       MOZ_ASSERT(aReq && aPropObj);
     }
@@ -63,7 +77,10 @@ protected:
     }
     
   private:
-    BluetoothPropertyContainer* mPropObjPtr;    
+    BluetoothPropertyContainer* mPropObjPtr;
+    GetPropertiesCallback mCallback;
+    nsPIDOMWindow* mOwner;
+    nsIScriptContext* mScriptContext;
   };
 
   nsString mPath;

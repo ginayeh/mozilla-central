@@ -390,6 +390,76 @@ BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
   return SetProperty(GetOwner(), property, aRequest);
 }
 
+nsresult
+GetPropertiesCallback(const InfallibleTArray<BluetoothNamedValue>& aReply, 
+                      jsval* aValue, nsPIDOMWindow* aOwner, 
+                      nsString aPath, 
+                      nsIScriptContext* aScriptContext)
+{
+  nsTArray<nsRefPtr<BluetoothDevice> > devices;
+  JSObject* JsDevices;
+  for (uint32_t i = 0; i < aReply.Length(); i++) {
+    if (aReply[i].value().type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+      NS_WARNING("Not a BluetoothNamedValue array!");
+      return NS_ERROR_FAILURE;
+    }
+    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(aOwner,
+                                                          aPath,
+                                                          aReply[i].value());
+    devices.AppendElement(d);
+  }
+
+  nsresult rv;
+  if (!aScriptContext) {
+    NS_WARNING("Cannot create script context!");
+    return NS_ERROR_FAILURE;
+  }
+  rv = nsTArrayToJSArray(aScriptContext->GetNativeContext(),
+                         aScriptContext->GetNativeGlobal(), devices, &JsDevices);
+
+  if (JsDevices) {
+    aValue->setObject(*JsDevices);
+  }
+  else {
+    NS_WARNING("Paird not yet set!\n");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
+{ 
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    NS_WARNING("BluetoothService not available!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIDOMDOMRequest> request;
+  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Can't create DOMRequest!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, request, 
+                                                                   GetPropertiesCallback, 
+                                                                   GetOwner(), 
+                                                                   GetContextForEventHandlers(&rv));
+  if (NS_FAILED(bs->GetPairedDevicePropertiesInternal(results, mDeviceAddresses))) {
+    return NS_ERROR_FAILURE;
+  }
+  request.forget(aRequest);
+  return NS_OK;
+}
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, propertychanged)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicefound)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicedisappeared)
