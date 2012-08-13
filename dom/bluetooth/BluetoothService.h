@@ -26,7 +26,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
-  /** 
+  /**
    * Add a message handler object from message distribution observer.
    * Must be called from the main thread.
    *
@@ -112,7 +112,7 @@ public:
   /**
    * Returns the properties of the bluetooth device, implemented via a platform
    * specific method.
-   * 
+   *
    * @return properties on success, NULL otherwise
    */
   virtual nsresult GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
@@ -120,7 +120,7 @@ public:
 
 
 
-  /** 
+  /**
    * Stop device discovery (platform specific implementation)
    *
    * @param aAdapterPath Adapter to stop discovery on
@@ -165,10 +165,10 @@ public:
    *
    * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
    */
-/*  virtual nsresult
+  virtual nsresult
   GetProperties(BluetoothObjectType aType,
                 const nsAString& aPath,
-                BluetoothReplyRunnable* aRunnable) = 0; */
+                BluetoothReplyRunnable* aRunnable) = 0;
 
   /** 
    * Set a property for the specified object

@@ -25,6 +25,15 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -76,108 +85,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
-
-template <class T>
-inline nsresult
-nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
-                  const nsTArray<nsRefPtr<T> >& aSourceArray,
-                  JSObject** aResultArray)
-{
-  NS_ASSERTION(aCx, "Null context!");
-  NS_ASSERTION(aGlobal, "Null global!");
-
-  JSAutoRequest ar(aCx);
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(aCx, aGlobal)) {
-    NS_WARNING("Failed to enter compartment!");
-    return NS_ERROR_FAILURE;
-  }
-
-  JSObject* arrayObj;
-
-  if (aSourceArray.IsEmpty()) {
-    arrayObj = JS_NewArrayObject(aCx, 0, nsnull);
-  } else {
-    nsTArray<jsval> valArray;
-    valArray.SetLength(aSourceArray.Length());
-
-    for (PRUint32 index = 0; index < valArray.Length(); index++) {
-      nsISupports* obj = aSourceArray[index]->ToISupports();
-      nsresult rv =
-        nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
-  }
-
-  if (!arrayObj) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  // XXX This is not what Jonas wants. He wants it to be live.
-  if (!JS_FreezeObject(aCx, arrayObj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  *aResultArray = arrayObj;
-  return NS_OK;
-}
-
-/*
-class GetPropertiesTask : public BluetoothReplyRunnable
-{
-public:
-  nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, mDeviceAddresses, request);
-  GetPropertiesTask(BluetoothAdapter* aAdapterPtr,
-                    nsTArray<nsString> aDeviceAddresses,
-                    nsIDOMDOMRequest* aReq) :
-    mAdapterPtr(aAdapterPtr),
-    mDeviceAddresses(aDeviceAddresses),
-    BluetoothReplyRunnable(aReq)
-  {
-    MOZ_ASSERT(aReq && aAdapterPtr);
-  }
-
-  bool
-  ParseSuccessfulReply(jsval* aValue)
-  {
-    *aValue = JSVAL_VOID;
-
-    nsresult rv;
-    nsIScriptContext* sc = mAdapterPtr->GetContextForEventHandlers(&rv);
-    if (!sc) {
-      NS_WARNING("Cannot create script context!");
-      return NS_ERROR_FAILURE;
-    }
-    rv = nsTArrayToJSArray(sc->GetNativeContext(),
-                           sc->GetNativeGlobal(), mDeviceArray, &mJsDevicePtr);
-
-    if (mJsDevicePtr) {
-      aValue->setObject(*mJsDevicePtr);
-    }
-    else {
-      NS_WARNING("Paird not yet set!\n");
-      return NS_ERROR_FAILURE;
-    }
-
-
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to set JS paired device objects!");
-    }
-    return true;
-  }
-
-  void
-  ReleaseMembers()
-  {
-    BluetoothReplyRunnable::ReleaseMembers();
-  }
-
-private:
-  nsRefPtr<BluetoothAdapter> mAdapterPtr;
-  nsTArray<nsString> mDeviceAddresses;
-};
-*/
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
@@ -638,7 +545,7 @@ BluetoothAdapter::Unpair(nsIDOMBluetoothDevice* aDevice, nsIDOMDOMRequest** aReq
 
 NS_IMETHODIMP
 BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
-{  
+{ 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -658,14 +565,7 @@ BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-/*  nsRefPtr<BluetoothDevice> device;
-  for (int i = 0; i < mDeviceAddresses.Length(); i++) {
-    device = BluetoothDevice::Create(GetOwner(), mPath, mDeviceAddresses[i]);
-    mPairedDevices.AppendElement(device);
-  }*/
-
-	BluetoothPropertyContainer::GetProperties();
-
+	nsRefPtr<BluetoothReplyRunnable> results = new GetPropertiesTask(this, request);
   if (NS_FAILED(bs->GetPairedDevicePropertiesInternal(results, mDeviceAddresses))) {
     return NS_ERROR_FAILURE;
   }

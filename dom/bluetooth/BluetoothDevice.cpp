@@ -56,14 +56,10 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aOwner,
   mIsRooted(false)
 {
   BindToOwner(aOwner);
-  if(aValue.type() == BluetoothValue::TnsString) {
-    mPath = aValue.get_nsString();
-  } else {
-    const InfallibleTArray<BluetoothNamedValue>& values =
-      aValue.get_ArrayOfBluetoothNamedValue();
-    for (uint32_t i = 0; i < values.Length(); ++i) {
-      SetPropertyByValue(values[i]);
-    }
+  const InfallibleTArray<BluetoothNamedValue>& values =
+    aValue.get_ArrayOfBluetoothNamedValue();
+  for (uint32_t i = 0; i < values.Length(); ++i) {
+    SetPropertyByValue(values[i]);
   }
 }
 
@@ -95,12 +91,6 @@ BluetoothDevice::Unroot()
     NS_DROP_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = false;
   }
-}
-
-bool
-BluetoothDevice::GetPaired()
-{
-  return mPaired;
 }
   
 void
@@ -166,9 +156,7 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
 
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
-  nsString path;
-  path = device->GetPath();
-  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(path, device))) {
+  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
     NS_WARNING("Failed to register object with observer!");
     return nsnull;
   }

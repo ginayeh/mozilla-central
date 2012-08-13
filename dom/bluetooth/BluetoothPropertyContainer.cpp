@@ -9,6 +9,9 @@
 #include "BluetoothService.h"
 #include "BluetoothTypes.h"
 #include "nsIDOMDOMRequest.h"
+#include "BluetoothDevice.h"
+#include "BluetoothAdapter.h"
+#include "BluetoothUtils.h"
 
 USING_BLUETOOTH_NAMESPACE
 
@@ -35,7 +38,7 @@ BluetoothPropertyContainer::GetProperties()
 
 nsresult
 BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
-                                     const & aProperty,
+                                     const BluetoothNamedValue& aProperty,
                                      nsIDOMDOMRequest** aRequest)
 {
   BluetoothService* bs = BluetoothService::Get();
@@ -69,20 +72,47 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
 bool
 BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValue)
 {
+	LOG("ParseSuccessfulReply()");
   *aValue = JSVAL_VOID;
-	LOG("response");
-/*	BluetoothNamedValue[] reply = mReply->get_BluetoothReplySuccess();
-	nsString deviceAddress = reply.name()
-  BluetoothNamedValue& v = reply.value();
+	BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
   if (v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
     NS_WARNING("Not a BluetoothNamedValue array!");
     return false;
   }
-  const InfallibleTArray<BluetoothNamedValue>& values =
-    mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
-  for (uint32_t i = 0; i < values.Length(); ++i) {
-    mPropObjPtr->SetPropertyByValue(values[i]);
-  }
-*/
+	const InfallibleTArray<BluetoothNamedValue>& values = 
+		mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
+
+	nsTArray<nsRefPtr<BluetoothDevice> > devices;
+	JSObject* JsDevices;
+	for (int i = 0; i < values.Length(); i++) {
+		if (values[i].value().type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+			NS_WARNING("Not a BluetoothNamedValue array!");
+			return false;
+		}
+		nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(((BluetoothAdapter*)mPropObjPtr)->GetOwner(),
+                                                          mPropObjPtr->GetPath(),
+                                                          values[i].value());
+		LOG("AdapterPath: %s", NS_ConvertUTF16toUTF8(mPropObjPtr->GetPath()).get());
+		LOG("IsNamedValue: %d", values[i].value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+		devices.AppendElement(d);
+	}
+
+	nsresult rv;
+  nsIScriptContext* sc = ((BluetoothAdapter*)mPropObjPtr)->GetContextForEventHandlers(&rv);
+	if (!sc) {
+		NS_WARNING("Cannot create script context!");
+		return NS_ERROR_FAILURE;
+	}
+	rv = nsTArrayToJSArray(sc->GetNativeContext(),
+	   	                   sc->GetNativeGlobal(), devices, &JsDevices);
+
+	if (JsDevices) {
+		aValue->setObject(*JsDevices);
+	}
+	else {
+		NS_WARNING("Paird not yet set!\n");
+		return NS_ERROR_FAILURE;
+	}
   return true;
 }

@@ -57,8 +57,6 @@ public:
   void SetPropertyByValue(const BluetoothNamedValue& aValue);
 
   void Unroot();
-
-	bool GetPaired();
 private:
   BluetoothDevice(nsPIDOMWindow* aOwner, const nsAString& aAdapterPath,
                   const BluetoothValue& aValue);
