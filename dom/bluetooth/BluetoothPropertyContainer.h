@@ -9,7 +9,6 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothReplyRunnable.h"
-#include "nsPIDOMWindow.h"
 
 class nsIDOMDOMRequest;
 class nsIDOMWindow;
@@ -21,7 +20,6 @@ class BluetoothNamedValue;
 class BluetoothPropertyContainer
 {
 public:
-  nsresult GetProperties();
   nsresult SetProperty(nsIDOMWindow* aOwner,
                        const BluetoothNamedValue& aProperty,
                        nsIDOMDOMRequest** aRequest);
@@ -43,45 +41,6 @@ protected:
 
   ~BluetoothPropertyContainer()
   {}
-  
-  class GetPropertiesTask : public BluetoothReplyRunnable
-  {
-  public:
-    typedef nsresult (*GetPropertiesCallback)(const InfallibleTArray<BluetoothNamedValue>& aReply, 
-                                              jsval* aValue, 
-                                              nsPIDOMWindow* aOwner, 
-                                              nsString aPath, 
-                                              nsIScriptContext* aScriptContext);
-
-    GetPropertiesTask(BluetoothPropertyContainer* aPropObj, 
-                      nsIDOMDOMRequest* aReq, 
-                      GetPropertiesCallback aCallback, 
-                      nsPIDOMWindow* aOwner, 
-                      nsIScriptContext* aScriptContext) :
-      BluetoothReplyRunnable(aReq),
-      mPropObjPtr(aPropObj),
-      mCallback(aCallback),
-      mOwner(aOwner),
-      mScriptContext(aScriptContext)
-    {
-      MOZ_ASSERT(aReq && aPropObj);
-    }
-
-    virtual bool ParseSuccessfulReply(jsval* aValue);
-    
-    void
-    ReleaseMembers()
-    {
-      BluetoothReplyRunnable::ReleaseMembers();
-      mPropObjPtr = nullptr;
-    }
-    
-  private:
-    BluetoothPropertyContainer* mPropObjPtr;
-    GetPropertiesCallback mCallback;
-    nsPIDOMWindow* mOwner;
-    nsIScriptContext* mScriptContext;
-  };
 
   nsString mPath;
   BluetoothObjectType mObjectType;

@@ -21,6 +21,29 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothNamedValue;
 class BluetoothValue;
+class BluetoothAdapter;
+
+class GetPairedDevicesTask : public BluetoothReplyRunnable
+{
+public:
+  GetPairedDevicesTask(BluetoothAdapter* aAdapterPtr,
+                       nsIDOMDOMRequest* aReq) :
+    mAdapterPtr(aAdapterPtr),
+    BluetoothReplyRunnable(aReq)
+  {
+    MOZ_ASSERT(aReq);
+  }
+
+  virtual bool ParseSuccessfulReply(jsval* aValue);
+
+  void
+  ReleaseMembers()
+  {
+    BluetoothReplyRunnable::ReleaseMembers();
+  }
+private:
+  nsRefPtr<BluetoothAdapter> mAdapterPtr;
+};
 
 class BluetoothAdapter : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothAdapter
@@ -56,8 +79,8 @@ public:
 
   void Unroot();
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);
-private:
-  
+
+private: 
   BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
   ~BluetoothAdapter();
 

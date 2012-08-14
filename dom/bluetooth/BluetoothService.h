@@ -107,6 +107,15 @@ public:
    */
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
+  /**
+   * Returns the properties of pared devices, implemented via a platform
+   * specific method.
+   *
+   * @return Default adapter path/name on success, NULL otherwise
+   */
+  virtual nsresult GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable,
+                                                     nsTArray<nsString> aDeviceAddresses) = 0;
+
   /** 
    * Stop device discovery (platform specific implementation)
    *

@@ -14,10 +14,17 @@ class JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothDevice;
+
 nsresult
 StringArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
                      const nsTArray<nsString>& aSourceArray,
                      JSObject** aResultArray);
+
+nsresult
+TArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                const nsTArray<nsRefPtr<BluetoothDevice> >& aSourceArray,
+                JSObject** aResultArray);
 
 END_BLUETOOTH_NAMESPACE
 

@@ -44,23 +44,3 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
   req.forget(aRequest);
   return NS_OK;
 }
-
-
-bool
-BluetoothPropertyContainer::GetPropertiesTask::ParseSuccessfulReply(jsval* aValue)
-{
-  *aValue = JSVAL_VOID;
-  BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
-  if (v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-    NS_WARNING("Not a BluetoothNamedValue array!");
-    return false;
-  }
-
-	const InfallibleTArray<BluetoothNamedValue>& reply = 
-		mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
-	nsresult rv = mCallback(reply, aValue, mOwner, mPropObjPtr->GetPath(), mScriptContext);
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-  return true;
-}
