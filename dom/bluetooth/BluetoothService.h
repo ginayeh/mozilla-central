@@ -107,6 +107,15 @@ public:
    */
   virtual nsresult GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
+  /**
+   * Returns the properties of paired devices, implemented via a platform
+   * specific method.
+   *
+   * @return NS_OK on success, NS_ERROR_FAILURE otherwise
+   */
+  virtual nsresult GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,
+                                                     BluetoothReplyRunnable* aRunnable) = 0;
+
   /** 
    * Stop device discovery (platform specific implementation)
    *

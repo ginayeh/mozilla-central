@@ -843,9 +843,9 @@ class BluetoothPairedDevicePropertiesRunnable : public nsRunnable
 {
 public:
   BluetoothPairedDevicePropertiesRunnable(BluetoothReplyRunnable* aRunnable, 
-																		nsTArray<nsString> aDeviceAddresses)
+                                          nsTArray<nsString> aDeviceAddresses)
     : mRunnable(dont_AddRef(aRunnable)),
-			mDeviceAddresses(aDeviceAddresses)
+      mDeviceAddresses(aDeviceAddresses)
   {
   }
 
@@ -858,53 +858,55 @@ public:
    
     nsString replyError;
     DBusMessage* msg;
-		BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
-		const char* interface = sBluetoothDBusIfaces[2];
-	
-		for (int i = 0; i < mDeviceAddresses.Length(); i++) {
-			BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
-			msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
-		                               1000,
-				                           &err,
-					                         NS_ConvertUTF16toUTF8(mDeviceAddresses[i]).get(),
-						                       interface,
-							                     "GetProperties",
-								                   DBUS_TYPE_INVALID);
-		  UnpackDevicePropertiesMessage(msg, &err, v, replyError);
-	    if(!replyError.IsEmpty()) {
-		    DispatchBluetoothReply(mRunnable, v, replyError);
-			  return NS_ERROR_FAILURE;
-		  }
-			if(msg) {
-				dbus_message_unref(msg);
-			}
-			v.get_ArrayOfBluetoothNamedValue().AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Path"), mDeviceAddresses[i]));
+    BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
+ 
+    for (int i = 0; i < mDeviceAddresses.Length(); i++) {
+      BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
+      msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
+                                   1000,
+                                   &err,
+                                   NS_ConvertUTF16toUTF8(mDeviceAddresses[i]).get(),
+                                   DBUS_DEVICE_IFACE,
+                                   "GetProperties",
+                                   DBUS_TYPE_INVALID);
+      UnpackDevicePropertiesMessage(msg, &err, v, replyError);
+      if(!replyError.IsEmpty()) {
+        DispatchBluetoothReply(mRunnable, v, replyError);
+        return NS_ERROR_FAILURE;
+      }
+      if(msg) {
+        dbus_message_unref(msg);
+      }
+      v.get_ArrayOfBluetoothNamedValue().AppendElement(
+        BluetoothNamedValue(NS_LITERAL_STRING("Path"), mDeviceAddresses[i])
+      );
 
-			// Only paired devices will be return back to main thread
-			for (uint32_t p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
-				if (v.get_ArrayOfBluetoothNamedValue()[p].name().EqualsLiteral("Paired")) {
-					bool paired = v.get_ArrayOfBluetoothNamedValue()[p].value();
-					if (paired) {
-						BluetoothValue properties = v.get_ArrayOfBluetoothNamedValue();
-						values.get_ArrayOfBluetoothNamedValue().AppendElement(
-							BluetoothNamedValue(mDeviceAddresses[i], 
-							v.get_ArrayOfBluetoothNamedValue())
-						);
-					}
-					break;
-				}
-			}
+      InfallibleTArray<BluetoothNamedValue>& deviceProperties = v.get_ArrayOfBluetoothNamedValue();      
+      for (uint32_t p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {        
+        BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
+        // Only paired devices will be return back to main thread
+        if (property.name().EqualsLiteral("Paired")) {
+          bool paired = property.value();
+          if (paired) {            
+            values.get_ArrayOfBluetoothNamedValue().AppendElement(
+              BluetoothNamedValue(mDeviceAddresses[i], deviceProperties)
+            );
+          }
+          break;
+        }
+      }
+    }
 
-		mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(values)));
-	  if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
-		  NS_WARNING("Failed to dispatch to main thread!");
-		}
+    mRunnable->SetReply(new BluetoothReply(BluetoothReplySuccess(values)));
+    if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
+      NS_WARNING("Failed to dispatch to main thread!");
+    }
     return NS_OK;
   }
 
 private:
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
-	nsTArray<nsString> mDeviceAddresses;
+  nsTArray<nsString> mDeviceAddresses;
 };
 
 nsresult
@@ -938,8 +940,8 @@ BluetoothDBusService::GetProperties(BluetoothObjectType aType,
 }
 
 nsresult
-BluetoothDBusService::GetPairedDevicePropertiesInternal(BluetoothReplyRunnable* aRunnable, 
-																									      nsTArray<nsString> aDeviceAddresses)
+BluetoothDBusService::GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,
+                                                        BluetoothReplyRunnable* aRunnable)
 {
   if (!mConnection || !gThreadConnection) {
     NS_ERROR("Bluetooth service not started yet!");

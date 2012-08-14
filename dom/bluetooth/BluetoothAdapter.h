@@ -21,6 +21,7 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothNamedValue;
 class BluetoothValue;
+class BluetoothAdapter;
 
 class BluetoothAdapter : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothAdapter
@@ -56,8 +57,8 @@ public:
 
   void Unroot();
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);
-private:
-  
+
+private: 
   BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue);
   ~BluetoothAdapter();
 
