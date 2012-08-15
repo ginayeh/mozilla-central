@@ -33,6 +33,7 @@ CPPSRCS += \
   BluetoothAdapter.cpp \
   BluetoothDevice.cpp \
   BluetoothDeviceEvent.cpp \
+  BluetoothDeviceAddressEvent.cpp \
   BluetoothPropertyEvent.cpp \
   BluetoothPairingEvent.cpp \
   BluetoothReplyRunnable.cpp \
@@ -46,6 +47,7 @@ XPIDLSRCS = \
   nsIDOMBluetoothAdapter.idl \
   nsIDOMBluetoothDevice.idl \
   nsIDOMBluetoothDeviceEvent.idl \
+  nsIDOMBluetoothDeviceAddressEvent.idl \
   nsIDOMBluetoothPropertyEvent.idl \
   nsIDOMBluetoothPairingEvent.idl \
   $(NULL)

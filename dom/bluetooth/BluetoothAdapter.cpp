@@ -8,6 +8,7 @@
 #include "BluetoothAdapter.h"
 #include "BluetoothDevice.h"
 #include "BluetoothDeviceEvent.h"
+#include "BluetoothDeviceAddressEvent.h"
 #include "BluetoothPropertyEvent.h"
 #include "BluetoothPairingEvent.h"
 #include "BluetoothService.h"
@@ -289,6 +290,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     nsString deviceObjectPath;
     nsRefPtr<BluetoothPairingEvent> e = BluetoothPairingEvent::Create(deviceObjectPath, 0);
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("cancel"));
+	  } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
+    const nsAString& deviceAddress = aData.value().get_nsString();
+    nsRefPtr<BluetoothDeviceAddressEvent> e = BluetoothDeviceAddressEvent::Create(deviceAddress);
   } else {
 #ifdef DEBUG
     nsCString warningMsg;

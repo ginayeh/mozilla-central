@@ -887,6 +887,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
+//    LOG("###### %d ########", v.type() == BluetoothValue::TArrayOfBluetoothNamedValue)
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,

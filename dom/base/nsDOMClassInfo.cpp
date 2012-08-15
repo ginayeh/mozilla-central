@@ -517,6 +517,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "BluetoothAdapter.h"
 #include "BluetoothDevice.h"
 #include "BluetoothDeviceEvent.h"
+#include "BluetoothDeviceAddressEvent.h"
 #include "BluetoothPropertyEvent.h"
 #include "BluetoothPairingEvent.h"
 #endif
@@ -1671,6 +1672,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(BluetoothDevice, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(BluetoothDeviceEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(BluetoothDeviceAddressEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(BluetoothPropertyEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -4453,6 +4456,11 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(BluetoothDeviceEvent, nsIDOMBluetoothDeviceEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothDeviceEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(BluetoothDeviceAddressEvent, nsIDOMBluetoothDeviceAddressEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothDeviceAddressEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
   DOM_CLASSINFO_MAP_END
 
