@@ -457,7 +457,7 @@ BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
 
 NS_IMETHODIMP
 BluetoothAdapter::GetPairedDevices(nsIDOMDOMRequest** aRequest)
-{ 
+{
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");

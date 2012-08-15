@@ -93,7 +93,7 @@ mozilla::dom::bluetooth::BluetoothDeviceArrayToJSArray(JSContext* aCx, JSObject*
 
     arrayObj = JS_NewArrayObject(aCx, valLength, valArray);
   }
- 
+
   if (!arrayObj) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -101,7 +101,7 @@ mozilla::dom::bluetooth::BluetoothDeviceArrayToJSArray(JSContext* aCx, JSObject*
   if (!JS_FreezeObject(aCx, arrayObj)) {
     return NS_ERROR_FAILURE;
   }
- 
+
   *aResultArray = arrayObj;
   return NS_OK;
 }

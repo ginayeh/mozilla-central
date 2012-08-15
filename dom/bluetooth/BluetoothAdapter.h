@@ -21,7 +21,6 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothSignal;
 class BluetoothNamedValue;
 class BluetoothValue;
-class BluetoothAdapter;
 
 class BluetoothAdapter : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothAdapter

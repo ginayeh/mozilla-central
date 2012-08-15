@@ -842,8 +842,8 @@ BluetoothDBusService::StartDiscoveryInternal(const nsAString& aAdapterPath,
 class BluetoothPairedDevicePropertiesRunnable : public nsRunnable
 {
 public:
-  BluetoothPairedDevicePropertiesRunnable(BluetoothReplyRunnable* aRunnable, 
-                                          nsTArray<nsString> aDeviceAddresses)
+  BluetoothPairedDevicePropertiesRunnable(BluetoothReplyRunnable* aRunnable,
+                                          const nsTArray<nsString>& aDeviceAddresses)
     : mRunnable(dont_AddRef(aRunnable)),
       mDeviceAddresses(aDeviceAddresses)
   {
@@ -855,11 +855,11 @@ public:
     MOZ_ASSERT(!NS_IsMainThread());
     DBusError err;
     dbus_error_init(&err);
-   
+
     nsString replyError;
     DBusMessage* msg;
     BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
- 
+
     for (int i = 0; i < mDeviceAddresses.Length(); i++) {
       BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
       msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
@@ -881,13 +881,13 @@ public:
         BluetoothNamedValue(NS_LITERAL_STRING("Path"), mDeviceAddresses[i])
       );
 
-      InfallibleTArray<BluetoothNamedValue>& deviceProperties = v.get_ArrayOfBluetoothNamedValue();      
-      for (uint32_t p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {        
+      InfallibleTArray<BluetoothNamedValue>& deviceProperties = v.get_ArrayOfBluetoothNamedValue();
+      for (uint32_t p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
         BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
         // Only paired devices will be return back to main thread
         if (property.name().EqualsLiteral("Paired")) {
           bool paired = property.value();
-          if (paired) {            
+          if (paired) {
             values.get_ArrayOfBluetoothNamedValue().AppendElement(
               BluetoothNamedValue(mDeviceAddresses[i], deviceProperties)
             );
@@ -947,7 +947,7 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(const nsTArray<nsString>
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;
   }
-  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
+  MOZ_ASSERT(!NS_IsMainThread());
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
   nsRefPtr<nsRunnable> func(new BluetoothPairedDevicePropertiesRunnable(runnable, aDeviceAddresses));
