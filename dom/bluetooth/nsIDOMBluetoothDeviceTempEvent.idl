@@ -9,17 +9,17 @@
 interface nsIDOMBluetoothDevice;
 
 [scriptable, builtinclass, uuid(819b4683-23a9-4af9-96b9-2c40a14ecb0b)]
-interface nsIDOMBluetoothDeviceEvent : nsIDOMEvent
+interface nsIDOMBluetoothDeviceTempEvent : nsIDOMEvent
 {
   readonly attribute nsIDOMBluetoothDevice device;
 
-  [noscript] void initBluetoothDeviceEvent(in DOMString aType,
-                                           in boolean aCanBubble,
-                                           in boolean aCancelable,
-                                           in nsIDOMBluetoothDevice aDevice);
+  [noscript] void initBluetoothDeviceTempEvent(in DOMString aType,
+                                               in boolean aCanBubble,
+                                               in boolean aCancelable,
+                                               in nsIDOMBluetoothDevice aDevice);
 };
 
-dictionary BluetoothDeviceEventInit : EventInit
+dictionary BluetoothDeviceEventTempInit : EventInit
 {
   nsIDOMBluetoothDevice  device;
 };

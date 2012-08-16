@@ -7,13 +7,11 @@
 #include "base/basictypes.h"
 #include "BluetoothAdapter.h"
 #include "BluetoothDevice.h"
-#include "BluetoothDeviceEvent.h"
 #include "BluetoothPropertyEvent.h"
 #include "BluetoothService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
-#include "nsIDOMBluetoothDeviceAddressEvent.h"
 #include "GeneratedEvents.h"
 
 #include "nsDOMClassInfo.h"
@@ -21,6 +19,8 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsIDOMDOMRequest.h"
+#include "nsIDOMBluetoothDeviceAddressEvent.h"
+#include "nsIDOMBluetoothDeviceEvent.h"
 #include "nsContentUtils.h"
 
 #include "mozilla/LazyIdleThread.h"
@@ -206,9 +206,17 @@ void
 BluetoothAdapter::Notify(const BluetoothSignal& aData)
 {
   if (aData.name().EqualsLiteral("DeviceFound")) {
-    nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
-    nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
-    e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicefound"));
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicefound"),
+                                false, false, device);
+    e->SetTrusted(true);
+    bool dummy;
+    DispatchEvent(event, &dummp);
   } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
 		const nsAString& deviceAddress = aData.value().get_nsString();
 
@@ -219,7 +227,8 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicedisappeared"),
                                        false, false, deviceAddress);
     e->SetTrusted(true);
-    DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+    bool dummy;
+    DispatchEvent(event, &dummp);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();
