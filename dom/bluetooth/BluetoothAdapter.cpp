@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=40: */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13,6 +13,8 @@
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
+#include "nsIDOMBluetoothDeviceAddressEvent.h"
+#include "GeneratedEvents.h"
 
 #include "nsDOMClassInfo.h"
 #include "nsDOMEvent.h"
@@ -207,6 +209,17 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     nsRefPtr<BluetoothDevice> d = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsRefPtr<BluetoothDeviceEvent> e = BluetoothDeviceEvent::Create(d);
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("devicefound"));
+  } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
+		const nsAString& deviceAddress = aData.value().get_nsString();
+
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicedisappeared"),
+                                       false, false, deviceAddress);
+    e->SetTrusted(true);
+    DispatchDOMEvent(nullptr, event, nullptr, nullptr);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();
