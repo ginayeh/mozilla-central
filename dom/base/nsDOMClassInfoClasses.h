@@ -524,7 +524,6 @@ DOMCI_CLASS(MozVoicemailEvent)
 DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
-DOMCI_CLASS(BluetoothDeviceEvent)
 DOMCI_CLASS(BluetoothPropertyEvent)
 #endif
 
