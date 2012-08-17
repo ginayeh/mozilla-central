@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=40: */
+/* vim: set ts=2 et sw=2 tw=80: */
 /*
 ** Copyright 2006, The Android Open Source Project
 **
@@ -870,11 +870,11 @@ public:
                                    "GetProperties",
                                    DBUS_TYPE_INVALID);
       UnpackDevicePropertiesMessage(msg, &err, v, replyError);
-      if(!replyError.IsEmpty()) {
+      if (!replyError.IsEmpty()) {
         DispatchBluetoothReply(mRunnable, v, replyError);
         return NS_ERROR_FAILURE;
       }
-      if(msg) {
+      if (msg) {
         dbus_message_unref(msg);
       }
       v.get_ArrayOfBluetoothNamedValue().AppendElement(
