@@ -21,9 +21,11 @@ simple_events = [
     'DeviceOrientationEvent',
     'DeviceLightEvent',
     'MozApplicationEvent',
-    'DeviceStorageChangeEvent',
+#ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
-    'BluetoothDeviceAddressEvent'
+    'BluetoothDeviceAddressEvent',
+#endif
+    'DeviceStorageChangeEvent'
   ]
 
 """ include file names """

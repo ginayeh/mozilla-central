@@ -216,7 +216,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
                                 false, false, device);
     e->SetTrusted(true);
     bool dummy;
-    DispatchEvent(event, &dummp);
+    DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
 		const nsAString& deviceAddress = aData.value().get_nsString();
 
@@ -228,7 +228,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
                                        false, false, deviceAddress);
     e->SetTrusted(true);
     bool dummy;
-    DispatchEvent(event, &dummp);
+    DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();

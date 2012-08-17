@@ -59,6 +59,8 @@ XPIDLSRCS =					\
 	nsIDOMCompositionEvent.idl		\
 	nsIDOMWheelEvent.idl			\
 	nsIWifiEventInits.idl \
+	nsIDOMBluetoothDeviceAddressEvent.idl \
+	nsIDOMBluetoothDeviceEvent.idl \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
