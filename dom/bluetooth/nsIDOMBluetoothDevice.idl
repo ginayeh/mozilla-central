@@ -18,4 +18,6 @@ interface nsIDOMBluetoothDevice : nsIDOMEventTarget
   attribute nsIDOMEventListener onpropertychanged;
   attribute nsIDOMEventListener onconnected;
   attribute nsIDOMEventListener ondisconnected;
+  attribute nsIDOMEventListener onpaired;
+  attribute nsIDOMEventListener onunpaired;
 };
