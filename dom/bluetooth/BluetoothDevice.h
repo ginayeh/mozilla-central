@@ -75,6 +75,10 @@ private:
   nsTArray<nsString> mUuids;
 
   NS_DECL_EVENT_HANDLER(propertychanged)
+//  NS_DECL_EVENT_HANDLER(connected)
+//  NS_DECL_EVENT_HANDLER(disconnected)
+//  NS_DECL_EVENT_HANDLER(paired)
+//  NS_DECL_EVENT_HANDLER(unpaired)
 };
 
 END_BLUETOOTH_NAMESPACE

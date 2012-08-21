@@ -16,4 +16,8 @@ interface nsIDOMBluetoothDevice : nsIDOMEventTarget
   readonly attribute bool connected;
   readonly attribute bool paired;
   attribute nsIDOMEventListener onpropertychanged;
+//  attribute nsIDOMEventListener onconnected;
+//  attribute nsIDOMEventListener ondisconnected;
+//  attribute nsIDOMEventListener onpaired;
+//  attribute nsIDOMEventListener onunpaired;
 };

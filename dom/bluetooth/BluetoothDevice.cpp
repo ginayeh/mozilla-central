@@ -16,6 +16,15 @@
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...) __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 DOMCI_DATA(BluetoothDevice, BluetoothDevice)
@@ -30,13 +39,21 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothDevice, 
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)  
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)
+//  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(connected)
+//  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnected)
+//  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(paired)
+//  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(unpaired)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothDevice, 
                                                 nsDOMEventTargetHelper)
   tmp->Unroot();
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(propertychanged)  
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(propertychanged)
+//  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(connected)
+//  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(disconnected)
+//  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(paired)
+//  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(unpaired)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothDevice)
@@ -173,6 +190,58 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
     SetPropertyByValue(v);
     nsRefPtr<BluetoothPropertyEvent> e = BluetoothPropertyEvent::Create(name);
     e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("propertychanged"));
+
+/*    if (name.EqualsLiteral("Connected")) {
+      bool isConnected = v.value();
+      nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+      nsresult rv;
+      if (isConnected) {
+        LOG("PropertyChanged - Connected");
+        rv = event->InitEvent(NS_LITERAL_STRING("connected"), false, false);
+      } else {
+        LOG("PropertyChanged - Disconnected");
+        rv = event->InitEvent(NS_LITERAL_STRING("disconnected"), false, false);
+      }
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to init the connected/disconnected event!!!");
+        return;
+      }
+   
+      rv = event->SetTrusted(true);
+      bool dummy;
+      rv = DispatchEvent(event, &dummy);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to dispatch the connected/disconnected event!!!");
+        return;
+      }
+      LOG("DispatchEvent");
+    } else if (name.EqualsLiteral("Paired")) {
+      bool isPaired = v.value();
+      nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+      nsresult rv;
+      if (isPaired) {
+        LOG("PropertyChanged - Paired");
+        rv = event->InitEvent(NS_LITERAL_STRING("paired"), false, false);
+      } else {
+        LOG("PropertyChanged - Unpaired");
+        rv = event->InitEvent(NS_LITERAL_STRING("unpaired"), false, false);
+      }
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to init the paired/unpaired event!!!");
+        return;
+      }
+
+      rv = event->SetTrusted(true);
+      bool dummy;
+      rv = DispatchEvent(event, &dummy);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to dispatch the paired/unpaired event!!!");
+        return;
+      }
+      LOG("DispatchEvent");
+    } else {
+      LOG("PropertyChanged - Others");
+    }*/
   } else {
 #ifdef DEBUG
     nsCString warningMsg;
@@ -231,3 +300,7 @@ BluetoothDevice::GetUuids(JSContext* aCx, jsval* aUuids)
 }
 
 NS_IMPL_EVENT_HANDLER(BluetoothDevice, propertychanged)
+//NS_IMPL_EVENT_HANDLER(BluetoothDevice, connected)
+//NS_IMPL_EVENT_HANDLER(BluetoothDevice, disconnected)
+//NS_IMPL_EVENT_HANDLER(BluetoothDevice, paired)
+//NS_IMPL_EVENT_HANDLER(BluetoothDevice, unpaired)
