@@ -44,7 +44,7 @@ private:
   ~BluetoothManager();
   bool mEnabled;
 
-  NS_DECL_EVENT_HANDLER(enabled)
+  NS_DECL_EVENT_HANDLER(adapteradded)
 };
 
 END_BLUETOOTH_NAMESPACE
