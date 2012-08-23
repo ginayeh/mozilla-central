@@ -28,6 +28,16 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -47,6 +57,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothAdapter,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicefound)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicedisappeared)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicecreated)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(deviceremoved)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(requestconfirmation)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(requestpincode)
@@ -60,6 +72,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothAdapter,
   tmp->Unroot();
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicefound)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicedisappeared)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicecreated)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(deviceremoved)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(propertychanged)  
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(requestconfirmation)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(requestpincode)
@@ -321,17 +335,20 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     bool dummy;
     DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceCreated")) {
-    const nsAString& deviceAddress = aData.value().get_nsString();
-    // create BluetoothDevice and return back to Gaia
-/*    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+    LOG("BluetoothAdapter, DeviceCreated");
 
-    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
-    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicecreated"),
-                                       false, false, deviceAddress);
+/*    LOG("create BluetoothDevice");
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    LOG("InitBluetoothDeviceEvnet");
+    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicecreated"),
+                                false, false, device);
     e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);*/
+    bool dummy;*/
+//    DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceRemoved")) {
     const nsAString& deviceAddress = aData.value().get_nsString();
 
@@ -520,7 +537,7 @@ BluetoothAdapter::GetAddress(nsAString& aAddress)
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::GetAdapterClass(uint32_t* aClass)
+BluetoothAdapter::GetAdapterClass(PRUint32* aClass)
 {
   *aClass = mClass;
   return NS_OK;
@@ -548,7 +565,7 @@ BluetoothAdapter::GetDiscoverable(bool* aDiscoverable)
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::GetDiscoverableTimeout(uint32_t* aDiscoverableTimeout)
+BluetoothAdapter::GetDiscoverableTimeout(PRUint32* aDiscoverableTimeout)
 {
   *aDiscoverableTimeout = mDiscoverableTimeout;
   return NS_OK;
@@ -606,7 +623,7 @@ BluetoothAdapter::SetDiscoverable(const bool aDiscoverable,
 }
  
 NS_IMETHODIMP
-BluetoothAdapter::SetDiscoverableTimeout(const uint32_t aDiscoverableTimeout,
+BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
                                          nsIDOMDOMRequest** aRequest)
 {
   if (aDiscoverableTimeout == mDiscoverableTimeout) {
@@ -722,7 +739,7 @@ BluetoothAdapter::SetPinCode(const nsAString& aDeviceAddress, const nsAString& a
 }
 
 nsresult
-BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, uint32_t aPasskey)
+BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, PRUint32 aPasskey)
 {
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
@@ -766,6 +783,8 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, propertychanged)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicefound)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicedisappeared)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicecreated)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, deviceremoved)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestconfirmation)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpincode)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpasskey)

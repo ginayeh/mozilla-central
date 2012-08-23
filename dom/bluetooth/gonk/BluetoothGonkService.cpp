@@ -132,7 +132,6 @@ nsresult
 BluetoothGonkService::StartInternal()
 {
   NS_ASSERTION(!NS_IsMainThread(), "This should not run on the main thread!");
-
   nsresult ret;
 
   ret = StartStopGonkBluetooth(true);

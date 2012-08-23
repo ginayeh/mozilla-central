@@ -16,6 +16,15 @@
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 DOMCI_DATA(BluetoothDevice, BluetoothDevice)
@@ -158,6 +167,7 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
     return nullptr;
   }
 
+  LOG("AdapterPath: %s, Value: %s", NS_ConvertUTF16toUTF8(aAdapterPath).get(), NS_ConvertUTF16toUTF8(aValue.get_nsString()).get());
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
@@ -222,7 +232,7 @@ BluetoothDevice::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-BluetoothDevice::GetDeviceClass(uint32_t* aClass)
+BluetoothDevice::GetDeviceClass(PRUint32* aClass)
 {
   *aClass = mClass;
   return NS_OK;

@@ -12,6 +12,15 @@
 #include "nsIDOMDOMRequest.h"
 #include "jsapi.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothReply;
@@ -77,6 +86,7 @@ protected:
   virtual bool ParseSuccessfulReply(jsval* aValue)
   {
     *aValue = JSVAL_VOID;
+    LOG("BluetoothVoidReplyRunnable::ParseSuccessfulReply");
     return true;
   }
 };

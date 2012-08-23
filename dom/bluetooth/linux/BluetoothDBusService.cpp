@@ -156,7 +156,7 @@ public:
     if (!bs) {
       NS_WARNING("BluetoothService not available!");
       return NS_ERROR_FAILURE;
-    }    
+    }
     return bs->DistributeSignal(mSignal);
   }  
 };
@@ -219,19 +219,26 @@ UnpackObjectPathMessage(DBusMessage* aMsg, DBusError* aErr,
   DBusError err;
   dbus_error_init(&err);
   if (!IsDBusMessageError(aMsg, aErr, aErrorStr)) {
+    LOG("~ IsDBusMessageError");
     NS_ASSERTION(dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN,
                  "Got dbus callback that's not a METHOD_RETURN!");
     const char* object_path;
     if (!dbus_message_get_args(aMsg, &err, DBUS_TYPE_OBJECT_PATH,
                                &object_path, DBUS_TYPE_INVALID) ||
         !object_path) {
+      LOG("dbus_message_get_args");
       if (dbus_error_is_set(&err)) {
+        LOG("dbus_error_is_set()");
         aErrorStr = NS_ConvertUTF8toUTF16(err.message);
+        LOG("log_and_free_dbus_error()");
         LOG_AND_FREE_DBUS_ERROR(&err);
       }
     } else {
       aValue = NS_ConvertUTF8toUTF16(object_path);
     }
+  }
+  else {
+    LOG("IsDBusMessageError");
   }
 }
 
@@ -831,7 +838,6 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   BluetoothValue v;
   
   if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceFound")) {
-
     DBusMessageIter iter;
 
     if (!dbus_message_iter_init(aMsg, &iter)) {
@@ -905,6 +911,16 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
+  } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterAdded")) {
+    const char* str;
+    if (!dbus_message_get_args(aMsg, &err,
+                               DBUS_TYPE_OBJECT_PATH, &str,
+                               DBUS_TYPE_INVALID)) {
+      LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
+      errorStr.AssignLiteral("Cannot parse manager path!");
+    }
+    v = NS_ConvertUTF8toUTF16(str);
+  } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterRemoved")) {
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
@@ -912,12 +928,13 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
   } else {
-#ifdef DEBUG
+//#ifdef DEBUG
     nsCAutoString signalStr;
     signalStr += dbus_message_get_member(aMsg);
     signalStr += " Signal not handled!";
+    LOG("%s", signalStr.get());
     NS_WARNING(signalStr.get());
-#endif
+//#endif
   }
 
   if (!errorStr.IsEmpty()) {
@@ -941,12 +958,13 @@ BluetoothDBusService::StartInternal()
 {
   // This could block. It should never be run on the main thread.
   MOZ_ASSERT(!NS_IsMainThread());
-  
+
   if (!StartDBus()) {
     NS_WARNING("Cannot start DBus thread!");
+    LOG("Failed to StartDBus");
     return NS_ERROR_FAILURE;
   }
-  
+ 
   if (mConnection) {
     return NS_OK;
   }
@@ -1402,7 +1420,7 @@ BluetoothDBusService::GetDeviceServiceChannelInternal(const nsAString& aObjectPa
 }
 
 static void
-ExtractHandles(DBusMessage *aReply, nsTArray<uint32_t>& aOutHandles)
+ExtractHandles(DBusMessage *aReply, nsTArray<PRUint32>& aOutHandles)
 {
   uint32_t* handles = NULL;
   int len;
@@ -1425,13 +1443,13 @@ ExtractHandles(DBusMessage *aReply, nsTArray<uint32_t>& aOutHandles)
   }
 }
 
-nsTArray<uint32_t>
+nsTArray<PRUint32>
 BluetoothDBusService::AddReservedServicesInternal(const nsAString& aAdapterPath,
-                                                  const nsTArray<uint32_t>& aServices)
+                                                  const nsTArray<PRUint32>& aServices)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  nsTArray<uint32_t> ret;
+  nsTArray<PRUint32> ret;
 
   int length = aServices.Length();
   if (length == 0) return ret;
@@ -1455,7 +1473,7 @@ BluetoothDBusService::AddReservedServicesInternal(const nsAString& aAdapterPath,
 
 bool
 BluetoothDBusService::RemoveReservedServicesInternal(const nsAString& aAdapterPath,
-                                                     const nsTArray<uint32_t>& aServiceHandles)
+                                                     const nsTArray<PRUint32>& aServiceHandles)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -1585,7 +1603,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress, const 
 }
 
 bool
-BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey)
+BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey)
 {
   DBusMessage *msg;
   if (!sPairingReqTable.Get(aDeviceAddress, &msg)) {

@@ -386,6 +386,7 @@ DBusThread::StartEventLoop()
   // android code, but we break them out into class members here.
   // Therefore we read into a local array and then copy.
 
+  LOG("StartEventLoop()");
   int sockets[2];
   if (socketpair(AF_LOCAL, SOCK_STREAM, 0, (int*)(&sockets)) < 0) {
     TearDownData();
@@ -448,9 +449,11 @@ StartDBus()
 {
   MOZ_ASSERT(!NS_IsMainThread());
   if (sDBusThread) {
+    LOG("sDBusThread");
     NS_WARNING("Trying to start DBus Thread that is already currently running, skipping.");
     return true;
   }
+  LOG("new DBusThread");
   nsAutoPtr<DBusThread> thread(new DBusThread());
   if (!thread->StartEventLoop()) {
     NS_WARNING("Cannot start DBus event loop!");

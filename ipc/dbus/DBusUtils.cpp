@@ -173,9 +173,10 @@ DBusMessage * dbus_func_args_timeout_valist(DBusConnection *conn,
                                             const char *func,
                                             int first_arg_type,
                                             va_list args) {
-  
+  LOG("dbus_func_args_timeout_valist"); 
   DBusMessage *msg = NULL, *reply = NULL;
   bool return_error = (err != NULL);
+  LOG("before: return_error: %d, dbus_error_is_set: %d", return_error, dbus_error_is_set(err));
 
   if (!return_error) {
     err = (DBusError*)malloc(sizeof(DBusError));
@@ -197,12 +198,16 @@ DBusMessage * dbus_func_args_timeout_valist(DBusConnection *conn,
   }
 
   /* Make the call. */
+  LOG("dbus_connection_send_with_reply_and_block");
   reply = dbus_connection_send_with_reply_and_block(conn, msg, timeout_ms, err);
+
+  LOG("after: return_error: %d, dbus_error_is_set: %d", return_error, dbus_error_is_set(err));
   if (!return_error && dbus_error_is_set(err)) {
     LOG_AND_FREE_DBUS_ERROR_WITH_MSG(err, msg);
   }
 
 done:
+  LOG("done");
   if (!return_error) {
     free(err);
   }
@@ -218,6 +223,7 @@ DBusMessage * dbus_func_args_timeout(DBusConnection *conn,
                                      const char *func,
                                      int first_arg_type,
                                      ...) {
+  LOG("dbus_func_args_timeout");
   DBusMessage *ret;
   va_list lst;
   va_start(lst, first_arg_type);

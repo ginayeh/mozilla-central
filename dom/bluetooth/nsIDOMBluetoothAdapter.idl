@@ -9,7 +9,7 @@
 interface nsIDOMDOMRequest;
 interface nsIDOMBluetoothDevice;
 
-[scriptable, builtinclass, uuid(db6b4dd6-64f1-415d-ac51-ae0fa0fe05ed)]
+[scriptable, builtinclass, uuid(4ff1c959-5088-4389-8dfc-f28646d98f59)]
 interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
 {
   readonly attribute DOMString address;
@@ -47,6 +47,8 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   attribute nsIDOMEventListener ondevicedisappeared;
   // Fired when a property of the adapter is changed
   attribute nsIDOMEventListener onpropertychanged;
+  attribute nsIDOMEventListener ondevicecreated;
+  attribute nsIDOMEventListener ondeviceremoved;
   // Pairing related events
   attribute nsIDOMEventListener onrequestconfirmation;
   attribute nsIDOMEventListener onrequestpincode;
