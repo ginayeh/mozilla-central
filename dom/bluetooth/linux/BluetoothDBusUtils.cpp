@@ -46,6 +46,7 @@ static nsAutoPtr<RawDBusConnection> sDBusConnection;
 #define LOG(args...) if (BTDEBUG) printf(args);
 #endif
 
+#define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC ".Manager"
 #define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC ".Adapter"
 #define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC ".Device"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
