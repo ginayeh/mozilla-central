@@ -27,6 +27,16 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -308,7 +318,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     bool dummy;
     DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceDisappeared")) {
-		const nsAString& deviceAddress = aData.value().get_nsString();
+    const nsAString& deviceAddress = aData.value().get_nsString();
 
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
@@ -319,6 +329,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     e->SetTrusted(true);
     bool dummy;
     DispatchEvent(event, &dummy);
+  } else if (aData.name().EqualsLiteral("DeviceCreated")) {
+    const nsAString& deviceAddress = aData.value().get_nsString();
+    LOG("Adapter: DeviceCreated");
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     arr = aData.value().get_ArrayOfBluetoothNamedValue();

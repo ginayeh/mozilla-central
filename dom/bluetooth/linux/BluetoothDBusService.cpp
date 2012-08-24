@@ -872,6 +872,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     }
     v = NS_ConvertUTF8toUTF16(str);
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceCreated")) {
+    LOG("DBus: DeviceCreated");
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
                                DBUS_TYPE_OBJECT_PATH, &str,
@@ -880,6 +881,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       errorStr.AssignLiteral("Cannot parse device path!");
     }
     v = NS_ConvertUTF8toUTF16(str);
+    LOG("signal.value(): %s", str);
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
