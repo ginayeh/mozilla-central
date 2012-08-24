@@ -56,6 +56,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothAdapter,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicefound)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicedisappeared)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(devicecreated)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(deviceremoved)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(requestconfirmation)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(requestpincode)
@@ -69,6 +71,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothAdapter,
   tmp->Unroot();
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicefound)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicedisappeared)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(devicecreated)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(deviceremoved)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(propertychanged)  
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(requestconfirmation)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(requestpincode)
@@ -330,8 +334,19 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     bool dummy;
     DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceCreated")) {
-    const nsAString& deviceAddress = aData.value().get_nsString();
     LOG("Adapter: DeviceCreated");
+    const nsAString& deviceAddress = aData.value().get_nsString();
+ 
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicecreated"),
+                                false, false, device);
+    e->SetTrusted(true);
+    bool dummy;
+//    DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
     // Get BluetoothNamedValue, make sure array length is 1
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
@@ -720,6 +735,8 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, propertychanged)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicefound)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicedisappeared)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicecreated)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, deviceremoved)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestconfirmation)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpincode)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpasskey)

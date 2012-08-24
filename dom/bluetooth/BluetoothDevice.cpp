@@ -16,6 +16,15 @@
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 DOMCI_DATA(BluetoothDevice, BluetoothDevice)
@@ -156,10 +165,13 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
 
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
+  LOG("Create Success, and then register handler");
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
+    LOG("register failed");
     NS_WARNING("Failed to register object with observer!");
     return nullptr;
   }
+  LOG("return to Adapter");
   return device.forget();
 }
 

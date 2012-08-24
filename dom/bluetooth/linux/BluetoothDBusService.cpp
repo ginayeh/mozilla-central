@@ -151,7 +151,6 @@ public:
   NS_IMETHOD
   Run()
   {
-    LOG("DistributeBluetoothSignalTask::Run()");
     MOZ_ASSERT(NS_IsMainThread());
     BluetoothService* bs = BluetoothService::Get();
     if (!bs) {
@@ -607,7 +606,8 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
   }
 
   for (i = 0; i < aPropertyTypeLen; i++) {
-    if (!strncmp(property, aPropertyTypes[i].name, strlen(property))) {      
+    if (!strncmp(property, aPropertyTypes[i].name, strlen(property))) {
+      LOG("property: %s", property); 
       break;
     }
   }
@@ -682,6 +682,7 @@ ParseProperties(DBusMessageIter* aIter,
                 Properties* aPropertyTypes,
                 const int aPropertyTypeLen)
 {
+  LOG("ParseProperties");
   DBusMessageIter dict_entry, dict;
   int prop_index = -1;
 
@@ -816,7 +817,6 @@ static
 DBusHandlerResult
 EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 {
-  LOG("EventFilter");
   NS_ASSERTION(!NS_IsMainThread(), "Shouldn't be called from Main Thread!");
   
   if (dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_SIGNAL) {
@@ -883,13 +883,31 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     LOG("DBus: DeviceCreated");
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
-                               DBUS_TYPE_OBJECT_PATH, &str,
+                               DBUS_TYPE_STRING, &str,
                                DBUS_TYPE_INVALID)) {
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
-      errorStr.AssignLiteral("Cannot parse device path!");
+      errorStr.AssignLiteral("Cannot parse device address!");
     }
     v = NS_ConvertUTF8toUTF16(str);
-    LOG("signal.value(): %s", str);
+/*    LOG("device address: %s", str);
+    v = InfallibleTArray<BluetoothNamedValue>();
+    DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
+                                 1000,
+                                 &err,
+                                 str,
+                                 DBUS_DEVICE_IFACE,
+                                 "GetProperties",
+                                 DBUS_TYPE_INVALID);
+    LOG("UnpackDevicePropertiesMessage");
+    UnpackDevicePropertiesMessage(msg, &err, v, errorStr);
+    if (msg) {
+      dbus_message_unref(msg);
+    }
+    LOG("Append path");
+    v.get_ArrayOfBluetoothNamedValue().AppendElement(
+      BluetoothNamedValue(NS_LITERAL_STRING("Path"), NS_ConvertUTF8toUTF16(str))
+    );
+    LOG("isNamedValue: %d", v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);*/
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
@@ -903,8 +921,6 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterAdded")) {
-    LOG("--------- Manager::AdapterAdded ----------");
-    LOG("signal.name: %s, signal.path: %s", NS_ConvertUTF16toUTF8(signalName).get(), NS_ConvertUTF16toUTF8(signalPath).get());
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
                                DBUS_TYPE_OBJECT_PATH, &str,
@@ -913,18 +929,13 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       errorStr.AssignLiteral("Cannot parse manager path!");
     }
     v = NS_ConvertUTF8toUTF16(str);
-    LOG("signal: %s", str);
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterRemoved")) {
-    LOG("--------- Manager::AdapterRemoved ----------");
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
-    LOG("--------- Manager::PropertyChanged ----------");
-    LOG("signal.name: %s, signal.path: %s", NS_ConvertUTF16toUTF8(signalName).get(), NS_ConvertUTF16toUTF8(signalPath).get());
     ParsePropertyChange(aMsg,
                         v,
                         errorStr,
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
-    LOG("signal: %s", NS_ConvertUTF16toUTF8(v.get_ArrayOfBluetoothNamedValue()[0].name()).get());
   } else {
 //#ifdef DEBUG
     nsCAutoString signalStr;
@@ -957,36 +968,28 @@ BluetoothDBusService::StartInternal()
   // This could block. It should never be run on the main thread.
   MOZ_ASSERT(!NS_IsMainThread());
 
-  LOG("StartInternal");
-  
   if (!StartDBus()) {
     NS_WARNING("Cannot start DBus thread!");
-    LOG("Failed to StartDBus");
     return NS_ERROR_FAILURE;
   }
  
-  LOG("StartDBus") ;
   if (mConnection) {
     return NS_OK;
   }
 
   if (NS_FAILED(EstablishDBusConnection())) {
     NS_WARNING("Cannot start Main Thread DBus connection!");
-    LOG("Cannot start Main Thread DBus connection!");
     StopDBus();
     return NS_ERROR_FAILURE;
   }
-  LOG("EstablishDBusConnection()");
 
   gThreadConnection = new RawDBusConnection();
   
   if (NS_FAILED(gThreadConnection->EstablishDBusConnection())) {
     NS_WARNING("Cannot start Sync Thread DBus connection!");
-    LOG("Cannot start Sync Thread DBus connection!");
     StopDBus();
     return NS_ERROR_FAILURE;
   }
-  LOG("gThreadConnection->EstablishDBusConnection()");
 
   DBusError err;
   dbus_error_init(&err);
@@ -1003,16 +1006,13 @@ BluetoothDBusService::StartInternal()
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
   }
-  LOG("dbus_bus_add_match");
 
   // Add a filter for all incoming messages_base
   if (!dbus_connection_add_filter(mConnection, EventFilter,
                                   NULL, NULL)) {
     NS_WARNING("Cannot create DBus Event Filter for DBus Thread!");
-    LOG("Cannot create DBus Event Filter for DBus Thread!");
     return NS_ERROR_FAILURE;
   }
-  LOG("dbus_connection_add_filter");
 
   sPairingReqTable.Init();
   sAuthorizeReqTable.Init();
@@ -1031,7 +1031,6 @@ UnrefDBusMessages(const nsAString& key, DBusMessage* value, void* arg)
 nsresult
 BluetoothDBusService::StopInternal()
 {
-  LOG("StopInternal");
   // This could block. It should never be run on the main thread.
   MOZ_ASSERT(!NS_IsMainThread());
   
@@ -1074,7 +1073,6 @@ public:
   DefaultAdapterPropertiesRunnable(BluetoothReplyRunnable* aRunnable)
     : mRunnable(dont_AddRef(aRunnable))
   {
-    LOG("### create DefaultAdapterPropertiesRunnable");
   }
 
   nsresult
@@ -1087,7 +1085,6 @@ public:
     BluetoothValue v;
     nsString replyError;
 
-    LOG("### DefaultAdapter");
     DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
                                               1000,
                                               &err,
@@ -1095,13 +1092,11 @@ public:
                                               DBUS_MANAGER_IFACE,
                                               "DefaultAdapter",
                                               DBUS_TYPE_INVALID);
-    LOG("### UnpackObjectPathMessage");
     UnpackObjectPathMessage(msg, &err, v, replyError);
     if(msg) {
       dbus_message_unref(msg);
     }
     if(!replyError.IsEmpty()) {
-      LOG("replyError");
       DispatchBluetoothReply(mRunnable, v, replyError);
       return NS_ERROR_FAILURE;
     }
@@ -1110,7 +1105,6 @@ public:
     nsCString tmp_path = NS_ConvertUTF16toUTF8(path);
     const char* object_path = tmp_path.get();
    
-    LOG("### GetProperties");
     v = InfallibleTArray<BluetoothNamedValue>();
     msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
                                  1000,
@@ -1119,7 +1113,6 @@ public:
                                  "org.bluez.Adapter",
                                  "GetProperties",
                                  DBUS_TYPE_INVALID);
-    LOG("### UnpackAdapterPropertiesMessage");
     UnpackAdapterPropertiesMessage(msg, &err, v, replyError);
    
     if(!replyError.IsEmpty()) {
@@ -1147,7 +1140,6 @@ private:
 nsresult
 BluetoothDBusService::GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable)
 {
-  LOG("### GetDefaultAdapterPathInternal");
   if (!mConnection || !gThreadConnection) {
     NS_ERROR("Bluetooth service not started yet!");
     return NS_ERROR_FAILURE;

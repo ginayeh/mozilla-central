@@ -86,6 +86,8 @@ private:
   NS_DECL_EVENT_HANDLER(propertychanged)
   NS_DECL_EVENT_HANDLER(devicefound)
   NS_DECL_EVENT_HANDLER(devicedisappeared)
+  NS_DECL_EVENT_HANDLER(devicecreated)
+  NS_DECL_EVENT_HANDLER(deviceremoved)
   NS_DECL_EVENT_HANDLER(requestconfirmation)
   NS_DECL_EVENT_HANDLER(requestpincode)
   NS_DECL_EVENT_HANDLER(requestpasskey)

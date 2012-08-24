@@ -18,15 +18,6 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
-#undef LOG
-#if defined(MOZ_WIDGET_GONK)
-#include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
-#else
-#define BTDEBUG true
-#define LOG(args...) if (BTDEBUG) printf(args);
-#endif
-
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -136,11 +127,8 @@ BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     ol = new BluetoothSignalObserverList();
     mBluetoothSignalObserverTable.Put(aNodeName, ol);
-    LOG("RegisterBluetoothSignalHandler, new nodeName: %s", NS_ConvertUTF16toUTF8(aNodeName).get());
-    LOG("node Count: %d", mBluetoothSignalObserverTable.Count());
   }
   ol->AddObserver(aHandler);
-  LOG("RegisterBluetoothSignalHandler, add observer to %d", ol->Length());
   return NS_OK;
 }
 
@@ -148,7 +136,6 @@ nsresult
 BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                    BluetoothSignalObserver* aHandler)
 {
-  LOG("UnregisterBluetoothSignalHandler, nodeNAme: %s", NS_ConvertUTF16toUTF8(aNodeName).get());
   MOZ_ASSERT(NS_IsMainThread());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
@@ -156,11 +143,8 @@ BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
     return NS_OK;
   }
   ol->RemoveObserver(aHandler);
-  LOG("UnregisterBluetoothSignalHandler, add observer to %d", ol->Length());
   if (ol->Length() == 0) {
     mBluetoothSignalObserverTable.Remove(aNodeName);
-    LOG("UnregisterBluetoothSignalHandler, nodeName: %s", NS_ConvertUTF16toUTF8(aNodeName).get());
-    LOG("node Count: %d", mBluetoothSignalObserverTable.Count());
   }
   return NS_OK;
 }
@@ -168,16 +152,12 @@ BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
 nsresult
 BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 {
-  LOG("### DistributeSignal");
   MOZ_ASSERT(NS_IsMainThread());
   // Notify observers that a message has been sent
   BluetoothSignalObserverList* ol;
-  LOG("current node Count: %d", mBluetoothSignalObserverTable.Count());
   if (!mBluetoothSignalObserverTable.Get(signal.path(), &ol)) {
-    LOG("Failed to get signal.path(): %s, signal.name(): %s", NS_ConvertUTF16toUTF8(signal.path()).get(), NS_ConvertUTF16toUTF8(signal.name()).get());
     return NS_OK;
   }
-  LOG("### Broadcast");
   ol->Broadcast(signal);
   return NS_OK;
 }
