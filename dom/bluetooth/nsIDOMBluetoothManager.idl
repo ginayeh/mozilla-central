@@ -15,7 +15,8 @@ interface nsIDOMBluetoothManager : nsIDOMEventTarget
   readonly attribute bool enabled;
 
   nsIDOMDOMRequest getDefaultAdapter();
-  nsIDOMDOMRequest setEnabled(in boolean enabled);
 
   attribute nsIDOMEventListener onadapteradded;
+  attribute nsIDOMEventListener onenabled;
+  attribute nsIDOMEventListener ondisabled;
 };
