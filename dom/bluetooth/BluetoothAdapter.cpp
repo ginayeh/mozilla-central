@@ -334,9 +334,20 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     bool dummy;
     DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("DeviceCreated")) {
-    LOG("Adapter: DeviceCreated");
-    const nsAString& deviceAddress = aData.value().get_nsString();
+    LOG("------- Adapter: DeviceCreated");
+/*    const nsAString& deviceAddress = aData.value().get_nsString();
  
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicecreated"),
+                                       false, false, deviceAddress);
+    e->SetTrusted(true);
+    bool dummy;
+    DispatchEvent(event, &dummy); */
+
+    LOG("Create BluetoothDevice");
     nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
@@ -346,8 +357,10 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
                                 false, false, device);
     e->SetTrusted(true);
     bool dummy;
-//    DispatchEvent(event, &dummy);
+    LOG("DispatchEvent");
+    DispatchEvent(event, &dummy);
   } else if (aData.name().EqualsLiteral("PropertyChanged")) {
+    LOG("------- Adapter:: PropertyChanged");
     // Get BluetoothNamedValue, make sure array length is 1
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
     if(arr.Length() != 1) {

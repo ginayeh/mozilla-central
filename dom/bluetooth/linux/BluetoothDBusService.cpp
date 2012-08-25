@@ -633,17 +633,20 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
       const char* c;
       dbus_message_iter_get_basic(&prop_val, &c);
       propertyValue = NS_ConvertUTF8toUTF16(c);
+      LOG("value: %s", c);
       break;
     case DBUS_TYPE_UINT32:
     case DBUS_TYPE_INT16:
       uint32_t i;
       dbus_message_iter_get_basic(&prop_val, &i);
       propertyValue = i;
+      LOG("value: %d", i);
       break;
     case DBUS_TYPE_BOOLEAN:
       bool b;
       dbus_message_iter_get_basic(&prop_val, &b);
       propertyValue = b;
+      LOG("value: %d", b);
       break;
     case DBUS_TYPE_ARRAY:
       dbus_message_iter_recurse(&prop_val, &array_val_iter);
@@ -656,6 +659,7 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
           dbus_message_iter_get_basic(&array_val_iter, &tmp);
           nsString s;
           s = NS_ConvertUTF8toUTF16(tmp);
+          LOG("value: %s", tmp);
           arr.AppendElement(s);
         } while (dbus_message_iter_next(&array_val_iter));
         propertyValue = arr;
@@ -804,7 +808,7 @@ ParsePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
     
   if (!GetProperty(iter, aPropertyTypes, aPropertyTypeLen,
                    &prop_index, props)) {
-    NS_WARNING("Can't get property!");
+
     aErrorStr.AssignLiteral("Can't get property!");
     return;
   }
@@ -820,8 +824,8 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   NS_ASSERTION(!NS_IsMainThread(), "Shouldn't be called from Main Thread!");
   
   if (dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_SIGNAL) {
+    LOG("type: %d", dbus_message_get_type(aMsg));
     LOG("%s: not interested (not a signal).\n", __FUNCTION__);
-    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
   }  
 
   if (dbus_message_get_path(aMsg) == NULL) {
@@ -880,16 +884,16 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     }
     v = NS_ConvertUTF8toUTF16(str);
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceCreated")) {
-    LOG("DBus: DeviceCreated");
+    dbus_error_init(&err);
+    LOG("---------- DBus: DeviceCreated");
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
-                               DBUS_TYPE_STRING, &str,
+                               DBUS_TYPE_OBJECT_PATH, &str,
                                DBUS_TYPE_INVALID)) {
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
       errorStr.AssignLiteral("Cannot parse device address!");
     }
-    v = NS_ConvertUTF8toUTF16(str);
-/*    LOG("device address: %s", str);
+
     v = InfallibleTArray<BluetoothNamedValue>();
     DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
                                  1000,
@@ -907,7 +911,8 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     v.get_ArrayOfBluetoothNamedValue().AppendElement(
       BluetoothNamedValue(NS_LITERAL_STRING("Path"), NS_ConvertUTF8toUTF16(str))
     );
-    LOG("isNamedValue: %d", v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);*/
+    LOG("isNamedValue: %d", v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+  } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceRemoved")) {
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
