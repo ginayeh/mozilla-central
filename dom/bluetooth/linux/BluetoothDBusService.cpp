@@ -901,7 +901,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterAdded")) {
-    LOG("--------- Manager::AdapterAdded ----------");
+    LOG("--------- DBus::AdapterAdded ----------");
     LOG("signal.name: %s, signal.path: %s", NS_ConvertUTF16toUTF8(signalName).get(), NS_ConvertUTF16toUTF8(signalPath).get());
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
@@ -909,9 +909,10 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                                DBUS_TYPE_INVALID)) {
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
       errorStr.AssignLiteral("Cannot parse manager path!");
+    } else {
+      v = NS_ConvertUTF8toUTF16(str);
+      LOG("signal: %s", str);
     }
-    v = NS_ConvertUTF8toUTF16(str);
-    LOG("signal: %s", str);
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterRemoved")) {
     LOG("--------- Manager::AdapterRemoved ----------");
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
