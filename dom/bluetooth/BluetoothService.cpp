@@ -139,8 +139,14 @@ BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
     LOG("RegisterBluetoothSignalHandler, new nodeName: %s", NS_ConvertUTF16toUTF8(aNodeName).get());
     LOG("node Count: %d", mBluetoothSignalObserverTable.Count());
   }
+
+/*  uint32_t size = ol->Length();
+  LOG("~~~~~ size: %d", size);
+  for (uint32_t i = 0; i < size; ++i) {
+//    LOG(NS_ConvertUTF16toUTF8(ol->mObservers[i].name()).get());
+  }*/
   ol->AddObserver(aHandler);
-  LOG("RegisterBluetoothSignalHandler, add observer to %d", ol->Length());
+  LOG("add [%s] observer to %d", NS_ConvertUTF16toUTF8(aNodeName).get(), ol->Length());
   return NS_OK;
 }
 

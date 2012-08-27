@@ -205,11 +205,18 @@ BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
   LOG("### BluetoothManager::SetEnabled()");
   nsRefPtr<BluetoothReplyRunnable> results = new ToggleBtResultTask(this, request, aEnabled);
   if (aEnabled) {
+    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_ERROR("Failed to register object with observer!");
+      return NS_ERROR_FAILURE;
+    }
     if (NS_FAILED(bs->Start(results))) {
       return NS_ERROR_FAILURE;
     }
   }
   else {
+    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_WARNING("Failed to unregister object with observer!");
+    }
     if (NS_FAILED(bs->Stop(results))) {
       return NS_ERROR_FAILURE;
     }
@@ -265,17 +272,6 @@ already_AddRefed<BluetoothManager>
 BluetoothManager::Create(nsPIDOMWindow* aWindow) {
 
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return nullptr;
-  }
-  
-  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
-    NS_ERROR("Failed to register object with observer!");
-    return nullptr;
-  }
-  
   return manager.forget();
 }
 
