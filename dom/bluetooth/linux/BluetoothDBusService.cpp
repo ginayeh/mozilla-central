@@ -824,8 +824,8 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   NS_ASSERTION(!NS_IsMainThread(), "Shouldn't be called from Main Thread!");
   
   if (dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_SIGNAL) {
-    LOG("type: %d", dbus_message_get_type(aMsg));
     LOG("%s: not interested (not a signal).\n", __FUNCTION__);
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
   }  
 
   if (dbus_message_get_path(aMsg) == NULL) {
@@ -913,6 +913,15 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     );
     LOG("isNamedValue: %d", v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceRemoved")) {
+    LOG("---------- DBus: DeviceRemoved");
+    const char* str;
+    if (!dbus_message_get_args(aMsg, &err,
+                               DBUS_TYPE_STRING, &str,
+                               DBUS_TYPE_INVALID)) {
+      LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
+      errorStr.AssignLiteral("Cannot parse device address!");
+    }
+    v = NS_ConvertUTF8toUTF16(str); 
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,

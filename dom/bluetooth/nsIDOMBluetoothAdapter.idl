@@ -45,6 +45,8 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   attribute nsIDOMEventListener ondevicefound;
   // Fired when any device is out of discoverable range.
   attribute nsIDOMEventListener ondevicedisappeared;
+  attribute nsIDOMEventListener ondevicepaired;
+  attribute nsIDOMEventListener ondeviceunpaired;
   attribute nsIDOMEventListener ondevicecreated;
   attribute nsIDOMEventListener ondeviceremoved;
   // Fired when a property of the adapter is changed
