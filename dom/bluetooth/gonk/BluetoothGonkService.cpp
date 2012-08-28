@@ -22,6 +22,15 @@
 #include "nsError.h"
 #include <dlfcn.h>
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 static struct BluedroidFunctions
@@ -43,8 +52,10 @@ static struct BluedroidFunctions
 bool
 EnsureBluetoothInit()
 {
+//  LOG("### EnsureBluetoothInit");
   if (sBluedroidFunctions.tried_initialization)
   {
+//    LOG("### tried_initialization");
     return sBluedroidFunctions.initialized;
   }
 
@@ -73,6 +84,8 @@ EnsureBluetoothInit()
     NS_ERROR("Failed to attach bt_is_enabled function");
     return false;
   }
+
+//  LOG("### initialized");
   sBluedroidFunctions.initialized = true;
   return true;
 }
@@ -80,6 +93,7 @@ EnsureBluetoothInit()
 int
 IsBluetoothEnabled()
 {
+//  LOG("### IsBluetoothEnabled");
   return sBluedroidFunctions.bt_is_enabled();
 }
 
@@ -126,6 +140,17 @@ StartStopGonkBluetooth(bool aShouldEnable)
   }
   
   return NS_OK;
+}
+
+int
+BluetoothGonkService::IsEnabledInternal()
+{
+//  LOG("### BluetoothGonkService::IsEnabledInternal");
+  if (!EnsureBluetoothInit()) {
+    NS_ERROR("Failed to load bluedroid library.\n");
+    return false;
+  }
+  return IsBluetoothEnabled();
 }
 
 nsresult

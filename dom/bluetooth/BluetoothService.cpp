@@ -18,6 +18,15 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -122,6 +131,7 @@ nsresult
 BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                  BluetoothSignalObserver* aHandler)
 {
+  LOG("### RegisterBluetoothSignalHandler");
   MOZ_ASSERT(NS_IsMainThread());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
@@ -129,6 +139,7 @@ BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
     mBluetoothSignalObserverTable.Put(aNodeName, ol);
   }
   ol->AddObserver(aHandler);
+  LOG("### Observer number: %d", ol->Length());
   return NS_OK;
 }
 
@@ -136,6 +147,7 @@ nsresult
 BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                    BluetoothSignalObserver* aHandler)
 {
+  LOG("### UnregisterBluetoothSignalHandler");
   MOZ_ASSERT(NS_IsMainThread());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
@@ -143,6 +155,7 @@ BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
     return NS_OK;
   }
   ol->RemoveObserver(aHandler);
+  LOG("### Observer number: %d", ol->Length());
   if (ol->Length() == 0) {
     mBluetoothSignalObserverTable.Remove(aNodeName);
   }

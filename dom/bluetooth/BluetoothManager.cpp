@@ -9,6 +9,7 @@
 #include "BluetoothCommon.h"
 #include "BluetoothAdapter.h"
 #include "BluetoothService.h"
+#include "BluetoothGonkService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 
@@ -22,6 +23,15 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 #include "nsIDOMDOMRequest.h"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 
@@ -174,12 +184,27 @@ BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
 NS_IMETHODIMP
 BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
 {
+  LOG("### SetEnabled");
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
     return NS_ERROR_FAILURE;
   }
 
+  LOG("### check isEnabled");
+  LOG("--- mEnabled: %d, aEnabled: %d ---", mEnabled, aEnabled);
+  if (!mEnabled && aEnabled) {
+    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_ERROR("Failed to register object with observer!");
+      return NS_ERROR_FAILURE;
+    }
+  } else if (mEnabled && !aEnabled){
+    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_WARNING("Failed to unregister object with observer!");
+    }
+  }
+
+  LOG("### create DOMRequestService");
   nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
   if (!rs) {
     NS_WARNING("No DOMRequest Service!");
@@ -251,17 +276,22 @@ BluetoothManager::GetDefaultAdapter(nsIDOMDOMRequest** aAdapter)
 // static
 already_AddRefed<BluetoothManager>
 BluetoothManager::Create(nsPIDOMWindow* aWindow) {
-
+  LOG("### Create BluetoothManager");
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
-  BluetoothService* bs = BluetoothService::Get();
+  BluetoothService* bs = BluetoothGonkService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
     return nullptr;
   }
-  
-  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
-    NS_ERROR("Failed to register object with observer!");
-    return nullptr;
+
+  bool isEnabled = (bs->IsEnabledInternal() > 0) ? true : false;
+  LOG("### check isEnabled: %d", isEnabled);
+  if (isEnabled) {
+    manager->SetEnabledInternal(isEnabled);
+    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
+      NS_ERROR("Failed to register object with observer!");
+      return nullptr;
+    }
   }
   
   return manager.forget();
