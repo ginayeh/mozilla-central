@@ -56,7 +56,7 @@ public:
   /**
    * @return true if bluetooth daemon is enabled, false otherwise
    */
-  virtual int IsEnabledInternal();  
+  virtual int IsEnabledInternal();
 };
 
 END_BLUETOOTH_NAMESPACE

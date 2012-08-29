@@ -9,7 +9,6 @@
 #include "BluetoothCommon.h"
 #include "BluetoothAdapter.h"
 #include "BluetoothService.h"
-#include "BluetoothGonkService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 
@@ -192,18 +191,19 @@ BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
   }
 
   LOG("### check isEnabled");
-  LOG("--- mEnabled: %d, aEnabled: %d ---", mEnabled, aEnabled);
-  if (!mEnabled && aEnabled) {
+  bool isEnabled = (bs->IsEnabledInternal() > 0) ? true : false;
+  LOG("--- isEnabled: %d, aEnabled: %d ---", isEnabled, aEnabled);
+  if (!isEnabled && aEnabled) {
     if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
       NS_ERROR("Failed to register object with observer!");
       return NS_ERROR_FAILURE;
     }
-  } else if (mEnabled && !aEnabled){
+  } else if (isEnabled && !aEnabled){
     if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
       NS_WARNING("Failed to unregister object with observer!");
     }
   } else {
-    const char* str = (mEnabled == true) ? "enabled" : "disabled";
+    const char* str = (isEnabled == true) ? "enabled" : "disabled";
     LOG("BluetoothService has been %s", str);
     return NS_OK;
   }
@@ -282,7 +282,7 @@ already_AddRefed<BluetoothManager>
 BluetoothManager::Create(nsPIDOMWindow* aWindow) {
   LOG("### Create BluetoothManager");
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
-  BluetoothService* bs = BluetoothGonkService::Get();
+  BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
     return nullptr;
@@ -291,7 +291,6 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow) {
   bool isEnabled = (bs->IsEnabledInternal() > 0) ? true : false;
   LOG("### check isEnabled: %d", isEnabled);
   if (isEnabled) {
-    manager->SetEnabledInternal(isEnabled);
     if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
       NS_ERROR("Failed to register object with observer!");
       return nullptr;
