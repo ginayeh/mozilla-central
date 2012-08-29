@@ -41,7 +41,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothDevice,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(propertychanged)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(connected)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnected)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(disconnected) 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothDevice, 
@@ -199,7 +199,6 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
         NS_WARNING("Failed to init the connected/disconnected event!!!");
         return;
       }
-
       event->SetTrusted(true);
       bool dummy;
       DispatchEvent(event, &dummy);
