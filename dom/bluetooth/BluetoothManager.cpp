@@ -9,6 +9,7 @@
 #include "BluetoothCommon.h"
 #include "BluetoothAdapter.h"
 #include "BluetoothService.h"
+#include "BluetoothGonkService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 
@@ -21,6 +22,7 @@
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
+#include "nsIDOMDOMRequest.h"
 
 #undef LOG
 #if defined(MOZ_WIDGET_GONK)
@@ -65,7 +67,6 @@ public:
     BluetoothReplyRunnable(aReq),
     mManagerPtr(aManager)
   {
-    LOG("### create GetAdapterTask");
   }
 
   bool
@@ -183,12 +184,31 @@ BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
 NS_IMETHODIMP
 BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
 {
+  LOG("### SetEnabled");
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
     return NS_ERROR_FAILURE;
   }
 
+  LOG("### check isEnabled");
+  LOG("--- mEnabled: %d, aEnabled: %d ---", mEnabled, aEnabled);
+  if (!mEnabled && aEnabled) {
+    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_ERROR("Failed to register object with observer!");
+      return NS_ERROR_FAILURE;
+    }
+  } else if (mEnabled && !aEnabled){
+    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
+      NS_WARNING("Failed to unregister object with observer!");
+    }
+  } else {
+    const char* str = (mEnabled == true) ? "enabled" : "disabled";
+    LOG("BluetoothService has been %s", str);
+    return NS_OK;
+  }
+
+  LOG("### create DOMRequestService");
   nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
   if (!rs) {
     NS_WARNING("No DOMRequest Service!");
@@ -202,21 +222,13 @@ BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
     return NS_ERROR_FAILURE;
   }
 
-  LOG("### BluetoothManager::SetEnabled()");
   nsRefPtr<BluetoothReplyRunnable> results = new ToggleBtResultTask(this, request, aEnabled);
   if (aEnabled) {
-    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
-      NS_ERROR("Failed to register object with observer!");
-      return NS_ERROR_FAILURE;
-    }
     if (NS_FAILED(bs->Start(results))) {
       return NS_ERROR_FAILURE;
     }
   }
   else {
-    if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), this))) {
-      NS_WARNING("Failed to unregister object with observer!");
-    }
     if (NS_FAILED(bs->Stop(results))) {
       return NS_ERROR_FAILURE;
     }
@@ -236,8 +248,6 @@ BluetoothManager::GetEnabled(bool* aEnabled)
 NS_IMETHODIMP
 BluetoothManager::GetDefaultAdapter(nsIDOMDOMRequest** aAdapter)
 {
-
-  LOG("GetDefaultAdapter");
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -270,8 +280,24 @@ BluetoothManager::GetDefaultAdapter(nsIDOMDOMRequest** aAdapter)
 // static
 already_AddRefed<BluetoothManager>
 BluetoothManager::Create(nsPIDOMWindow* aWindow) {
-
+  LOG("### Create BluetoothManager");
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
+  BluetoothService* bs = BluetoothGonkService::Get();
+  if (!bs) {
+    NS_WARNING("BluetoothService not available!");
+    return nullptr;
+  }
+
+  bool isEnabled = (bs->IsEnabledInternal() > 0) ? true : false;
+  LOG("### check isEnabled: %d", isEnabled);
+  if (isEnabled) {
+    manager->SetEnabledInternal(isEnabled);
+    if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING("/"), manager))) {
+      NS_ERROR("Failed to register object with observer!");
+      return nullptr;
+    }
+  }
+  
   return manager.forget();
 }
 
@@ -296,7 +322,7 @@ NS_NewBluetoothManager(nsPIDOMWindow* aWindow,
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, NS_ERROR_UNEXPECTED);
 
-  PRUint32 permission;
+  uint32_t permission;
   nsresult rv =
     permMgr->TestPermissionFromPrincipal(principal, "mozBluetooth", &permission);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -320,7 +346,6 @@ void
 BluetoothManager::Notify(const BluetoothSignal& aData)
 {
   if (aData.name().EqualsLiteral("AdapterAdded")) {
-    LOG("----------- BluetoothManager got Notified: AdapterAdded ------------");
     nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
     nsresult rv = event->InitEvent(NS_LITERAL_STRING("adapteradded"), false, false);
 
@@ -334,10 +359,10 @@ BluetoothManager::Notify(const BluetoothSignal& aData)
     DispatchEvent(event, &dummy);
   } else {
 #ifdef DEBUG
-  nsCString warningMsg;
-  warningMsg.AssignLiteral("Not handling manager signal: ");
-  warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
-  NS_WARNING(warningMsg.get());
+    nsCString warningMsg;
+    warningMsg.AssignLiteral("Not handling manager signal: ");
+    warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
+    NS_WARNING(warningMsg.get());
 #endif
   }
 }

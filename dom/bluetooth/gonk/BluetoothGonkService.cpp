@@ -22,6 +22,15 @@
 #include "nsError.h"
 #include <dlfcn.h>
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 static struct BluedroidFunctions
@@ -43,10 +52,10 @@ static struct BluedroidFunctions
 bool
 EnsureBluetoothInit()
 {
-  LOG("EnsureBluetoothInit");
+//  LOG("### EnsureBluetoothInit");
   if (sBluedroidFunctions.tried_initialization)
   {
-    LOG("initialized");
+//    LOG("### tried_initialization");
     return sBluedroidFunctions.initialized;
   }
 
@@ -65,34 +74,32 @@ EnsureBluetoothInit()
     NS_ERROR("Failed to attach bt_enable function");
     return false;
   }
-  LOG("attach bt_enable function");
   sBluedroidFunctions.bt_disable = (int (*)())dlsym(handle, "bt_disable");
   if (!sBluedroidFunctions.bt_disable) {
     NS_ERROR("Failed to attach bt_disable function");
     return false;
   }
-  LOG("attach bt_disable function");
   sBluedroidFunctions.bt_is_enabled = (int (*)())dlsym(handle, "bt_is_enabled");
   if (!sBluedroidFunctions.bt_is_enabled) {
     NS_ERROR("Failed to attach bt_is_enabled function");
     return false;
   }
-  LOG("attach bt_is_enabled function");
+
+//  LOG("### initialized");
   sBluedroidFunctions.initialized = true;
-  LOG("initialized = true");
   return true;
 }
 
 int
 IsBluetoothEnabled()
 {
+//  LOG("### IsBluetoothEnabled");
   return sBluedroidFunctions.bt_is_enabled();
 }
 
 int
 EnableBluetooth()
 {
-  LOG("EnableBluetooth()");
   return sBluedroidFunctions.bt_enable();
 }
 
@@ -107,26 +114,22 @@ StartStopGonkBluetooth(bool aShouldEnable)
 {
   bool result;
   
-  LOG("StartStopGonkBluetooth");
   // Platform specific check for gonk until object is divided in
   // different implementations per platform. Linux doesn't require
   // bluetooth firmware loading, but code should work otherwise.
   if (!EnsureBluetoothInit()) {
     NS_ERROR("Failed to load bluedroid library.\n");
-    LOG("Failed to load bluedroid library.\n");
     return NS_ERROR_FAILURE;
   }
 
   // return 1 if it's enabled, 0 if it's disabled, and -1 on error
   int isEnabled = IsBluetoothEnabled();
 
-  LOG("isEnabled: %d, shouldEnable: %d", isEnabled, aShouldEnable);
   if ((isEnabled == 1 && aShouldEnable) || (isEnabled == 0 && !aShouldEnable)) {
     result = true;
   } else if (isEnabled < 0) {
     result = false;
   } else if (aShouldEnable) {
-    LOG("shouldEnable");
     result = (EnableBluetooth() == 0) ? true : false;
   } else {
     result = (DisableBluetooth() == 0) ? true : false;
@@ -139,11 +142,22 @@ StartStopGonkBluetooth(bool aShouldEnable)
   return NS_OK;
 }
 
+int
+BluetoothGonkService::IsEnabledInternal()
+{
+//  LOG("### BluetoothGonkService::IsEnabledInternal");
+  if (!EnsureBluetoothInit()) {
+    NS_ERROR("Failed to load bluedroid library.\n");
+    return false;
+  }
+  return IsBluetoothEnabled();
+}
+
 nsresult
 BluetoothGonkService::StartInternal()
 {
   NS_ASSERTION(!NS_IsMainThread(), "This should not run on the main thread!");
-  LOG("Gonk, StartInternal");
+
   nsresult ret;
 
   ret = StartStopGonkBluetooth(true);
