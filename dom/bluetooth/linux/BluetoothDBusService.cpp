@@ -910,9 +910,16 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
       errorStr.AssignLiteral("Cannot parse manager path!");
     }
+<<<<<<< HEAD
     else {
       v = NS_ConvertUTF8toUTF16(str);
     }
+=======
+    v = NS_ConvertUTF8toUTF16(str);
+    LOG("signal: %s", str);
+  } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterRemoved")) {
+    LOG("--------- Manager::AdapterRemoved ----------");
+>>>>>>> 44e66b641ad60918ba076a972cd0e56802a4555b
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
     LOG("--------- Manager::PropertyChanged ----------");
     LOG("signal.name: %s, signal.path: %s", NS_ConvertUTF16toUTF8(signalName).get(), NS_ConvertUTF16toUTF8(signalPath).get());

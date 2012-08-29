@@ -336,12 +336,10 @@ BluetoothManager::Notify(const BluetoothSignal& aData)
     LOG("BluetoothManager got Notified: AdapterAdded");
     nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
     nsresult rv = event->InitEvent(NS_LITERAL_STRING("adapteradded"), false, false);
-
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to init the adapteradded event!!!");
       return;
     }
-
     event->SetTrusted(true);
     bool dummy;
     DispatchEvent(event, &dummy);
