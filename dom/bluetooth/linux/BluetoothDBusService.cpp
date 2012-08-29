@@ -898,8 +898,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                                DBUS_TYPE_INVALID)) {
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
       errorStr.AssignLiteral("Cannot parse manager path!");
-    }
-    else {
+    } else {
       v = NS_ConvertUTF8toUTF16(str);
     }
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
@@ -1038,12 +1037,13 @@ BluetoothDBusService::StopInternal()
   return NS_OK;
 }
 
-/*
+
 int
 BluetoothDBusService::IsEnabledInternal()
 {
-  return
-}*/
+  // assume bluetooth is always enabled on desktop
+  return true;
+}
 
 class DefaultAdapterPropertiesRunnable : public nsRunnable
 {
