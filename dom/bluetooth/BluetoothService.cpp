@@ -12,6 +12,7 @@
 #include "GeneratedEvents.h"
 
 #include "nsIDOMDOMRequest.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsObserverService.h"
@@ -41,7 +42,8 @@ NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
 class ToggleBtAck : public nsRunnable
 {
 public:
-  ToggleBtAck(bool aEnabled, bool aResult, nsDOMEventTarget* aTarget) : mEnabled(aEnabled), mResult(aResult), mTarget(aTarget)
+  //ToggleBtAck(bool aEnabled, bool aResult, nsIDOMEventTarget* aTarget) : mEnabled(aEnabled), mResult(aResult), mTarget(aTarget)
+  ToggleBtAck(bool aEnabled, bool aResult) : mEnabled(aEnabled), mResult(aResult)
   {
   }
   
@@ -70,37 +72,37 @@ public:
   nsresult
   FireEnabledDisabledEvent(bool aResult)
   {
-		nsString eventName;
+    nsString eventName;
 
-		if (mEnabled) {
-			eventName.AssignLiteral("enabled");
-		} else {
-			eventName.AssignLiteral("disabled");
-		}
+    if (mEnabled) {
+      eventName.AssignLiteral("enabled");
+    } else {
+      eventName.AssignLiteral("disabled");
+    }
 
-		LOG("### ToggleBtAct::FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
+    LOG("### ToggleBtAct::FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
 
-		nsCOMPtr<nsIDOMEvent> event;
-		NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
 
-		nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
-		nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
-		NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
+    nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-		rv = e->SetTrusted(true);
-		NS_ENSURE_SUCCESS(rv, rv);
+    rv = e->SetTrusted(true);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-		bool dummy;
-		rv = mTarget->DispatchEvent(event, &dummy);
-		NS_ENSURE_SUCCESS(rv, rv);
+    bool dummy;
+    rv = DispatchEvent(event, &dummy);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-		return NS_OK;
-	}
+    return NS_OK;
+  }
 
 private:
   bool mEnabled;
   bool mResult;
-  nsRefPtr<nsDOMEventTarget> mTarget;
+//  nsRefPtr<nsIDOMEventTarget> mTarget;
 };
 
 class ToggleBtTask : public nsRunnable

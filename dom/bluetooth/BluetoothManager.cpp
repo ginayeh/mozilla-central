@@ -142,7 +142,7 @@ public:
     mManagerPtr->SetEnabledInternal(mEnabled);
 //    const char* str = (rv == NS_OK) ? "NS_OK" : "NS_ERROR_FAILURE";
 //    const char* str = "TEST";
-    mManagerPtr->FireEnabledDisabledEvent(mResult);
+//    mManagerPtr->FireEnabledDisabledEvent(mResult);
 
     // mManagerPtr must be null before returning to prevent the background
     // thread from racing to release it during the destruction of this runnable.
@@ -293,17 +293,11 @@ BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
 
   if (enabled) {
     if (NS_FAILED(bs->Start(resultTask, this))) {
-      LOG("error");
       return NS_ERROR_FAILURE;
-    } else {
-      LOG("success");
     }
   } else {
     if (NS_FAILED(bs->Stop(resultTask, this))) {
-      LOG("error");
       return NS_ERROR_FAILURE;
-    } else {
-      LOG("success");
     }
   }
 
