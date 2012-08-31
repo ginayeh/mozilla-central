@@ -926,6 +926,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 nsresult
 BluetoothDBusService::StartInternal()
 {
+  LOG("### DBus::StartInternal()");
   // This could block. It should never be run on the main thread.
   MOZ_ASSERT(!NS_IsMainThread());
   

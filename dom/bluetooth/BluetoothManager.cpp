@@ -11,11 +11,13 @@
 #include "BluetoothService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
+#include "GeneratedEvents.h"
 
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMEvent.h"
 #include "nsDOMEventTargetHelper.h"
+#include "nsIDOMBluetoothResultEvent.h"
 #include "nsIDOMDOMRequest.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserverService.h"
@@ -26,6 +28,15 @@
 #include "mozilla/Services.h"
 #include "mozilla/Util.h"
 #include "nsIDOMDOMRequest.h"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 
@@ -112,16 +123,26 @@ class ToggleBtResultTask : public nsRunnable
 public:
   ToggleBtResultTask(BluetoothManager* aManager, bool aEnabled)
     : mManagerPtr(aManager),
-      mEnabled(aEnabled)
+      mEnabled(aEnabled),
+      mResult(false)
   {
+  }
+
+  void SetReply(bool aResult)
+  {
+    LOG("### ToggleBtResultTask::SetReply(), %d", aResult);
+    mResult = aResult;
   }
 
   NS_IMETHOD Run()
   {
+    LOG("### ToggleBtResultTask::Run()");
     MOZ_ASSERT(NS_IsMainThread());
 
     mManagerPtr->SetEnabledInternal(mEnabled);
-    mManagerPtr->FireEnabledDisabledEvent();
+//    const char* str = (rv == NS_OK) ? "NS_OK" : "NS_ERROR_FAILURE";
+//    const char* str = "TEST";
+    mManagerPtr->FireEnabledDisabledEvent(mResult);
 
     // mManagerPtr must be null before returning to prevent the background
     // thread from racing to release it during the destruction of this runnable.
@@ -133,10 +154,11 @@ public:
 private:
   nsRefPtr<BluetoothManager> mManagerPtr;
   bool mEnabled;
+  bool mResult;
 };
 
 nsresult
-BluetoothManager::FireEnabledDisabledEvent()
+BluetoothManager::FireEnabledDisabledEvent(bool aResult)
 {
   nsString eventName;
 
@@ -146,11 +168,26 @@ BluetoothManager::FireEnabledDisabledEvent()
     eventName.AssignLiteral("disabled");
   }
 
-  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+  LOG("### FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
+/*  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
   nsresult rv = event->InitEvent(eventName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool dummy;
+  rv = DispatchEvent(event, &dummy);
+  NS_ENSURE_SUCCESS(rv, rv);*/
+
+  nsCOMPtr<nsIDOMEvent> event;
+  NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
+
+  nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
+  nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = e->SetTrusted(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
@@ -188,6 +225,7 @@ BluetoothManager::~BluetoothManager()
 nsresult
 BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
 {
+  LOG("### HandleMozsettingChanged");
   // The string that we're interested in will be a JSON string that looks like:
   //  {"key":"bluetooth.enabled","value":true}
   nsresult rv;
@@ -254,12 +292,18 @@ BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
   nsCOMPtr<nsIRunnable> resultTask = new ToggleBtResultTask(this, enabled);
 
   if (enabled) {
-    if (NS_FAILED(bs->Start(resultTask))) {
+    if (NS_FAILED(bs->Start(resultTask, this))) {
+      LOG("error");
       return NS_ERROR_FAILURE;
+    } else {
+      LOG("success");
     }
   } else {
-    if (NS_FAILED(bs->Stop(resultTask))) {
+    if (NS_FAILED(bs->Stop(resultTask, this))) {
+      LOG("error");
       return NS_ERROR_FAILURE;
+    } else {
+      LOG("success");
     }
   }
 
@@ -275,6 +319,9 @@ BluetoothManager::Observe(nsISupports* aSubject,
 
   if (!strcmp("mozsettings-changed", aTopic)) {
     rv = HandleMozsettingChanged(aData);
+//    const char* str = (rv == NS_OK) ? "NS_OK" : "NS_ERROR_FAILURE";
+//    LOG("rv of HandleMozsettingChanged: %s", str);
+//    rv = FireEnabledDisabledEvent(str);
   }
 
   return rv;

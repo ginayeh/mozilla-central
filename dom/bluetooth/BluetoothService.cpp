@@ -18,6 +18,15 @@
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -36,6 +45,7 @@ public:
   
   NS_IMETHOD Run()
   {
+    LOG("### ToggleBtAck::Run()");
     MOZ_ASSERT(NS_IsMainThread());
 
     if (!mEnabled || gInShutdown) {
@@ -69,17 +79,21 @@ public:
 
   NS_IMETHOD Run() 
   {
+    LOG("### ToggleBtTask::Run()");
     MOZ_ASSERT(!NS_IsMainThread());
 
     nsString replyError;
+    bool result = true;
     if (mEnabled) {
       if (NS_FAILED(gBluetoothService->StartInternal())) {
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
+        result = false;
       }
     }
     else {
       if (NS_FAILED(gBluetoothService->StopInternal())) {        
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
+        result = false;
       }
     }
 
@@ -94,6 +108,8 @@ public:
     if (!mRunnable) {
       return NS_OK;
     }
+
+//    mRunnable->SetReply(result);
 
     if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
       NS_WARNING("Failed to dispatch to main thread!");
@@ -154,6 +170,7 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 nsresult
 BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
 {
+  LOG("### StartStopBluetooth");
   MOZ_ASSERT(NS_IsMainThread());
 
   // If we're shutting down, bail early.
