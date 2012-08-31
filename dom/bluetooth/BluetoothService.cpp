@@ -9,11 +9,13 @@
 #include "BluetoothService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
+#include "GeneratedEvents.h"
 
 #include "nsIDOMDOMRequest.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsObserverService.h"
+#include "nsIDOMBluetoothResultEvent.h"
 #include "mozilla/Services.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
@@ -39,7 +41,7 @@ NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
 class ToggleBtAck : public nsRunnable
 {
 public:
-  ToggleBtAck(bool aEnabled) : mEnabled(aEnabled)
+  ToggleBtAck(bool aEnabled, bool aResult, nsDOMEventTarget* aTarget) : mEnabled(aEnabled), mResult(aResult), mTarget(aTarget)
   {
   }
   
@@ -60,10 +62,45 @@ public:
       gBluetoothService = nullptr;
     }
 
+    FireEnabledDisabledEvent(mResult);
+
     return NS_OK;
   }
 
+  nsresult
+  FireEnabledDisabledEvent(bool aResult)
+  {
+		nsString eventName;
+
+		if (mEnabled) {
+			eventName.AssignLiteral("enabled");
+		} else {
+			eventName.AssignLiteral("disabled");
+		}
+
+		LOG("### ToggleBtAct::FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
+
+		nsCOMPtr<nsIDOMEvent> event;
+		NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
+
+		nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
+		nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
+		NS_ENSURE_SUCCESS(rv, rv);
+
+		rv = e->SetTrusted(true);
+		NS_ENSURE_SUCCESS(rv, rv);
+
+		bool dummy;
+		rv = mTarget->DispatchEvent(event, &dummy);
+		NS_ENSURE_SUCCESS(rv, rv);
+
+		return NS_OK;
+	}
+
+private:
   bool mEnabled;
+  bool mResult;
+  nsRefPtr<nsDOMEventTarget> mTarget;
 };
 
 class ToggleBtTask : public nsRunnable
@@ -100,7 +137,7 @@ public:
     // Always has to be called since this is where we take care of our reference
     // count for runnables. If there's an error, replyError won't be empty, so
     // consider our status flipped.
-    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled);
+    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled, result);
     if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
       NS_WARNING("Failed to dispatch to main thread!");
     }
