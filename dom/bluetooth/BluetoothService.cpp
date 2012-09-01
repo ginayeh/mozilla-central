@@ -9,6 +9,7 @@
 #include "BluetoothService.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
+#include "ToggleBtResultTask.h"
 
 #include "nsIDOMDOMRequest.h"
 #include "nsThreadUtils.h"
@@ -70,7 +71,7 @@ class ToggleBtTask : public nsRunnable
 {
 public:
   ToggleBtTask(bool aEnabled,
-               nsIRunnable* aRunnable)
+               ToggleBtResultTask* aRunnable)
     : mEnabled(aEnabled),
       mRunnable(aRunnable)
   {
@@ -109,7 +110,7 @@ public:
       return NS_OK;
     }
 
-//    mRunnable->SetReply(result);
+    mRunnable->SetReply(result);
 
     if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
       NS_WARNING("Failed to dispatch to main thread!");
@@ -120,7 +121,7 @@ public:
 
 private:
   bool mEnabled;
-  nsCOMPtr<nsIRunnable> mRunnable;
+  nsCOMPtr<ToggleBtResultTask> mRunnable;
 };
 
 nsresult
@@ -168,7 +169,7 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 }
 
 nsresult
-BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
+BluetoothService::StartStopBluetooth(ToggleBtResultTask* aResultRunnable, bool aStart)
 {
   LOG("### StartStopBluetooth");
   MOZ_ASSERT(NS_IsMainThread());
@@ -192,13 +193,13 @@ BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
 }
 
 nsresult
-BluetoothService::Start(nsIRunnable* aResultRunnable)
+BluetoothService::Start(ToggleBtResultTask* aResultRunnable)
 {
   return StartStopBluetooth(aResultRunnable, true);
 }
 
 nsresult
-BluetoothService::Stop(nsIRunnable* aResultRunnable)
+BluetoothService::Stop(ToggleBtResultTask* aResultRunnable)
 {
   return StartStopBluetooth(aResultRunnable, false);
 }

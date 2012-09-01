@@ -12,6 +12,7 @@
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 #include "GeneratedEvents.h"
+#include "ToggleBtResultTask.h"
 
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
@@ -118,6 +119,7 @@ private:
   nsRefPtr<BluetoothManager> mManagerPtr;
 };
 
+/*
 class ToggleBtResultTask : public nsRunnable
 {
 public:
@@ -140,8 +142,6 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     mManagerPtr->SetEnabledInternal(mEnabled);
-//    const char* str = (rv == NS_OK) ? "NS_OK" : "NS_ERROR_FAILURE";
-//    const char* str = "TEST";
     mManagerPtr->FireEnabledDisabledEvent(mResult);
 
     // mManagerPtr must be null before returning to prevent the background
@@ -156,7 +156,7 @@ private:
   bool mEnabled;
   bool mResult;
 };
-
+*/
 nsresult
 BluetoothManager::FireEnabledDisabledEvent(bool aResult)
 {
@@ -289,17 +289,17 @@ BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
   }
 
   bool enabled = value.toBoolean();
-  nsCOMPtr<nsIRunnable> resultTask = new ToggleBtResultTask(this, enabled);
+  nsCOMPtr<ToggleBtResultTask> resultTask = new ToggleBtResultTask(this, enabled);
 
   if (enabled) {
-    if (NS_FAILED(bs->Start(resultTask, this))) {
+    if (NS_FAILED(bs->Start(resultTask))) {
       LOG("error");
       return NS_ERROR_FAILURE;
     } else {
       LOG("success");
     }
   } else {
-    if (NS_FAILED(bs->Stop(resultTask, this))) {
+    if (NS_FAILED(bs->Stop(resultTask))) {
       LOG("error");
       return NS_ERROR_FAILURE;
     } else {
