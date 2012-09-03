@@ -42,7 +42,7 @@ public:
   Create(nsPIDOMWindow* aWindow);
   void Notify(const BluetoothSignal& aData);
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);
-  nsresult FireEnabledDisabledEvent(bool aResult);
+  nsresult FireEnabledDisabledEvent(bool* aResult);
 private:
   BluetoothManager(nsPIDOMWindow* aWindow);
   ~BluetoothManager();

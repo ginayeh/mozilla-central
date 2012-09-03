@@ -75,38 +75,38 @@ class ToggleBtTask : public nsRunnable
 public:
   ToggleBtTask(bool aEnabled,
                nsIRunnable* aRunnable,
-               bool& aResult)
+               bool* aResult)
     : mEnabled(aEnabled),
       mRunnable(aRunnable),
       mResult(aResult)
   {
     MOZ_ASSERT(NS_IsMainThread());
-    LOG("### ToggleBtTask created, mResult = %d", aResult);
+    LOG("### ToggleBtTask created, mResult = %d[%p]", *aResult, aResult);
   }
 
   NS_IMETHOD Run() 
   {
-    LOG("### ToggleBtTask::Run(), mResult = %d", mResult);
+    LOG("### ToggleBtTask::Run(), mResult = %d[%p]", *mResult, mResult);
     MOZ_ASSERT(!NS_IsMainThread());
 
     nsString replyError;
     if (mEnabled) {
       if (NS_FAILED(gBluetoothService->StartInternal())) {
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
-        aResult = false;
+        *mResult = false;
       } else {
-        aResult = true;  
+        *mResult = true;
       }
     }
     else {
       if (NS_FAILED(gBluetoothService->StopInternal())) {        
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
-        aResult = false;
+        *mResult = false;
       } else {
-        aResult = true;
+        *mResult = true;
       }
     }
-    LOG("### replyError, aResult = %d", aResult);
+    LOG("### replyError, mResult = %d[%p]", *mResult, mResult);
 
     // Always has to be called since this is where we take care of our reference
     // count for runnables. If there's an error, replyError won't be empty, so
@@ -130,7 +130,7 @@ public:
 private:
   bool mEnabled;
   nsCOMPtr<nsIRunnable> mRunnable;
-  bool& mResult;
+  bool* mResult;
 };
 
 nsresult
@@ -178,9 +178,9 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 }
 
 nsresult
-BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart, bool& aResult)
+BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart, bool* aResult)
 {
-  LOG("### StartStopBluetooth, aResult = %d", aResult);
+  LOG("### StartStopBluetooth, aResult = %d[%p]", *aResult, aResult);
   MOZ_ASSERT(NS_IsMainThread());
 
   // If we're shutting down, bail early.
@@ -202,13 +202,13 @@ BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart, 
 }
 
 nsresult
-BluetoothService::Start(nsIRunnable* aResultRunnable, bool& aResult)
+BluetoothService::Start(nsIRunnable* aResultRunnable, bool* aResult)
 {
   return StartStopBluetooth(aResultRunnable, true, aResult);
 }
 
 nsresult
-BluetoothService::Stop(nsIRunnable* aResultRunnable, bool& aResult)
+BluetoothService::Stop(nsIRunnable* aResultRunnable, bool* aResult)
 {
   return StartStopBluetooth(aResultRunnable, false, aResult);
 }
@@ -259,5 +259,5 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
 
   // XXX
   bool result = false;
-  return Stop(nullptr, result);
+  return Stop(nullptr, &result);
 }

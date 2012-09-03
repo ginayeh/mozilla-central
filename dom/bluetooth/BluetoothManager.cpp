@@ -121,17 +121,17 @@ private:
 class ToggleBtResultTask : public nsRunnable
 {
 public:
-  ToggleBtResultTask(BluetoothManager* aManager, bool aEnabled)
+  ToggleBtResultTask(BluetoothManager* aManager, bool aEnabled, bool* aResult)
     : mManagerPtr(aManager),
       mEnabled(aEnabled),
-      mResult(false)
+      mResult(aResult)
   {
-    LOG("### ToggleBtResultTask created, mResult = %d[%p]", mResult, &mResult);
+    LOG("### ToggleBtResultTask created, mResult = %d[%p]", *mResult, mResult);
   }
 
   NS_IMETHOD Run()
   {
-    LOG("### ToggleBtResultTask::Run(), mResult = %d", mResult);
+    LOG("### ToggleBtResultTask::Run(), mResult = %d[%p]", *mResult, mResult);
     MOZ_ASSERT(NS_IsMainThread());
 
     mManagerPtr->SetEnabledInternal(mEnabled);
@@ -147,11 +147,11 @@ public:
 private:
   nsRefPtr<BluetoothManager> mManagerPtr;
   bool mEnabled;
-  bool mResult;
+  bool* mResult;
 };
 
 nsresult
-BluetoothManager::FireEnabledDisabledEvent(bool aResult)
+BluetoothManager::FireEnabledDisabledEvent(bool* aResult)
 {
   nsString eventName;
 
@@ -161,23 +161,12 @@ BluetoothManager::FireEnabledDisabledEvent(bool aResult)
     eventName.AssignLiteral("disabled");
   }
 
-  LOG("### FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
-/*  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
-  nsresult rv = event->InitEvent(eventName, false, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool dummy;
-  rv = DispatchEvent(event, &dummy);
-  NS_ENSURE_SUCCESS(rv, rv);*/
-
+  LOG("### FireEnabledDisabledEvent - %s - %d[%p]", NS_ConvertUTF16toUTF8(eventName).get(), *aResult, aResult);
   nsCOMPtr<nsIDOMEvent> event;
   NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
 
   nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
-  nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
+  nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, *aResult);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = e->SetTrusted(true);
@@ -284,14 +273,14 @@ BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
   bool enabled = value.toBoolean();
   bool result = false;
   LOG("### result = %d[%p]", result, &result);
-  nsCOMPtr<nsIRunnable> resultTask = new ToggleBtResultTask(this, enabled);
+  nsCOMPtr<nsIRunnable> resultTask = new ToggleBtResultTask(this, enabled, &result);
 
   if (enabled) {
-    if (NS_FAILED(bs->Start(resultTask, result))) {
+    if (NS_FAILED(bs->Start(resultTask, &result))) {
       return NS_ERROR_FAILURE;
     }
   } else {
-    if (NS_FAILED(bs->Stop(resultTask, result))) {
+    if (NS_FAILED(bs->Stop(resultTask, &result))) {
       return NS_ERROR_FAILURE;
     }
   }
