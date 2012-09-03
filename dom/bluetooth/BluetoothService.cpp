@@ -42,8 +42,7 @@ NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
 class ToggleBtAck : public nsRunnable
 {
 public:
-  //ToggleBtAck(bool aEnabled, bool aResult, nsIDOMEventTarget* aTarget) : mEnabled(aEnabled), mResult(aResult), mTarget(aTarget)
-  ToggleBtAck(bool aEnabled, bool aResult) : mEnabled(aEnabled), mResult(aResult)
+  ToggleBtAck(bool aEnabled) : mEnabled(aEnabled)
   {
   }
   
@@ -64,82 +63,55 @@ public:
       gBluetoothService = nullptr;
     }
 
-    FireEnabledDisabledEvent(mResult);
-
-    return NS_OK;
-  }
-
-  nsresult
-  FireEnabledDisabledEvent(bool aResult)
-  {
-    nsString eventName;
-
-    if (mEnabled) {
-      eventName.AssignLiteral("enabled");
-    } else {
-      eventName.AssignLiteral("disabled");
-    }
-
-    LOG("### ToggleBtAct::FireEnabledDisabledEvent - %s - %d", NS_ConvertUTF16toUTF8(eventName).get(), aResult);
-
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothResultEvent(getter_AddRefs(event), nullptr, nullptr);
-
-    nsCOMPtr<nsIDOMBluetoothResultEvent> e = do_QueryInterface(event);
-    nsresult rv = e->InitBluetoothResultEvent(eventName, false, false, aResult);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = e->SetTrusted(true);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool dummy;
-    rv = DispatchEvent(event, &dummy);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     return NS_OK;
   }
 
 private:
   bool mEnabled;
-  bool mResult;
-//  nsRefPtr<nsIDOMEventTarget> mTarget;
 };
 
 class ToggleBtTask : public nsRunnable
 {
 public:
   ToggleBtTask(bool aEnabled,
-               nsIRunnable* aRunnable)
+               nsIRunnable* aRunnable,
+               bool& aResult)
     : mEnabled(aEnabled),
-      mRunnable(aRunnable)
+      mRunnable(aRunnable),
+      mResult(aResult)
   {
     MOZ_ASSERT(NS_IsMainThread());
+    LOG("### ToggleBtTask created, mResult = %d", aResult);
   }
 
   NS_IMETHOD Run() 
   {
-    LOG("### ToggleBtTask::Run()");
+    LOG("### ToggleBtTask::Run(), mResult = %d", mResult);
     MOZ_ASSERT(!NS_IsMainThread());
 
     nsString replyError;
-    bool result = true;
     if (mEnabled) {
       if (NS_FAILED(gBluetoothService->StartInternal())) {
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
-        result = false;
+        aResult = false;
+      } else {
+        aResult = true;  
       }
     }
     else {
       if (NS_FAILED(gBluetoothService->StopInternal())) {        
         replyError.AssignLiteral("Bluetooth service not available - We should never reach this point!");
-        result = false;
+        aResult = false;
+      } else {
+        aResult = true;
       }
     }
+    LOG("### replyError, aResult = %d", aResult);
 
     // Always has to be called since this is where we take care of our reference
     // count for runnables. If there's an error, replyError won't be empty, so
     // consider our status flipped.
-    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled, result);
+    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled);
     if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
       NS_WARNING("Failed to dispatch to main thread!");
     }
@@ -147,8 +119,6 @@ public:
     if (!mRunnable) {
       return NS_OK;
     }
-
-//    mRunnable->SetReply(result);
 
     if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
       NS_WARNING("Failed to dispatch to main thread!");
@@ -160,6 +130,7 @@ public:
 private:
   bool mEnabled;
   nsCOMPtr<nsIRunnable> mRunnable;
+  bool& mResult;
 };
 
 nsresult
@@ -207,9 +178,9 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 }
 
 nsresult
-BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
+BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart, bool& aResult)
 {
-  LOG("### StartStopBluetooth");
+  LOG("### StartStopBluetooth, aResult = %d", aResult);
   MOZ_ASSERT(NS_IsMainThread());
 
   // If we're shutting down, bail early.
@@ -222,7 +193,7 @@ BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
                                     getter_AddRefs(mBluetoothCommandThread));
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  nsCOMPtr<nsIRunnable> r = new ToggleBtTask(aStart, aResultRunnable);
+  nsCOMPtr<nsIRunnable> r = new ToggleBtTask(aStart, aResultRunnable, aResult);
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(r, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch firmware loading task!");
     return NS_ERROR_FAILURE;
@@ -231,15 +202,15 @@ BluetoothService::StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart)
 }
 
 nsresult
-BluetoothService::Start(nsIRunnable* aResultRunnable)
+BluetoothService::Start(nsIRunnable* aResultRunnable, bool& aResult)
 {
-  return StartStopBluetooth(aResultRunnable, true);
+  return StartStopBluetooth(aResultRunnable, true, aResult);
 }
 
 nsresult
-BluetoothService::Stop(nsIRunnable* aResultRunnable)
+BluetoothService::Stop(nsIRunnable* aResultRunnable, bool& aResult)
 {
-  return StartStopBluetooth(aResultRunnable, false);
+  return StartStopBluetooth(aResultRunnable, false, aResult);
 }
 
 // static
@@ -286,5 +257,7 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
     NS_WARNING("Can't unregister bluetooth service with xpcom shutdown!");
   }
 
-  return Stop(nullptr);
+  // XXX
+  bool result = false;
+  return Stop(nullptr, result);
 }

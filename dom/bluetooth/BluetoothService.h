@@ -73,7 +73,7 @@ public:
    * @return NS_OK on initialization starting correctly, NS_ERROR_FAILURE
    * otherwise
    */
-  nsresult Start(nsIRunnable* aResultRunnable);
+  nsresult Start(nsIRunnable* aResultRunnable, bool& aResult);
 
   /** 
    * Stop bluetooth services. Starts up any threads and connections that
@@ -88,7 +88,7 @@ public:
    * @return NS_OK on initialization starting correctly, NS_ERROR_FAILURE
    * otherwise
    */
-  nsresult Stop(nsIRunnable* aResultRunnable);
+  nsresult Stop(nsIRunnable* aResultRunnable, bool& aResult);
 
   /** 
    * Returns the BluetoothService singleton. Only to be called from main thread.
@@ -250,7 +250,7 @@ protected:
   {
   }
 
-  nsresult StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart);
+  nsresult StartStopBluetooth(nsIRunnable* aResultRunnable, bool aStart, bool& aResult);
   // This function is implemented in platform-specific BluetoothServiceFactory
   // files
   static BluetoothService* Create();

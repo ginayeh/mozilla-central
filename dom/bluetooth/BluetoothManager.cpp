@@ -126,23 +126,16 @@ public:
       mEnabled(aEnabled),
       mResult(false)
   {
-  }
-
-  void SetReply(bool aResult)
-  {
-    LOG("### ToggleBtResultTask::SetReply(), %d", aResult);
-    mResult = aResult;
+    LOG("### ToggleBtResultTask created, mResult = %d[%p]", mResult, &mResult);
   }
 
   NS_IMETHOD Run()
   {
-    LOG("### ToggleBtResultTask::Run()");
+    LOG("### ToggleBtResultTask::Run(), mResult = %d", mResult);
     MOZ_ASSERT(NS_IsMainThread());
 
     mManagerPtr->SetEnabledInternal(mEnabled);
-//    const char* str = (rv == NS_OK) ? "NS_OK" : "NS_ERROR_FAILURE";
-//    const char* str = "TEST";
-//    mManagerPtr->FireEnabledDisabledEvent(mResult);
+    mManagerPtr->FireEnabledDisabledEvent(mResult);
 
     // mManagerPtr must be null before returning to prevent the background
     // thread from racing to release it during the destruction of this runnable.
@@ -289,14 +282,16 @@ BluetoothManager::HandleMozsettingChanged(const PRUnichar* aData)
   }
 
   bool enabled = value.toBoolean();
+  bool result = false;
+  LOG("### result = %d[%p]", result, &result);
   nsCOMPtr<nsIRunnable> resultTask = new ToggleBtResultTask(this, enabled);
 
   if (enabled) {
-    if (NS_FAILED(bs->Start(resultTask, this))) {
+    if (NS_FAILED(bs->Start(resultTask, result))) {
       return NS_ERROR_FAILURE;
     }
   } else {
-    if (NS_FAILED(bs->Stop(resultTask, this))) {
+    if (NS_FAILED(bs->Stop(resultTask, result))) {
       return NS_ERROR_FAILURE;
     }
   }
