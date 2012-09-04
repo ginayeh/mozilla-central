@@ -12,6 +12,7 @@
 #include "GeneratedEvents.h"
 
 #include "nsIDOMDOMRequest.h"
+#include "nsISettingsService.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
@@ -20,6 +21,8 @@
 #include "mozilla/Services.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
+
+#define BLUETOOTH_ENABLED "bluetooth.enabled"
 
 #undef LOG
 #if defined(MOZ_WIDGET_GONK)
@@ -42,7 +45,7 @@ NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
 class ToggleBtAck : public nsRunnable
 {
 public:
-  ToggleBtAck(bool aEnabled) : mEnabled(aEnabled)
+  ToggleBtAck(bool aEnabled, bool* aResult) : mEnabled(aEnabled), mResult(aResult)
   {
   }
   
@@ -63,11 +66,26 @@ public:
       gBluetoothService = nullptr;
     }
 
+    if (!(*mResult)) {
+      nsCOMPtr<nsISettingsService> settingsService =
+        do_GetService("@mozilla.org/settingsService;1");
+
+      if (!settingsService) {
+        LOG("Failed to get settingsLock service!");
+        NS_WARNING("Failed to get settingsLock service!");
+      }
+
+      nsCOMPtr<nsISettingsServiceLock> lock;
+      settingsService->GetLock(getter_AddRefs(lock));
+//      nsCOMPtr<nsISettingsServiceCallback> callback = new SettingsServiceCallback();
+      lock->Set(BLUETOOTH_ENABLED, BOOLEAN_TO_JSVAL(*mResult), nullptr);
+    }
     return NS_OK;
   }
 
 private:
   bool mEnabled;
+  bool* mResult;
 };
 
 class ToggleBtTask : public nsRunnable
@@ -111,7 +129,7 @@ public:
     // Always has to be called since this is where we take care of our reference
     // count for runnables. If there's an error, replyError won't be empty, so
     // consider our status flipped.
-    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled);
+    nsCOMPtr<nsIRunnable> ackTask = new ToggleBtAck(mEnabled, mResult);
     if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
       NS_WARNING("Failed to dispatch to main thread!");
     }
