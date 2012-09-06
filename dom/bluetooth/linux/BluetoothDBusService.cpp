@@ -301,6 +301,8 @@ KeepDBusPairingMessage(const nsString& aDeviceAddress, DBusMessage* aMsg)
   dbus_message_ref(aMsg);
 }
 
+bool GetDeviceName(const char* aPath, nsString& aName);
+
 static DBusHandlerResult
 AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 {
@@ -376,9 +378,12 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestConfirmation() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
+      nsString name;
+      GetDeviceName(objectPath, name);
 
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
       
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -396,8 +401,11 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestPinCode() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
+      nsString name;
+      GetDeviceName(objectPath, name);
 
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -414,8 +422,11 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestPasskey() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
+      nsString name;
+      GetDeviceName(objectPath, name);
 
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -697,6 +708,51 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
   return true;
 }
 
+/*bool
+GetDeviceName(const char* aPath,
+              nsString& aName)
+{
+  BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
+  nsString replyError;
+
+  DBusError err;
+  dbus_error_init(&err);
+
+  DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
+                                            1000,
+                                            &err,
+                                            aPath,
+                                            DBUS_DEVICE_IFACE,
+                                            "GetProperties",
+                                            DBUS_TYPE_INVALID);
+  UnpackDevicePropertiesMessage(msg, &err, v, replyError);
+
+  if (!replyError.IsEmpty()) {
+    LOG("%s: Could not get device properties", __FUNCTION__);
+    return false;
+  }
+  if (msg) {
+    dbus_message_unref(msg);
+  }
+
+  uint32_t p;
+  for (p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
+    BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
+    if (property.name().EqualsLiteral("Name")) {
+      aName = property.value().get_nsString();
+      LOG("DBus, Name = %s", NS_ConvertUTF16toUTF8(aName).get());
+      break;
+    }
+  }
+
+  if (p == v.get_ArrayOfBluetoothNamedValue().Length()) {
+    LOG("%s: Could not get property 'name'", __FUNCTION__);
+    return false;
+  }
+
+  return true;
+}*/
+
 void 
 ParseProperties(DBusMessageIter* aIter,
                 BluetoothValue& aValue,
@@ -830,6 +886,51 @@ ParsePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
     return;
   }
   aValue = props;
+}
+
+bool
+GetDeviceName(const char* aPath,
+              nsString& aName)
+{
+  BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
+  nsString replyError;
+
+  DBusError err;
+  dbus_error_init(&err);
+
+  DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
+                                            1000,
+                                            &err,
+                                            aPath,
+                                            DBUS_DEVICE_IFACE,
+                                            "GetProperties",
+                                            DBUS_TYPE_INVALID);
+  UnpackDevicePropertiesMessage(msg, &err, v, replyError);
+
+  if (!replyError.IsEmpty()) {
+    LOG("%s: Could not get device properties", __FUNCTION__);
+    return false;
+  }
+  if (msg) {
+    dbus_message_unref(msg);
+  }
+
+  uint32_t p;
+  for (p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
+    BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
+    if (property.name().EqualsLiteral("Name")) {
+      aName = property.value().get_nsString();
+      LOG("DBus, Name = %s", NS_ConvertUTF16toUTF8(aName).get());
+      break;
+    }
+  }
+
+  if (p == v.get_ArrayOfBluetoothNamedValue().Length()) {
+    LOG("%s: Could not get property 'name'", __FUNCTION__);
+    return false;
+  }
+
+  return true;
 }
 
 // Called by dbus during WaitForAndDispatchEventNative()

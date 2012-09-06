@@ -22,11 +22,21 @@
 #include "nsIDOMBluetoothDeviceAddressEvent.h"
 #include "nsIDOMBluetoothPairingEvent.h"
 #include "nsIDOMDOMRequest.h"
+#include "nsISystemMessagesInternal.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Bluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 
@@ -282,6 +292,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   InfallibleTArray<BluetoothNamedValue> arr;
 
   if (aData.name().EqualsLiteral("DeviceFound")) {
+    LOG("### DeviceFound");
     nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
@@ -319,56 +330,152 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   } else if (aData.name().EqualsLiteral("RequestConfirmation")) {
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
-    NS_ASSERTION(arr.Length() == 2, "RequestConfirmation: Wrong length of parameters");
+    NS_ASSERTION(arr.Length() == 3, "RequestConfirmation: Wrong length of parameters");
     NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
                  "RequestConfirmation: Invalid value type");
     NS_ASSERTION(arr[1].value().type() == BluetoothValue::Tuint32_t,
                  "RequestConfirmation: Invalid value type");
+    NS_ASSERTION(arr[2].value().type() == BluetoothValue::TnsString,
+                 "RequestConfirmation: Invalid value type");
 
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothPairingEvent(getter_AddRefs(event), nullptr, nullptr);
+    LOG("### RequestConfirmation");
+    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+      do_GetService("@mozilla.org/system-message-internal;1");
 
-    nsCOMPtr<nsIDOMBluetoothPairingEvent> e = do_QueryInterface(event);
-    e->InitBluetoothPairingEvent(NS_LITERAL_STRING("requestconfirmation"),
-                                 false,
-                                 false,
-                                 arr[0].value().get_nsString(),
-                                 arr[1].value().get_uint32_t());
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);
+    if (!systemMessenger) {
+      LOG("Failed to get SystemMessenger service!");
+      NS_WARNING("Failed to get SystemMessenger service!");
+    }
+    
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      return;
+    }
+
+    JSContext *cx = sc->GetNativeContext();
+
+    nsString deviceAddress = arr[0].value().get_nsString();
+    JSString* JsDeviceAddress = JS_NewStringCopyN(cx,
+                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
+                                                  deviceAddress.Length());
+    jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+
+    int passkey = arr[1].value().get_uint32_t();
+    jsval passkeyVal = INT_TO_JSVAL(passkey);
+
+    nsString name = arr[2].value().get_nsString();
+    JSString* JsName = JS_NewStringCopyN(cx,
+                                         NS_ConvertUTF16toUTF8(name).get(),
+                                         name.Length());
+    jsval nameVal = STRING_TO_JSVAL(JsName);
+
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JS_SetProperty(cx, obj, "deviceAddress", &deviceAddressVal);
+    JS_SetProperty(cx, obj, "passkey", &passkeyVal);
+    JS_SetProperty(cx, obj, "name", &nameVal);
+
+/*    LOG("JS_ValueToString");
+    JSString* jsString = JS_ValueToString(cx, val);
+    LOG("JS_EncodeString");
+    char* str = JS_EncodeString(cx, jsString);
+    LOG("val: %s", str);*/
+
+    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestconfirmation");
+    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
   } else if (aData.name().EqualsLiteral("RequestPinCode")) {
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
-    NS_ASSERTION(arr.Length() == 1, "RequestPinCode: Wrong length of parameters");
+    NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
     NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
                  "RequestPinCode: Invalid value type");
+    NS_ASSERTION(arr[1].value().type() == BluetoothValue::TnsString,
+                 "RequestPinCode: Invalid value type");
 
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+    LOG("### RequestPinCode");
+    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+      do_GetService("@mozilla.org/system-message-internal;1");
 
-    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
-    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("requestpincode"),
-                                       false, false, arr[0].value().get_nsString());
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);
+    if (!systemMessenger) {
+      LOG("Failed to get SystemMessenger service!");
+      NS_WARNING("Failed to get SystemMessenger service!");
+    }
+
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      return;
+    }
+
+    JSContext *cx = sc->GetNativeContext();
+
+    nsString deviceAddress = arr[0].value().get_nsString();
+    JSString* JsDeviceAddress = JS_NewStringCopyN(cx,
+                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
+                                                 deviceAddress.Length());
+    jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+
+    nsString name = arr[1].value().get_nsString();
+    JSString* JsName = JS_NewStringCopyN(cx,
+                                         NS_ConvertUTF16toUTF8(name).get(),
+                                         name.Length());
+    jsval nameVal = STRING_TO_JSVAL(JsName);
+
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JS_SetProperty(cx, obj, "deviceAddress", &deviceAddressVal);
+    JS_SetProperty(cx, obj, "name", &nameVal);
+
+    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestpincode");
+    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
+
   } else if (aData.name().EqualsLiteral("RequestPasskey")) {
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
-    NS_ASSERTION(arr.Length() == 1, "RequestPasskey: Wrong length of parameters");
+    NS_ASSERTION(arr.Length() == 2, "RequestPasskey: Wrong length of parameters");
     NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
                  "RequestPasskey: Invalid value type");
+    NS_ASSERTION(arr[1].value().type() == BluetoothValue::TnsString,
+                 "RequestPasskey: Invalid value type");
 
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+    LOG("### RequestPasskey");
+    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+      do_GetService("@mozilla.org/system-message-internal;1");
 
-    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
-    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("requestpasskey"),
-                                       false, false, arr[0].value().get_nsString());
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);
+    if (!systemMessenger) {
+      LOG("Failed to get SystemMessenger service!");
+      NS_WARNING("Failed to get SystemMessenger service!");
+    }
+
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      return;
+    }
+
+    JSContext *cx = sc->GetNativeContext();
+
+    nsString deviceAddress = arr[0].value().get_nsString();
+    JSString* JsDeviceAddress = JS_NewStringCopyN(cx,
+                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
+                                                  deviceAddress.Length());
+    jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+
+    nsString name = arr[1].value().get_nsString();
+    JSString* JsName = JS_NewStringCopyN(cx,
+                                         NS_ConvertUTF16toUTF8(name).get(),
+                                         name.Length());
+    jsval nameVal = STRING_TO_JSVAL(JsName);
+
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JS_SetProperty(cx, obj, "deviceAddress", &deviceAddressVal);
+    JS_SetProperty(cx, obj, "name", &nameVal);
+
+    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestpasskey");
+    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
+
   } else if (aData.name().EqualsLiteral("Authorize")) {
     arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
