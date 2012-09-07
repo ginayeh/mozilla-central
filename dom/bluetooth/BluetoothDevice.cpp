@@ -17,6 +17,15 @@
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Bluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 DOMCI_DATA(BluetoothDevice, BluetoothDevice)
@@ -99,19 +108,21 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
 {
   const nsString& name = aValue.name();
   const BluetoothValue& value = aValue.value();
+//  LOG("-- Device: set %s", NS_ConvertUTF16toUTF8(name).get());
   if (name.EqualsLiteral("Name")) {
     mName = value.get_nsString();
-  } else if (name.EqualsLiteral("Path")) {
-    mPath = value.get_nsString();
-    NS_WARNING(NS_ConvertUTF16toUTF8(mPath).get());
+  } else if (name.EqualsLiteral("Address")) {
+    mAddress = value.get_nsString();
+
     BluetoothService* bs = BluetoothService::Get();
     if (!bs) {
       NS_WARNING("BluetoothService not available!");
-    } else if (NS_FAILED(bs->RegisterBluetoothSignalHandler(mPath, this))) {
-      NS_WARNING("Failed to register object with observer!");
+    } else if (!bs->GetDevicePath(mAdapterPath, mAddress, mPath)) {
+      NS_WARNING("Failed to set device path");
+//    } else if (NS_FAILED(bs->RegisterBluetoothSignalHandler(mPath, this))) {
+//      LOG("-- Device: SetPath = %s", NS_ConvertUTF16toUTF8(mPath).get());
+//      NS_WARNING("Failed to register object with observer!");
     }
-  } else if (name.EqualsLiteral("Address")) {
-    mAddress = value.get_nsString();
   } else if (name.EqualsLiteral("Class")) {
     mClass = value.get_uint32_t();
   } else if (name.EqualsLiteral("Icon")) {
@@ -177,6 +188,7 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
 
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
+//  LOG("-- Device: creating device, mPath = %s", NS_ConvertUTF16toUTF8(device->mPath).get());
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
     NS_WARNING("Failed to register object with observer!");
     return nullptr;

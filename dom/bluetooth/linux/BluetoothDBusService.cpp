@@ -641,6 +641,7 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
 
   for (i = 0; i < aPropertyTypeLen; i++) {
     if (!strncmp(property, aPropertyTypes[i].name, strlen(property))) {      
+//      LOG("--- DBus, property = %s", property);
       break;
     }
   }
@@ -666,6 +667,7 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
       const char* c;
       dbus_message_iter_get_basic(&prop_val, &c);
       propertyValue = NS_ConvertUTF8toUTF16(c);
+//      LOG("--- DBus, value = %s", c);
       break;
     case DBUS_TYPE_UINT32:
     case DBUS_TYPE_INT16:
@@ -963,6 +965,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   BluetoothValue v;
   
   if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceFound")) {
+    LOG("--- DBus: DeviceFound");
     DBusMessageIter iter;
 
     if (!dbus_message_iter_init(aMsg, &iter)) {
@@ -1036,6 +1039,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterAdded")) {
+    LOG("--- DBus: AdapterAdded");
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
                                DBUS_TYPE_OBJECT_PATH, &str,
@@ -1166,9 +1170,26 @@ BluetoothDBusService::StopInternal()
 
   dbus_connection_remove_filter(mConnection, EventFilter, nullptr);
   
+  LOG("--- DBus: clear table");
   mConnection = nullptr;
   gThreadConnection = nullptr;
+  
+/*  const nsString managerPath = NS_ConvertUTF8toUTF16("/");
+  BluetoothSignalObserverList* ol;
+  BluetoothSignalObserverList ol2;
+  if (!mBluetoothSignalObserverTable.Get(managerPath, &ol)) {
+    NS_WARNING("Failed to get observer list of bluetooth manager");
+    LOG("Failed to get observer list of bluetooth manager");
+  } else {
+    ol2 = *ol;
+    LOG("get observer list of bluetooth manager, Length() = %d, %d", (&ol2)->Length(), ol->Length());
+  }*/
   mBluetoothSignalObserverTable.Clear();
+
+/*  if (&ol2) {
+    LOG("--- DBus: register manager back, Length() = %d", (&ol2)->Length());
+    mBluetoothSignalObserverTable.Put(managerPath, &ol2);
+  }*/
 
   // unref stored DBusMessages before clear the hashtable
   sPairingReqTable.EnumerateRead(UnrefDBusMessages, nullptr);

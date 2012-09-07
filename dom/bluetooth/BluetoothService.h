@@ -10,6 +10,7 @@
 #include "BluetoothCommon.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
@@ -22,6 +23,8 @@ class BluetoothReplyRunnable;
 class BluetoothSignal;
 
 class BluetoothService : public nsIObserver
+                       , public BluetoothSignalObserver
+                       , public nsDOMEventTargetHelper
 {
   class ToggleBtAck;
   friend class ToggleBtAck;
@@ -116,6 +119,8 @@ public:
    * Called when a BluetoothManager is destroyed.
    */
   void UnregisterManager(BluetoothManager* aManager);
+
+  void Notify(const BluetoothSignal& aParam);
 
   /** 
    * Returns the BluetoothService singleton. Only to be called from main thread.

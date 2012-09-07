@@ -21,9 +21,19 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 #include "nsXPCOMCIDInternal.h"
+#include "nsISystemMessagesInternal.h"
 
 #define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
 #define BLUETOOTH_ENABLED_SETTING "bluetooth.enabled"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Bluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 
@@ -146,12 +156,15 @@ BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                  BluetoothSignalObserver* aHandler)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("-- Service: RegisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     ol = new BluetoothSignalObserverList();
     mBluetoothSignalObserverTable.Put(aNodeName, ol);
+    LOG("-- Service: Add entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   }
   ol->AddObserver(aHandler);
+  LOG("-- Service: add observer to %d", ol->Length());
   return NS_OK;
 }
 
@@ -160,14 +173,17 @@ BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                    BluetoothSignalObserver* aHandler)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("-- Service: UnregisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     NS_WARNING("Node does not exist to remove BluetoothSignalListener from!");
     return NS_OK;
   }
   ol->RemoveObserver(aHandler);
+  LOG("-- Service: remove observer to %d", ol->Length());
   if (ol->Length() == 0) {
     mBluetoothSignalObserverTable.Remove(aNodeName);
+    LOG("-- Service: Remove entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   }
   return NS_OK;
 }
@@ -178,20 +194,22 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
   MOZ_ASSERT(NS_IsMainThread());
   // Notify observers that a message has been sent
   BluetoothSignalObserverList* ol;
+  LOG("-- Service: DistributeSignal to '%s'", NS_ConvertUTF16toUTF8(signal.path()).get());
   if (!mBluetoothSignalObserverTable.Get(signal.path(), &ol)) {
-#if DEBUG
+//#if DEBUG
+    LOG("-- Service: no entry");
     nsString msg;
     msg.AssignLiteral("No observer registered for path");
     msg.Append(signal.path());
     NS_WARNING(NS_ConvertUTF16toUTF8(msg).get());
-#endif
+//#endif
     return NS_OK;
   }
-#if DEBUG
+//#if DEBUG
   if (ol->Length() == 0) {
     NS_WARNING("Distributing to observer list of 0");
   }
-#endif
+//#endif
   ol->Broadcast(signal);
   return NS_OK;
 }
@@ -397,6 +415,7 @@ BluetoothService::RegisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(!mLiveManagers.Contains(aManager));
 
   mLiveManagers.AppendElement(aManager);
+  LOG("-- Service: RegisterManager");
   RegisterBluetoothSignalHandler(aManager->GetPath(), aManager);
 }
 
@@ -407,6 +426,7 @@ BluetoothService::UnregisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(mLiveManagers.Contains(aManager));
 
+  LOG("-- Service: UnregisterManager");
   UnregisterBluetoothSignalHandler(aManager->GetPath(), aManager);
   mLiveManagers.RemoveElement(aManager);
 }
@@ -443,6 +463,14 @@ BluetoothService::Get()
   }
 
   gBluetoothService.swap(service);
+
+  LOG("-- Service: LOCAL_AGENT_PATH = %s", LOCAL_AGENT_PATH);
+  if (NS_FAILED(gBluetoothService->RegisterBluetoothSignalHandler(
+        NS_LITERAL_STRING(LOCAL_AGENT_PATH), gBluetoothService))) {
+    NS_WARNING("Resgister observer to register local agent failed!");
+    return nullptr;
+  }
+
   return gBluetoothService;
 }
 
@@ -466,4 +494,120 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
 
   MOZ_ASSERT(false, "BluetoothService got unexpected topic!");
   return NS_ERROR_UNEXPECTED;
+}
+
+void
+BluetoothService::Notify(const BluetoothSignal& aData)
+{
+  InfallibleTArray<BluetoothNamedValue> arr;
+
+  if (aData.name().EqualsLiteral("RequestConfirmation")) {
+    arr = aData.value().get_ArrayOfBluetoothNamedValue();
+
+    NS_ASSERTION(arr.Length() == 3, "RequestConfirmation: Wrong length of parameters");
+    NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
+                 "RequestConfirmation: Invalid value type");
+    NS_ASSERTION(arr[1].value().type() == BluetoothValue::Tuint32_t,
+                 "RequestConfirmation: Invalid value type");
+    NS_ASSERTION(arr[2].value().type() == BluetoothValue::TnsString,
+                 "RequestConfirmation: Invalid value type");
+
+    LOG("### RequestConfirmation");
+    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+      do_GetService("@mozilla.org/system-message-internal;1");
+
+    if (!systemMessenger) {
+      LOG("Failed to get SystemMessenger service!");
+      NS_WARNING("Failed to get SystemMessenger service!");
+    }
+    
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      return;
+    }
+
+    JSContext *cx = sc->GetNativeContext();
+
+    nsString deviceAddress = arr[0].value().get_nsString();
+    JSString* JsDeviceAddress = JS_NewStringCopyN(cx,
+                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
+                                                  deviceAddress.Length());
+    jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+
+    int passkey = arr[1].value().get_uint32_t();
+    jsval passkeyVal = INT_TO_JSVAL(passkey);
+
+    nsString name = arr[2].value().get_nsString();
+    JSString* JsName = JS_NewStringCopyN(cx,
+                                         NS_ConvertUTF16toUTF8(name).get(),
+                                         name.Length());
+    jsval nameVal = STRING_TO_JSVAL(JsName);
+
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JS_SetProperty(cx, obj, "deviceAddress", &deviceAddressVal);
+    JS_SetProperty(cx, obj, "passkey", &passkeyVal);
+    JS_SetProperty(cx, obj, "name", &nameVal);
+
+/*    LOG("JS_ValueToString");
+    JSString* jsString = JS_ValueToString(cx, val);
+    LOG("JS_EncodeString");
+    char* str = JS_EncodeString(cx, jsString);
+    LOG("val: %s", str);*/
+
+    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestconfirmation");
+    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
+  } else if (aData.name().EqualsLiteral("RequestPinCode")) {
+    arr = aData.value().get_ArrayOfBluetoothNamedValue();
+
+    NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
+    NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
+                 "RequestPinCode: Invalid value type");
+    NS_ASSERTION(arr[1].value().type() == BluetoothValue::TnsString,
+                 "RequestPinCode: Invalid value type");
+
+    LOG("### RequestPinCode");
+    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+      do_GetService("@mozilla.org/system-message-internal;1");
+
+    if (!systemMessenger) {
+      LOG("Failed to get SystemMessenger service!");
+      NS_WARNING("Failed to get SystemMessenger service!");
+    }
+
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    if (!sc) {
+      NS_WARNING("Cannot create script context!");
+      return;
+    }
+
+    JSContext *cx = sc->GetNativeContext();
+
+    nsString deviceAddress = arr[0].value().get_nsString();
+    JSString* JsDeviceAddress = JS_NewStringCopyN(cx,
+                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
+                                                 deviceAddress.Length());
+    jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+
+    nsString name = arr[1].value().get_nsString();
+    JSString* JsName = JS_NewStringCopyN(cx,
+                                         NS_ConvertUTF16toUTF8(name).get(),
+                                         name.Length());
+    jsval nameVal = STRING_TO_JSVAL(JsName);
+
+    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+    JS_SetProperty(cx, obj, "deviceAddress", &deviceAddressVal);
+    JS_SetProperty(cx, obj, "name", &nameVal);
+
+    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestpincode");
+    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
+
+  } else {
+    nsCString warningMsg;
+    warningMsg.AssignLiteral("Not handling service signal: ");
+    warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
+    NS_WARNING(warningMsg.get());
+  }
 }

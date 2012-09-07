@@ -21,6 +21,15 @@
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/Util.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Bluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -284,6 +293,7 @@ void
 BluetoothManager::Notify(const BluetoothSignal& aData)
 {
   if (aData.name().EqualsLiteral("AdapterAdded")) {
+    LOG("-- Manager: AdapterAdded");
     nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
     nsresult rv = event->InitEvent(NS_LITERAL_STRING("adapteradded"), false, false);
 
