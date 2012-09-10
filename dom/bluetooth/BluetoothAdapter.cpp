@@ -290,7 +290,7 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   InfallibleTArray<BluetoothNamedValue> arr;
 
   if (aData.name().EqualsLiteral("DeviceFound")) {
-    LOG("### DeviceFound");
+//    LOG("### DeviceFound");
     nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);

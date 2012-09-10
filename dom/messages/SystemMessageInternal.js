@@ -26,7 +26,7 @@ try {
 }
 
 function debug(aMsg) { 
-  //dump("-- SystemMessageInternal " + Date.now() + " : " + aMsg + "\n");
+  dump("-- SystemMessageInternal " + Date.now() + " : " + aMsg + "\n");
 }
 
 // Implementation of the component used by internal users.
@@ -45,8 +45,10 @@ SystemMessageInternal.prototype = {
   },
 
   broadcastMessage: function broadcastMessage(aType, aMessage) {
+    dump("type = " + aType + ", message = " + aMessage);
     this._pages.forEach(function(aPage) {
       if (aPage.type == aType) {
+        dump("page = " + aPage.uri);
         this._sendMessage(aType, aMessage, aPage.uri, aPage.manifest);
       }
     }.bind(this))

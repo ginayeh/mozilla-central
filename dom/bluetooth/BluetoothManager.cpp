@@ -169,6 +169,7 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
 
 BluetoothManager::~BluetoothManager()
 {
+//  LOG("-- Manager: destroy [%p]", this);
   BluetoothService* bs = BluetoothService::Get();
   if (bs) {
     bs->UnregisterManager(this);
@@ -246,7 +247,7 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow)
   }
 
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
-
+//  LOG("-- Manager: create [%p]", manager);
   bs->RegisterManager(manager);
 
   return manager.forget();

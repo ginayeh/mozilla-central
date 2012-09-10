@@ -120,6 +120,10 @@ public:
    */
   void UnregisterManager(BluetoothManager* aManager);
 
+  /**
+   * Called when get a Bluetooth Signal from BluetoothDBusService
+   *
+   */
   void Notify(const BluetoothSignal& aParam);
 
   /** 
