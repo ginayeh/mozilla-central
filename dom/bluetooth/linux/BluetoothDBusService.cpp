@@ -368,6 +368,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
   } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "RequestConfirmation")) {
     // This method gets called when the service daemon needs to confirm a passkey for
     // an authentication.
+    LOG("--- DBus: RequestConfirmation");
     char *objectPath;
     uint32_t passkey;
     if (!dbus_message_get_args(msg, NULL,
@@ -382,8 +383,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       GetDeviceName(objectPath, name);
 
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
       parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
       
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -710,51 +711,6 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
   return true;
 }
 
-/*bool
-GetDeviceName(const char* aPath,
-              nsString& aName)
-{
-  BluetoothValue v = InfallibleTArray<BluetoothNamedValue>();
-  nsString replyError;
-
-  DBusError err;
-  dbus_error_init(&err);
-
-  DBusMessage* msg = dbus_func_args_timeout(gThreadConnection->GetConnection(),
-                                            1000,
-                                            &err,
-                                            aPath,
-                                            DBUS_DEVICE_IFACE,
-                                            "GetProperties",
-                                            DBUS_TYPE_INVALID);
-  UnpackDevicePropertiesMessage(msg, &err, v, replyError);
-
-  if (!replyError.IsEmpty()) {
-    LOG("%s: Could not get device properties", __FUNCTION__);
-    return false;
-  }
-  if (msg) {
-    dbus_message_unref(msg);
-  }
-
-  uint32_t p;
-  for (p = 0; p < v.get_ArrayOfBluetoothNamedValue().Length(); ++p) {
-    BluetoothNamedValue& property = v.get_ArrayOfBluetoothNamedValue()[p];
-    if (property.name().EqualsLiteral("Name")) {
-      aName = property.value().get_nsString();
-      LOG("DBus, Name = %s", NS_ConvertUTF16toUTF8(aName).get());
-      break;
-    }
-  }
-
-  if (p == v.get_ArrayOfBluetoothNamedValue().Length()) {
-    LOG("%s: Could not get property 'name'", __FUNCTION__);
-    return false;
-  }
-
-  return true;
-}*/
-
 void 
 ParseProperties(DBusMessageIter* aIter,
                 BluetoothValue& aValue,
@@ -965,7 +921,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   BluetoothValue v;
   
   if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceFound")) {
-    LOG("--- DBus: DeviceFound");
+//    LOG("--- DBus: DeviceFound");
     DBusMessageIter iter;
 
     if (!dbus_message_iter_init(aMsg, &iter)) {
@@ -1039,7 +995,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         sDeviceProperties,
                         ArrayLength(sDeviceProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "AdapterAdded")) {
-    LOG("--- DBus: AdapterAdded");
+//    LOG("--- DBus: AdapterAdded");
     const char* str;
     if (!dbus_message_get_args(aMsg, &err,
                                DBUS_TYPE_OBJECT_PATH, &str,
@@ -1184,7 +1140,11 @@ BluetoothDBusService::StopInternal()
     ol2 = *ol;
     LOG("get observer list of bluetooth manager, Length() = %d, %d", (&ol2)->Length(), ol->Length());
   }*/
+//  RemoveInvalidEntry(mBluetoothsignalObserverTable);
+
   mBluetoothSignalObserverTable.Clear();
+//  LOG("get observer list of bluetooth manager, Length() = %d, %d", (&ol2)->Length(), ol->Length());
+//  mBluetoothSignalObserverTable.Put(managerPath, &ol2);
 
 /*  if (&ol2) {
     LOG("--- DBus: register manager back, Length() = %d", (&ol2)->Length());

@@ -10,10 +10,18 @@
 #include "BluetoothCommon.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
-#include "nsDOMEventTargetHelper.h"
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Bluetooth", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -24,7 +32,6 @@ class BluetoothSignal;
 
 class BluetoothService : public nsIObserver
                        , public BluetoothSignalObserver
-                       , public nsDOMEventTargetHelper
 {
   class ToggleBtAck;
   friend class ToggleBtAck;
@@ -120,6 +127,10 @@ public:
    */
   void UnregisterManager(BluetoothManager* aManager);
 
+  /**
+   * Called when get a Bluetooth Signal from BluetoothDBusService
+   *
+   */
   void Notify(const BluetoothSignal& aParam);
 
   /** 
@@ -286,7 +297,18 @@ protected:
   }
 
   virtual ~BluetoothService()
-  { }
+  {
+    LOG("-- ~Service");
+    BluetoothService* bs = Get();
+    if (bs) {  
+      if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(
+            NS_LITERAL_STRING(LOCAL_AGENT_PATH), bs))) {
+        NS_WARNING("Resgister observer to register local agent failed!");
+      }
+    } else {
+      LOG("-- no bs");
+    }
+  }
 
   nsresult StartStopBluetooth(bool aStart);
 

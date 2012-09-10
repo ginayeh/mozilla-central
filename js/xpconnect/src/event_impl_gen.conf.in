@@ -26,7 +26,6 @@ simple_events = [
     'BluetoothAuthorizeEvent',
     'BluetoothDeviceEvent',
     'BluetoothDeviceAddressEvent',
-    'BluetoothPairingEvent',
 #endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent'
