@@ -270,11 +270,6 @@ BluetoothAdapter::Create(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
     return nullptr;
   }
 
-/*  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), adapter))) {
-    NS_WARNING("Failed to register local agent object with observer!");
-    return nullptr;
-  }*/
-
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), adapter))) {
     NS_WARNING("Failed to register remote agent object with observer!");
     return nullptr;

@@ -151,6 +151,18 @@ public:
 
 NS_IMPL_ISUPPORTS1(BluetoothService::StartupTask, nsISettingsServiceCallback);
 
+BluetoothService::~BluetoothService()
+{
+  if (!gBluetoothService) {
+    return;
+  }
+
+  if (NS_FAILED(gBluetoothService->UnregisterBluetoothSignalHandler(
+        NS_LITERAL_STRING(LOCAL_AGENT_PATH), gBluetoothService))) {
+    NS_WARNING("Unresgister observer to register local agent failed!");
+  }
+}
+
 nsresult
 BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                  BluetoothSignalObserver* aHandler)
@@ -505,11 +517,6 @@ SetJsObject(JSContext* aContext,
             const InfallibleTArray<BluetoothNamedValue>& aData)
 {
   LOG("-- Service: SetJsObject");
-//  NS_ASSERTION(aData.Length() < 2, "SetJsObject: No enough parameters");
-/*  NS_ASSERTION(aData[0].value().type() == BluetoothValue::TnsString,
-               "SetJsObject: Invalid value type");
-  NS_ASSERTION(aData[1].value().type() == BluetoothValue::TnsString,
-               "SetJsObject: Invalid value type");*/
 
   bool ok = true;
   LOG("aData.Length() = %d", aData.Length());
@@ -569,28 +576,23 @@ BluetoothService::Notify(const BluetoothSignal& aData)
   if (aData.name().EqualsLiteral("RequestConfirmation")) {
     LOG("### RequestConfirmation");
     NS_ASSERTION(arr.Length() == 3, "RequestConfirmation: Wrong length of parameters");
-
-    type = NS_ConvertUTF8toUTF16("bluetooth-requestconfirmation");
+    type.AssignLiteral("bluetooth-requestconfirmation");
   } else if (aData.name().EqualsLiteral("RequestPinCode")) {
     LOG("### RequestPinCode");
     NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
-
-    type = NS_ConvertUTF8toUTF16("bluetooth-requestpincode");
+    type.AssignLiteral("bluetooth-requestpincode");
   } else if (aData.name().EqualsLiteral("RequestPasskey")) {
     LOG("### RequestPassKey");
     NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
-
-    type = NS_ConvertUTF8toUTF16("bluetooth-requestpasskey");
+    type.AssignLiteral("bluetooth-requestpasskey");
   } else if (aData.name().EqualsLiteral("Authorize")) {
     LOG("### Authorize");
     NS_ASSERTION(arr.Length() == 2, "Authorize: Wrong length of parameters");
-
-    type = NS_ConvertUTF8toUTF16("bluetooth-authorize");
+    type.AssignLiteral("bluetooth-authorize");
   } else if (aData.name().EqualsLiteral("Cancel")) {
     LOG("### Cancel: %d", arr.Length());
     NS_ASSERTION(arr.Length() == 0, "Cancel: Wrong length of parameters");
-
-    type = NS_ConvertUTF8toUTF16("bluetooth-cancel");
+    type.AssignLiteral("bluetooth-cancel");
   } else {
 #ifdef DEBUG
     nsCString warningMsg;

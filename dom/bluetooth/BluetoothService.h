@@ -133,10 +133,10 @@ public:
    */
   void Notify(const BluetoothSignal& aParam);
 
-  /** 
+  /**
    * Returns the BluetoothService singleton. Only to be called from main thread.
    *
-   * @param aService Pointer to return singleton into. 
+   * @param aService Pointer to return singleton into.
    *
    * @return NS_OK on proper assignment, NS_ERROR_FAILURE otherwise (if service
    * has not yet been started, for instance)
@@ -296,8 +296,7 @@ protected:
     mBluetoothSignalObserverTable.Init();
   }
 
-  virtual ~BluetoothService()
-  { }
+  ~BluetoothService();
 
   nsresult StartStopBluetooth(bool aStart);
 
