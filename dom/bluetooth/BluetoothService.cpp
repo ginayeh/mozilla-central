@@ -17,7 +17,6 @@
 #include "nsContentUtils.h"
 #include "nsIDOMDOMRequest.h"
 #include "nsIObserverService.h"
-#include "nsDOMEventTargetHelper.h"
 #include "nsISettingsService.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
@@ -501,173 +500,97 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
 }
 
 bool
-SetJsDeviceAddressName(JSContext* aContext,
-                     JSObject* aObj,
-                     InfallibleTArray<BluetoothNamedValue>& aData)
+SetJsObject(JSContext* aContext,
+            JSObject* aObj,
+            const InfallibleTArray<BluetoothNamedValue>& aData)
 {
-  LOG("-- Service: SetDeviceAddressName");
-  NS_ASSERTION(aData[0].value().type() == BluetoothValue::TnsString,
-               "RequestConfirmation: Invalid value type");
+  LOG("-- Service: SetJsObject");
+//  NS_ASSERTION(aData.Length() < 2, "SetJsObject: No enough parameters");
+/*  NS_ASSERTION(aData[0].value().type() == BluetoothValue::TnsString,
+               "SetJsObject: Invalid value type");
   NS_ASSERTION(aData[1].value().type() == BluetoothValue::TnsString,
-               "RequestConfirmation: Invalid value type");
+               "SetJsObject: Invalid value type");*/
 
-  nsString deviceAddress = aData[0].value().get_nsString();
-  JSString* JsDeviceAddress = ::JS_NewStringCopyN(aContext,
-                                                  NS_ConvertUTF16toUTF8(deviceAddress).get(),
-                                                  deviceAddress.Length());
-  NS_ENSURE_TRUE(JsDeviceAddress, NS_ERROR_OUT_OF_MEMORY);
-  jsval deviceAddressVal = STRING_TO_JSVAL(JsDeviceAddress);
+  bool ok = true;
+  LOG("aData.Length() = %d", aData.Length());
+  for (int i = 0; i < aData.Length(); i++) {
+    jsval JsVal;
+    if (aData[i].value().type() == BluetoothValue::TnsString) {
+	  LOG("aData[%d] is nsString", i);
+      nsString data = aData[i].value().get_nsString();
+      JSString* JsData = ::JS_NewStringCopyN(aContext,
+                                             NS_ConvertUTF16toUTF8(data).get(),
+                                             data.Length());
+      NS_ENSURE_TRUE(JsData, NS_ERROR_OUT_OF_MEMORY);
+      JsVal = STRING_TO_JSVAL(JsData);
+    } else if (aData[i].value().type() == BluetoothValue::Tuint32_t) {
+      LOG("aData[%d] is int", i);
+      int data = aData[i].value().get_uint32_t();
+      JsVal = INT_TO_JSVAL(data);
+    } else {
+      NS_WARNING("SetJsObject: Parameter is not handled");
+      LOG("SetJsObject: Parameter is not handled");
+    }
 
-  nsString name = aData[1].value().get_nsString();
-  JSString* JsName = ::JS_NewStringCopyN(aContext,
-                                         NS_ConvertUTF16toUTF8(name).get(),
-                                         name.Length());
-  NS_ENSURE_TRUE(JsName, NS_ERROR_OUT_OF_MEMORY);
-  jsval nameVal = STRING_TO_JSVAL(JsName);
-
-  bool ok = JS_SetProperty(aContext, aObj, "deviceAddress", &deviceAddressVal)
-            && JS_SetProperty(aContext, aObj, "name", &nameVal);
+    ok = JS_SetProperty(aContext, aObj,
+                        NS_ConvertUTF16toUTF8(aData[i].name()).get(),
+                        &JsVal);
+    if (!ok) {
+      return ok;
+    }
+  }
   return ok;
 }
 
 void
 BluetoothService::Notify(const BluetoothSignal& aData)
 {
-  InfallibleTArray<BluetoothNamedValue> arr;
+  InfallibleTArray<BluetoothNamedValue> arr = aData.value().get_ArrayOfBluetoothNamedValue();
+  nsString type;
 
   LOG("### Service is Notified");
-  if (aData.name().EqualsLiteral("RequestConfirmation")) {
-    arr = aData.value().get_ArrayOfBluetoothNamedValue();
 
+  JSContext* cx = nsContentUtils::GetSafeJSContext();
+  NS_ASSERTION(!::JS_IsExceptionPending(cx),
+               "Shouldn't get here when an exception is pending!");
+
+  JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+  if (!obj) {
+    NS_WARNING("Failed to new JSObject for system message!");
+    return;
+  }
+
+  bool ok = SetJsObject(cx, obj, arr);
+  if (!ok) {
+    NS_WARNING("Failed to set properties of system message!");
+    return;
+  }
+
+  if (aData.name().EqualsLiteral("RequestConfirmation")) {
     LOG("### RequestConfirmation");
     NS_ASSERTION(arr.Length() == 3, "RequestConfirmation: Wrong length of parameters");
-    NS_ASSERTION(arr[2].value().type() == BluetoothValue::Tuint32_t,
-                 "RequestConfirmation: Invalid value type");
 
-    int passkey = arr[2].value().get_uint32_t();
-    jsval passkeyVal = INT_TO_JSVAL(passkey);
-
-    JSContext* cx = nsContentUtils::GetSafeJSContext();
-    NS_ASSERTION(!::JS_IsExceptionPending(cx),
-                 "Shouldn't get here when an exception is pending!");
-
-    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
-    if (!obj) {
-      NS_WARNING("Failed to new JSObject for system message!");
-      return;
-    }
-
-    bool ok = SetJsDeviceAddressName(cx, obj, arr);
-    if (!ok || !JS_SetProperty(cx, obj, "passkey", &passkeyVal)) {
-      NS_WARNING("Failed to set properties of system message!");
-      return;
-    }
-
-/*    LOG("JS_ValueToString");
-    JSString* jsString = JS_ValueToString(cx, val);
-    LOG("JS_EncodeString");
-    char* str = JS_EncodeString(cx, jsString);
-    LOG("val: %s", str);*/
-
-    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
-      do_GetService("@mozilla.org/system-message-internal;1");
-
-    if (!systemMessenger) {
-      LOG("Failed to get SystemMessenger service!");
-      NS_WARNING("Failed to get SystemMessenger service!");
-	  return;
-    }
-
-    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestconfirmation");
-//    nsString type = NS_ConvertUTF8toUTF16("alarm");
-    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
-    LOG("### Broadcast system message");
+    type = NS_ConvertUTF8toUTF16("bluetooth-requestconfirmation");
   } else if (aData.name().EqualsLiteral("RequestPinCode")) {
-    arr = aData.value().get_ArrayOfBluetoothNamedValue();
-    NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
     LOG("### RequestPinCode");
-
-    JSContext* cx = nsContentUtils::GetSafeJSContext();
-    NS_ASSERTION(!::JS_IsExceptionPending(cx),
-                 "Shouldn't get here when an exception is pending!");
-
-    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
-    bool ok = SetJsDeviceAddressName(cx, obj, arr);
-    if (!ok) {
-      NS_WARNING("Failed to set properties of system message!");
-      return;
-    }
-
-    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
-      do_GetService("@mozilla.org/system-message-internal;1");
-
-    if (!systemMessenger) {
-      LOG("Failed to get SystemMessenger service!");
-      NS_WARNING("Failed to get SystemMessenger service!");
-      return;
-    }
-
-    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestpincode");
-    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
-  } else if (aData.name().EqualsLiteral("RequestPasskey")) {
-    arr = aData.value().get_ArrayOfBluetoothNamedValue();
     NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
+
+    type = NS_ConvertUTF8toUTF16("bluetooth-requestpincode");
+  } else if (aData.name().EqualsLiteral("RequestPasskey")) {
     LOG("### RequestPassKey");
+    NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
 
-    JSContext* cx = nsContentUtils::GetSafeJSContext();
-    NS_ASSERTION(!::JS_IsExceptionPending(cx),
-                 "Shouldn't get here when an exception is pending!");
-
-    JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
-    bool ok = SetJsDeviceAddressName(cx, obj, arr);
-    if (!ok) {
-      NS_WARNING("Failed to set properties of system message!");
-      return;
-    }
-
-    nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
-      do_GetService("@mozilla.org/system-message-internal;1");
-
-    if (!systemMessenger) {
-      LOG("Failed to get SystemMessenger service!");
-      NS_WARNING("Failed to get SystemMessenger service!");
-      return;
-    }
-
-    nsString type = NS_ConvertUTF8toUTF16("bluetooth-requestpasskey");
-    systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
-/*  } else if (aData.name().EqualsLiteral("Authorize")) {
-    arr = aData.value().get_ArrayOfBluetoothNamedValue();
-
+    type = NS_ConvertUTF8toUTF16("bluetooth-requestpasskey");
+  } else if (aData.name().EqualsLiteral("Authorize")) {
+    LOG("### Authorize");
     NS_ASSERTION(arr.Length() == 2, "Authorize: Wrong length of parameters");
-    NS_ASSERTION(arr[0].value().type() == BluetoothValue::TnsString,
-                 "Authorize: Invalid value type");
-    NS_ASSERTION(arr[1].value().type() == BluetoothValue::TnsString,
-                 "Authorize: Invalid value type");
 
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothAuthorizeEvent(getter_AddRefs(event), nullptr, nullptr);
-
-    nsCOMPtr<nsIDOMBluetoothAuthorizeEvent> e = do_QueryInterface(event);
-    e->InitBluetoothAuthorizeEvent(NS_LITERAL_STRING("authorize"),
-                                   false,
-                                   false,
-                                   arr[0].value().get_nsString(),
-                                   arr[1].value().get_nsString());
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);
+    type = NS_ConvertUTF8toUTF16("bluetooth-authorize");
   } else if (aData.name().EqualsLiteral("Cancel")) {
-    nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMBluetoothDeviceAddressEvent(getter_AddRefs(event), nullptr, nullptr);
+    LOG("### Cancel: %d", arr.Length());
+    NS_ASSERTION(arr.Length() == 0, "Cancel: Wrong length of parameters");
 
-    nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
-    // Just send a null nsString, won't be used
-    e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("cancel"),
-                                       false, false, EmptyString());
-    e->SetTrusted(true);
-    bool dummy;
-    DispatchEvent(event, &dummy);*/
+    type = NS_ConvertUTF8toUTF16("bluetooth-cancel");
   } else {
 #ifdef DEBUG
     nsCString warningMsg;
@@ -676,4 +599,14 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     NS_WARNING(warningMsg.get());
 #endif
   }
+
+  nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+    do_GetService("@mozilla.org/system-message-internal;1");
+
+  if (!systemMessenger) {
+    LOG("Failed to get SystemMessenger service!");
+    NS_WARNING("Failed to get SystemMessenger service!");
+    return;
+  }
+  systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
 }

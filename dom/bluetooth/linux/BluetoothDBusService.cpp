@@ -336,6 +336,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     } else {
       dbus_connection_send(conn, reply, NULL);
       dbus_message_unref(reply);
+      v = parameters;
     }
   } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Authorize")) {
     // This method gets called when the service daemon needs to authorize a
@@ -351,8 +352,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
 
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("UUID"),
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("uuid"),
                                                    NS_ConvertUTF8toUTF16(uuid)));
 
       // Because we may have authorization request and pairing request from the 
@@ -382,9 +383,9 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       nsString name;
       GetDeviceName(objectPath, name);
 
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("name"), name));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("passkey"), passkey));
       
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -405,8 +406,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       nsString name;
       GetDeviceName(objectPath, name);
 
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("name"), name));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -426,8 +427,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       nsString name;
       GetDeviceName(objectPath, name);
 
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Name"), name));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("name"), name));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 

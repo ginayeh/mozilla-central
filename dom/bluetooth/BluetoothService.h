@@ -297,18 +297,7 @@ protected:
   }
 
   virtual ~BluetoothService()
-  {
-    LOG("-- ~Service");
-    BluetoothService* bs = Get();
-    if (bs) {  
-      if (NS_FAILED(bs->UnregisterBluetoothSignalHandler(
-            NS_LITERAL_STRING(LOCAL_AGENT_PATH), bs))) {
-        NS_WARNING("Resgister observer to register local agent failed!");
-      }
-    } else {
-      LOG("-- no bs");
-    }
-  }
+  { }
 
   nsresult StartStopBluetooth(bool aStart);
 

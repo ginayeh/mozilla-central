@@ -46,7 +46,6 @@ XPIDLSRCS = \
   nsIDOMBluetoothDeviceEvent.idl \
   nsIDOMBluetoothDeviceAddressEvent.idl \
   nsIDOMBluetoothPropertyEvent.idl \
-  nsIDOMBluetoothAuthorizeEvent.idl \
   $(NULL)
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
