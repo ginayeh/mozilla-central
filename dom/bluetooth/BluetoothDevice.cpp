@@ -189,10 +189,13 @@ BluetoothDevice::Create(nsPIDOMWindow* aOwner,
   nsRefPtr<BluetoothDevice> device = new BluetoothDevice(aOwner, aAdapterPath,
                                                          aValue);
 //  LOG("-- Device: creating device, mPath = %s", NS_ConvertUTF16toUTF8(device->mPath).get());
+
   if (NS_FAILED(bs->RegisterBluetoothSignalHandler(device->mPath, device))) {
     NS_WARNING("Failed to register object with observer!");
+//    LOG("Failed to register object with observer!");
     return nullptr;
   }
+//  LOG("-- Device: return");
   return device.forget();
 }
 

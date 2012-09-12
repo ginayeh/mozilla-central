@@ -284,7 +284,6 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
   InfallibleTArray<BluetoothNamedValue> arr;
 
   if (aData.name().EqualsLiteral("DeviceFound")) {
-//    LOG("### DeviceFound");
     nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(), mPath, aData.value());
     nsCOMPtr<nsIDOMEvent> event;
     NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
@@ -304,6 +303,23 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     nsCOMPtr<nsIDOMBluetoothDeviceAddressEvent> e = do_QueryInterface(event);
     e->InitBluetoothDeviceAddressEvent(NS_LITERAL_STRING("devicedisappeared"),
                                        false, false, deviceAddress);
+    e->SetTrusted(true);
+    bool dummy;
+    DispatchEvent(event, &dummy);
+  } else if (aData.name().EqualsLiteral("DeviceCreated")) {
+    LOG("-- Adapter, DeviceCreated");
+    NS_ASSERTION(aData.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue,
+                 "DeviceCreated: Invalid value type");
+
+    nsRefPtr<BluetoothDevice> device = BluetoothDevice::Create(GetOwner(),
+                                                               GetPath(),
+                                                               aData.value());
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMBluetoothDeviceEvent(getter_AddRefs(event), nullptr, nullptr);
+
+    nsCOMPtr<nsIDOMBluetoothDeviceEvent> e = do_QueryInterface(event);
+    e->InitBluetoothDeviceEvent(NS_LITERAL_STRING("devicecreated"),
+                                     false, false, device);
     e->SetTrusted(true);
     bool dummy;
     DispatchEvent(event, &dummy);
@@ -644,6 +660,7 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, propertychanged)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicefound)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicedisappeared)
+NS_IMPL_EVENT_HANDLER(BluetoothAdapter, devicecreated)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestconfirmation)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpincode)
 NS_IMPL_EVENT_HANDLER(BluetoothAdapter, requestpasskey)

@@ -168,15 +168,15 @@ BluetoothService::RegisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                  BluetoothSignalObserver* aHandler)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  LOG("-- Service: RegisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
+//  LOG("-- Service: RegisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     ol = new BluetoothSignalObserverList();
     mBluetoothSignalObserverTable.Put(aNodeName, ol);
-    LOG("-- Service: Add entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
+//    LOG("-- Service: Add entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   }
   ol->AddObserver(aHandler);
-  LOG("-- Service: add observer to %d", ol->Length());
+//  LOG("-- Service: add observer to %d", ol->Length());
   return NS_OK;
 }
 
@@ -185,17 +185,17 @@ BluetoothService::UnregisterBluetoothSignalHandler(const nsAString& aNodeName,
                                                    BluetoothSignalObserver* aHandler)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  LOG("-- Service: UnregisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
+//  LOG("-- Service: UnregisterBluetoothSignalHandler, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     NS_WARNING("Node does not exist to remove BluetoothSignalListener from!");
     return NS_OK;
   }
   ol->RemoveObserver(aHandler);
-  LOG("-- Service: remove observer to %d", ol->Length());
+//  LOG("-- Service: remove observer to %d", ol->Length());
   if (ol->Length() == 0) {
     mBluetoothSignalObserverTable.Remove(aNodeName);
-    LOG("-- Service: Remove entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
+//    LOG("-- Service: Remove entry, '%s'", NS_ConvertUTF16toUTF8(aNodeName).get());
   }
   return NS_OK;
 }
@@ -206,6 +206,8 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
   MOZ_ASSERT(NS_IsMainThread());
   // Notify observers that a message has been sent
   BluetoothSignalObserverList* ol;
+  LOG("-- Service: DistributeSignal [%s] to '%s'",
+NS_ConvertUTF16toUTF8(signal.name()).get(), NS_ConvertUTF16toUTF8(signal.path()).get());
   if (!mBluetoothSignalObserverTable.Get(signal.path(), &ol)) {
 //#if DEBUG
     LOG("-- Service: no entry");
@@ -216,8 +218,8 @@ BluetoothService::DistributeSignal(const BluetoothSignal& signal)
 //#endif
     return NS_OK;
   }
-  LOG("-- Service: DistributeSignal [%s] to '%s', %d observers",
-NS_ConvertUTF16toUTF8(signal.name()).get(), NS_ConvertUTF16toUTF8(signal.path()).get(), ol->Length());
+//  LOG("-- Service: DistributeSignal [%s] to '%s', %d observers",
+//NS_ConvertUTF16toUTF8(signal.name()).get(), NS_ConvertUTF16toUTF8(signal.path()).get(), ol->Length());
 //#if DEBUG
   if (ol->Length() == 0) {
     NS_WARNING("Distributing to observer list of 0");
@@ -430,7 +432,7 @@ BluetoothService::RegisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(!mLiveManagers.Contains(aManager));
 
   mLiveManagers.AppendElement(aManager);
-  LOG("-- Service: RegisterManager [%p]", aManager);
+//  LOG("-- Service: RegisterManager [%p]", aManager);
   RegisterBluetoothSignalHandler(aManager->GetPath(), aManager);
 }
 
@@ -441,7 +443,7 @@ BluetoothService::UnregisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(mLiveManagers.Contains(aManager));
 
-  LOG("-- Service: UnregisterManager [%p]", aManager);
+//  LOG("-- Service: UnregisterManager [%p]", aManager);
   UnregisterBluetoothSignalHandler(aManager->GetPath(), aManager);
   mLiveManagers.RemoveElement(aManager);
 }
@@ -479,7 +481,7 @@ BluetoothService::Get()
 
   gBluetoothService.swap(service);
 
-  LOG("-- Service: LOCAL_AGENT_PATH = %s", LOCAL_AGENT_PATH);
+//  LOG("-- Service: LOCAL_AGENT_PATH = %s", LOCAL_AGENT_PATH);
   if (NS_FAILED(gBluetoothService->RegisterBluetoothSignalHandler(
         NS_LITERAL_STRING(LOCAL_AGENT_PATH), gBluetoothService))) {
     NS_WARNING("Resgister observer to register local agent failed!");
@@ -516,14 +518,14 @@ SetJsObject(JSContext* aContext,
             JSObject* aObj,
             const InfallibleTArray<BluetoothNamedValue>& aData)
 {
-  LOG("-- Service: SetJsObject");
+//  LOG("-- Service: SetJsObject");
 
   bool ok = true;
-  LOG("aData.Length() = %d", aData.Length());
+//  LOG("aData.Length() = %d", aData.Length());
   for (int i = 0; i < aData.Length(); i++) {
     jsval JsVal;
     if (aData[i].value().type() == BluetoothValue::TnsString) {
-	  LOG("aData[%d] is nsString", i);
+//	  LOG("aData[%d] is nsString", i);
       nsString data = aData[i].value().get_nsString();
       JSString* JsData = ::JS_NewStringCopyN(aContext,
                                              NS_ConvertUTF16toUTF8(data).get(),
