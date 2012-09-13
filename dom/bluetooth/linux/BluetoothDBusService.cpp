@@ -1270,7 +1270,6 @@ public:
   {
     LOG("-- DBus, BluetoothDevicePropertiesRunnable");
     MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(aDevicePath && aSignalPath);
   }
 
   ~BluetoothDevicePropertiesRunnable()
