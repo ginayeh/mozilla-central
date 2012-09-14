@@ -488,6 +488,12 @@ BluetoothService::Get()
     return nullptr;
   }
 
+  if (NS_FAILED(gBluetoothService->RegisterBluetoothSignalHandler(
+        NS_LITERAL_STRING(REMOTE_AGENT_PATH), gBluetoothService))) {
+    NS_WARNING("Resgister observer to register local agent failed!");
+    return nullptr;
+  }
+
   return gBluetoothService;
 }
 
@@ -585,7 +591,7 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     type.AssignLiteral("bluetooth-requestpincode");
   } else if (aData.name().EqualsLiteral("RequestPasskey")) {
     LOG("### RequestPassKey");
-    NS_ASSERTION(arr.Length() == 2, "RequestPinCode: Wrong length of parameters");
+    NS_ASSERTION(arr.Length() == 2, "RequestPasskey: Wrong length of parameters");
     type.AssignLiteral("bluetooth-requestpasskey");
   } else if (aData.name().EqualsLiteral("Authorize")) {
     LOG("### Authorize");
