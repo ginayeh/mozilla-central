@@ -286,6 +286,7 @@ public:
 
   NS_IMETHOD Run()
   {
+    LOG("[U] [mt] OnSocketEventTask::Run");
     MOZ_ASSERT(NS_IsMainThread());
     if (mImpl->IsShutdownOnMainThread()) {
       NS_WARNING("CloseSocket has already been called!");
@@ -427,6 +428,7 @@ public:
 
 void SocketConnectTask::Run()
 {
+  LOG("[U] [iot] SocketConnectTask::Run");
   MOZ_ASSERT(!NS_IsMainThread());
   mImpl->Connect();
 }
@@ -529,6 +531,7 @@ UnixSocketImpl::Accept()
 void
 UnixSocketImpl::Connect()
 {
+  LOG("[I] [iot] %s", __FUNCTION__);
   MOZ_ASSERT(!NS_IsMainThread());
 
   if (!mConnector) {
@@ -911,6 +914,7 @@ UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
                                   const char* aAddress,
                                   int aDelayMs)
 {
+  LOG("[U] [mt] %s", __FUNCTION__);
   MOZ_ASSERT(aConnector);
   MOZ_ASSERT(NS_IsMainThread());
 
