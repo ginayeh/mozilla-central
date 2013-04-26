@@ -273,6 +273,7 @@ BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
 void
 BluetoothA2dpManager::DispatchConnectionStatusChanged()
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   DispatchStatusChangedEvent(
