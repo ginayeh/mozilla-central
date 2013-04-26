@@ -19,6 +19,14 @@
 #include "nsIAudioManager.h"
 #include "nsIObserverService.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 USING_BLUETOOTH_NAMESPACE
@@ -33,6 +41,7 @@ BluetoothA2dpManager::Observe(nsISupports* aSubject,
                               const char* aTopic,
                               const PRUnichar* aData)
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(gBluetoothA2dpManager);
 
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
@@ -54,6 +63,7 @@ BluetoothA2dpManager::BluetoothA2dpManager()
 bool
 BluetoothA2dpManager::Init()
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -78,6 +88,7 @@ BluetoothA2dpManager::~BluetoothA2dpManager()
 static SinkState
 StatusStringToSinkState(const nsAString& aStatus)
 {
+  LOG("[A2dp] %s - '%s'", __FUNCTION__, NS_ConvertUTF16toUTF8(aStatus).get());
   SinkState state;
   if (aStatus.EqualsLiteral("disconnected")) {
     state = SinkState::SINK_DISCONNECTED;
@@ -123,6 +134,7 @@ BluetoothA2dpManager::Get()
 void
 BluetoothA2dpManager::HandleShutdown()
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   gInShutdown = true;
   Disconnect();
@@ -132,6 +144,7 @@ BluetoothA2dpManager::HandleShutdown()
 bool
 BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 {
+  LOG("[A2dp] %s, mConnected: %d", __FUNCTION__, mConnected);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
@@ -158,6 +171,8 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 void
 BluetoothA2dpManager::Disconnect()
 {
+  LOG("[A2dp] %s, mConnected: %d, mDeviceAddress: %s", __FUNCTION__, mConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
+
   if (!mConnected) {
     NS_WARNING("BluetoothA2dpManager has been disconnected");
     return;
@@ -173,6 +188,7 @@ BluetoothA2dpManager::Disconnect()
 void
 BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
 
@@ -223,6 +239,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 void
 BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT_IF(aState == SinkState::SINK_CONNECTED,
                 mSinkState == SinkState::SINK_CONNECTING ||
                 mSinkState == SinkState::SINK_PLAYING);
@@ -239,6 +256,7 @@ BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
 void
 BluetoothA2dpManager::NotifyStatusChanged()
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   NS_NAMED_LITERAL_STRING(type, BLUETOOTH_A2DP_STATUS_CHANGED_ID);
@@ -261,6 +279,7 @@ BluetoothA2dpManager::NotifyStatusChanged()
 void
 BluetoothA2dpManager::NotifyAudioManager()
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs =
