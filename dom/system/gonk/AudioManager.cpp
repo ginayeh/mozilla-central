@@ -40,7 +40,15 @@ using namespace mozilla::hal;
 using namespace mozilla;
 using namespace mozilla::dom::bluetooth;
 
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
+//#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 #define HEADPHONES_STATUS_HEADSET   NS_LITERAL_STRING("headset").get()
 #define HEADPHONES_STATUS_HEADPHONE NS_LITERAL_STRING("headphone").get()
@@ -276,6 +284,7 @@ AudioManager::Observe(nsISupports* aSubject,
                       const char* aTopic,
                       const PRUnichar* aData)
 {
+  LOG("[Audio] %s", aTopic);
   if ((strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID) == 0) ||
       (strcmp(aTopic, BLUETOOTH_HFP_STATUS_CHANGED_ID) == 0) ||
       (strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED_ID) == 0)) {
