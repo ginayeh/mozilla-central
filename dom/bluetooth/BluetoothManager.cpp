@@ -20,6 +20,22 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/dom/BluetoothManagerBinding.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+#undef LOGV
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOGV(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBusV", args);
+#else
+#define BTDEBUG true
+#define LOGV(args...) if (BTDEBUG) printf(args);
+#endif
 using namespace mozilla;
 
 USING_BLUETOOTH_NAMESPACE
@@ -44,6 +60,7 @@ public:
   bool
   ParseSuccessfulReply(JS::Value* aValue)
   {
+    LOG("[M] GetAdapterTask::ParseSuccessfulReply");
     *aValue = JSVAL_VOID;
 
     const BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
@@ -94,6 +111,7 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
   : nsDOMEventTargetHelper(aWindow)
   , BluetoothPropertyContainer(BluetoothObjectType::TYPE_MANAGER)
 {
+  LOG("[M] %s", __FUNCTION__);
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(IsDOMBinding());
 
@@ -107,14 +125,43 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
 
 BluetoothManager::~BluetoothManager()
 {
+  LOG("[M] %s", __FUNCTION__);
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
   bs->UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(KEY_MANAGER), this);
 }
 
+static void PrintProperty(const nsAString& aName, const BluetoothValue& aValue);
+void
+PrintProperty(const nsAString& aName, const BluetoothValue& aValue)
+{
+  if (aValue.type() == BluetoothValue::TnsString) {
+    LOGV("[M] %s, <%s, %s>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get(), NS_ConvertUTF16toUTF8(aValue.get_nsString()).get());
+    return;
+  } else if (aValue.type() == BluetoothValue::Tuint32_t) {
+    LOGV("[M] %s, <%s, %d>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get(), aValue.get_uint32_t());
+    return;
+  } else if (aValue.type() == BluetoothValue::Tbool) {
+    LOGV("[M] %s, <%s, %d>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get(), aValue.get_bool());
+    return;
+  } else if (aValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue) {
+    LOGV("[M] %s, <%s, Array of BluetoothNamedValue>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get());
+    return;
+  } else if (aValue.type() == BluetoothValue::TArrayOfnsString) {
+    InfallibleTArray<nsString> tmp(aValue.get_ArrayOfnsString());
+    for (int i = 0; i < tmp.Length(); i++) {
+      LOGV("[M] %s, <%s, %s>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get(), NS_ConvertUTF16toUTF8(tmp[i]).get());
+    }
+    return;
+  } else {
+    LOGV("[M] %s, <%s, Unknown value type>", __FUNCTION__, NS_ConvertUTF16toUTF8(aName).get());
+    return;
+  }
+}
 void
 BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
 {
+  PrintProperty(aValue.name(), aValue.value());
 #ifdef DEBUG
     const nsString& name = aValue.name();
     nsCString warningMsg;
@@ -127,6 +174,7 @@ BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
 bool
 BluetoothManager::GetEnabled(ErrorResult& aRv)
 {
+  LOGV("[M] %s", __FUNCTION__);
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -139,6 +187,7 @@ BluetoothManager::GetEnabled(ErrorResult& aRv)
 already_AddRefed<dom::DOMRequest>
 BluetoothManager::GetDefaultAdapter(ErrorResult& aRv)
 {
+  LOG("[M] %s", __FUNCTION__);
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -168,6 +217,7 @@ BluetoothManager::GetDefaultAdapter(ErrorResult& aRv)
 already_AddRefed<BluetoothManager>
 BluetoothManager::Create(nsPIDOMWindow* aWindow)
 {
+  LOG("[M] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aWindow);
 
@@ -179,6 +229,7 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow)
 bool
 BluetoothManager::CheckPermission(nsPIDOMWindow* aWindow)
 {
+  LOG("[M] %s", __FUNCTION__);
   NS_ASSERTION(aWindow, "Null pointer!");
 
   nsCOMPtr<nsIPermissionManager> permMgr =
