@@ -22,6 +22,22 @@
 
 #define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+#undef LOGV
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOGV(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBusV", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 using namespace mozilla;
 using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
@@ -68,6 +84,7 @@ public:
 void
 BluetoothScoManager::NotifyAudioManager(const nsAString& aAddress)
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs =
@@ -143,6 +160,7 @@ BluetoothScoManager::Cleanup()
 BluetoothScoManager*
 BluetoothScoManager::Get()
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   // If we already exist, exit early
@@ -186,6 +204,7 @@ BluetoothScoManager::HandleShutdown()
 bool
 BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -243,12 +262,14 @@ BluetoothScoManager::Listen()
 void
 BluetoothScoManager::Disconnect()
 {
+  LOG("[Sco] %s", __FUNCTION__);
   mSocket->Disconnect();
 }
 
 void
 BluetoothScoManager::OnConnectSuccess(BluetoothSocket* aSocket)
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket == mSocket);
 
   nsString address;
@@ -261,6 +282,7 @@ BluetoothScoManager::OnConnectSuccess(BluetoothSocket* aSocket)
 void
 BluetoothScoManager::OnConnectError(BluetoothSocket* aSocket)
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket == mSocket);
 
   mSocket->Disconnect();
@@ -271,6 +293,7 @@ BluetoothScoManager::OnConnectError(BluetoothSocket* aSocket)
 void
 BluetoothScoManager::OnDisconnect(BluetoothSocket* aSocket)
 {
+  LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket == mSocket);
 
   if (mPrevSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {

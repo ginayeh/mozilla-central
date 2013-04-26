@@ -40,6 +40,22 @@
 #define TOA_UNKNOWN 0x81
 #define TOA_INTERNATIONAL 0x91
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+#undef LOGV
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOGV(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBusV", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 #define CR_LF "\xd\xa";
 
 using namespace mozilla;
@@ -276,6 +292,7 @@ public:
   void Run() MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
+    LOG("[Hfp] SendRingIndicatorTask::Run");
 
     // Stop sending RING indicator
     if (sStopSendingRingFlag) {
@@ -317,6 +334,7 @@ void
 OpenScoSocket(const nsAString& aDeviceAddress)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("[Hfp] %s", __FUNCTION__);
 
   BluetoothScoManager* sco = BluetoothScoManager::Get();
   if (!sco) {
@@ -333,6 +351,7 @@ void
 CloseScoSocket()
 {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("[Hfp] %s", __FUNCTION__);
 
   BluetoothScoManager* sco = BluetoothScoManager::Get();
   if (!sco) {
@@ -363,6 +382,7 @@ BluetoothHfpManager::BluetoothHfpManager()
 void
 BluetoothHfpManager::ResetCallArray()
 {
+  LOG("[H] %s", __FUNCTION__);
   mCurrentCallIndex = 0;
   mCurrentCallArray.Clear();
   // Append a call object at the beginning of mCurrentCallArray since call
@@ -374,6 +394,7 @@ BluetoothHfpManager::ResetCallArray()
 void
 BluetoothHfpManager::Reset()
 {
+  LOG("[H] %s", __FUNCTION__);
   sStopSendingRingFlag = true;
   sCINDItems[CINDType::CALL].value = CallState::NO_CALL;
   sCINDItems[CINDType::CALLSETUP].value = CallSetupState::NO_CALLSETUP;
@@ -391,6 +412,7 @@ BluetoothHfpManager::Reset()
 bool
 BluetoothHfpManager::Init()
 {
+  LOGV("[H] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   sHfpObserver = new BluetoothHfpManagerObserver();
@@ -429,6 +451,7 @@ BluetoothHfpManager::~BluetoothHfpManager()
 void
 BluetoothHfpManager::Cleanup()
 {
+  LOGV("[Hfp] %s", __FUNCTION__);
   if (!mListener->StopListening()) {
     NS_WARNING("Failed to stop listening RIL");
   }
@@ -442,6 +465,7 @@ BluetoothHfpManager::Cleanup()
 BluetoothHfpManager*
 BluetoothHfpManager::Get()
 {
+  LOGV("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   // If we already exist, exit early
@@ -466,6 +490,7 @@ BluetoothHfpManager::Get()
 void
 BluetoothHfpManager::NotifySettings()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   nsString type, name;
   BluetoothValue v;
   InfallibleTArray<BluetoothNamedValue> parameters;
@@ -488,6 +513,7 @@ BluetoothHfpManager::NotifySettings()
 void
 BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   nsString type, name;
   BluetoothValue v;
   InfallibleTArray<BluetoothNamedValue> parameters;
@@ -506,6 +532,7 @@ BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
 nsresult
 BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   // The string that we're interested in will be a JSON string that looks like:
@@ -578,6 +605,7 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 nsresult
 BluetoothHfpManager::HandleVoiceConnectionChanged()
 {
+  LOGV("[H] %s", __FUNCTION__);
   nsCOMPtr<nsIMobileConnectionProvider> connection =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
@@ -643,6 +671,7 @@ BluetoothHfpManager::HandleVoiceConnectionChanged()
 nsresult
 BluetoothHfpManager::HandleIccInfoChanged()
 {
+  LOGV("[H] %s", __FUNCTION__);
   nsCOMPtr<nsIMobileConnectionProvider> connection =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
@@ -658,6 +687,7 @@ BluetoothHfpManager::HandleIccInfoChanged()
 nsresult
 BluetoothHfpManager::HandleShutdown()
 {
+  LOGV("[H] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   gInShutdown = true;
   Disconnect();
@@ -675,6 +705,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
 
   nsAutoCString msg((const char*)aMessage->mData.get(), aMessage->mSize);
   msg.StripWhitespace();
+  LOG("[Hfp] %s - '%s'", __FUNCTION__, msg.get());
 
   nsTArray<nsCString> atCommandValues;
 
@@ -958,6 +989,7 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
                              BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("[Hfp] %s", __FUNCTION__);
 
   if (gInShutdown) {
     NS_WARNING("Connect called while in shutdown!");
@@ -1008,6 +1040,7 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
 bool
 BluetoothHfpManager::Listen()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -1052,6 +1085,7 @@ BluetoothHfpManager::Listen()
 void
 BluetoothHfpManager::Disconnect()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   if (mSocket) {
     mSocket->Disconnect();
     mSocket = nullptr;
@@ -1061,6 +1095,7 @@ BluetoothHfpManager::Disconnect()
 bool
 BluetoothHfpManager::SendLine(const char* aMessage)
 {
+  LOG("[Hfp] %s '%s'", __FUNCTION__, aMessage);
   MOZ_ASSERT(mSocket);
 
   nsAutoCString msg;
@@ -1191,6 +1226,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
                                             const nsAString& aNumber,
                                             bool aSend)
 {
+  LOG("[Hfp] %s, (%d, %d, %s, %d)", __FUNCTION__, aCallIndex, aCallState, NS_ConvertUTF16toUTF8(aNumber).get(), aSend);
   if (!IsConnected()) {
     // Normal case. No need to print out warnings.
     return;
@@ -1389,6 +1425,7 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
   provider->EnumerateCalls(mListener->GetListener());
 
   // For active connection request, we need to reply the DOMRequest
+  LOG("[Hfp] %s", __FUNCTION__);
   if (mRunnable) {
     BluetoothValue v = true;
     nsString errorStr;
@@ -1410,6 +1447,7 @@ void
 BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 {
   // For active connection request, we need to reply the DOMRequest
+  LOG("[Hfp] %s", __FUNCTION__);
   if (mRunnable) {
     BluetoothValue v;
     nsString errorStr;
@@ -1430,6 +1468,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 void
 BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket);
 
   if (aSocket != mSocket) {
