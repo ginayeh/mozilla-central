@@ -468,6 +468,9 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 
   DBusError err;
   dbus_error_init(&err);
+  LOG("%s: %s, %s", __FUNCTION__,
+                    dbus_message_get_path(msg),
+                    dbus_message_get_member(msg));
 
   BT_LOG("%s: %s, %s", __FUNCTION__,
                        dbus_message_get_path(msg),
@@ -2915,6 +2918,7 @@ BluetoothDBusService::SendFile(const nsAString& aDeviceAddress,
                                BlobChild* aBlobChild,
                                BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[B] %s", __FUNCTION__);
   NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
 
   // Currently we only support one device sending one file at a time,
@@ -2982,6 +2986,7 @@ BluetoothDBusService::ConnectSco(BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  LOG("[B] %s", __FUNCTION__);
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);

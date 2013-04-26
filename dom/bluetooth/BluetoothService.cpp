@@ -583,6 +583,7 @@ BluetoothService::HandleStartupSettingsCheck(bool aEnable)
 nsresult
 BluetoothService::HandleSettingsChanged(const nsAString& aData)
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   // The string that we're interested in will be a JSON string that looks like:
@@ -770,6 +771,7 @@ nsresult
 BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
                           const PRUnichar* aData)
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (!strcmp(aTopic, "profile-after-change")) {

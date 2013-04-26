@@ -118,6 +118,7 @@ BluetoothOppManagerObserver::Observe(nsISupports* aSubject,
                                      const char* aTopic,
                                      const PRUnichar* aData)
 {
+  LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(sInstance);
 
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
@@ -1061,6 +1062,7 @@ void
 BluetoothOppManager::SendPutRequest(uint8_t* aFileBody,
                                     int aFileBodyLength)
 {
+  LOG("[O] %s", __FUNCTION__);
   int packetLeftSpace = mRemoteMaxPacketLength - kPutRequestHeaderSize;
 
   if (!mConnected) return;
@@ -1244,6 +1246,7 @@ BluetoothOppManager::ReplyToPut(bool aFinal, bool aContinue)
 void
 BluetoothOppManager::FileTransferComplete()
 {
+  LOG("[O] %s", __FUNCTION__);
   if (mSendTransferCompleteFlag) {
     return;
   }

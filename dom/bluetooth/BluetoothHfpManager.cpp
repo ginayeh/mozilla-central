@@ -372,6 +372,7 @@ BluetoothHfpManager::BluetoothHfpManager()
 void
 BluetoothHfpManager::ResetCallArray()
 {
+  LOG("[H] %s", __FUNCTION__);
   mCurrentCallArray.Clear();
   // Append a call object at the beginning of mCurrentCallArray since call
   // index from RIL starts at 1.
@@ -1485,6 +1486,7 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
   provider->EnumerateCalls(mListener->GetListener());
 
   // For active connection request, we need to reply the DOMRequest
+  LOG("[Hfp] %s", __FUNCTION__);
   if (mRunnable) {
     BluetoothValue v = true;
     nsString errorStr;
@@ -1514,6 +1516,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 
   LOG("[Hfp] %s", __FUNCTION__);
   // For active connection request, we need to reply the DOMRequest
+  LOG("[Hfp] %s", __FUNCTION__);
   if (mRunnable) {
     NS_NAMED_LITERAL_STRING(replyError,
                             "Failed to connect with a bluetooth headset!");
@@ -1533,6 +1536,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 void
 BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket);
 
   LOG("[Hfp] %s", __FUNCTION__);
