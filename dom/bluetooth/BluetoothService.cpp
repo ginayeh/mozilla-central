@@ -54,7 +54,24 @@
 
 #define DEFAULT_SHUTDOWN_TIMER_MS 5000
 
-bool gBluetoothDebugFlag = false;
+bool gBluetoothDebugFlag = true;
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+#undef LOGV
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOGV(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBusV", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -76,6 +93,7 @@ IsMainProcess()
 void
 ShutdownTimeExceeded(nsITimer* aTimer, void* aClosure)
 {
+  LOGV("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   *static_cast<bool*>(aClosure) = true;
 }
@@ -83,6 +101,7 @@ ShutdownTimeExceeded(nsITimer* aTimer, void* aClosure)
 void
 GetAllBluetoothActors(InfallibleTArray<BluetoothParent*>& aActors)
 {
+  LOGV("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aActors.IsEmpty());
 
@@ -122,6 +141,7 @@ public:
 
   NS_IMETHOD Run()
   {
+    LOG("[S] ToggleBtAck::Run");
     MOZ_ASSERT(NS_IsMainThread());
 
     if (!gBluetoothService) {
@@ -176,6 +196,7 @@ public:
 
   NS_IMETHOD Run()
   {
+    LOG("[S] ToggleBtTask::Run");
     MOZ_ASSERT(!NS_IsMainThread());
 
     /*
@@ -234,6 +255,7 @@ public:
 
   NS_IMETHOD Handle(const nsAString& aName, const JS::Value& aResult)
   {
+    LOG("[S] StartupTask::Handle");
     MOZ_ASSERT(NS_IsMainThread());
 
     if (!aResult.isBoolean()) {
@@ -269,6 +291,7 @@ BluetoothService::IsToggling() const
 
 BluetoothService::~BluetoothService()
 {
+  LOG("[S] %s", __FUNCTION__);
   Cleanup();
 }
 
@@ -295,6 +318,7 @@ BluetoothService::RemoveObserverFromTable(const nsAString& key)
 BluetoothService*
 BluetoothService::Create()
 {
+  LOG("[S] %s", __FUNCTION__);
 #if defined(MOZ_B2G_BT)
   if (!IsMainProcess()) {
     return BluetoothServiceChildProcess::Create();
@@ -313,6 +337,7 @@ BluetoothService::Create()
 bool
 BluetoothService::Init()
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -337,6 +362,7 @@ BluetoothService::Init()
 void
 BluetoothService::Cleanup()
 {
+  LOGV("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
@@ -352,6 +378,7 @@ BluetoothService::RegisterBluetoothSignalHandler(
                                               const nsAString& aNodeName,
                                               BluetoothSignalObserver* aHandler)
 {
+  LOG("[S] %s - '%s' [%p]", __FUNCTION__, NS_ConvertUTF16toUTF8(aNodeName).get(), aHandler);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aHandler);
 
@@ -364,6 +391,7 @@ BluetoothService::RegisterBluetoothSignalHandler(
   }
 
   ol->AddObserver(aHandler);
+  LOG("[S] '%s', observer length: %d", NS_ConvertUTF16toUTF8(aNodeName).get(), ol->Length());
 }
 
 void
@@ -371,6 +399,7 @@ BluetoothService::UnregisterBluetoothSignalHandler(
                                               const nsAString& aNodeName,
                                               BluetoothSignalObserver* aHandler)
 {
+  LOG("[S] %s - '%s' [%p]", __FUNCTION__, NS_ConvertUTF16toUTF8(aNodeName).get(), aHandler);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aHandler);
 
@@ -379,6 +408,7 @@ BluetoothService::UnregisterBluetoothSignalHandler(
   BluetoothSignalObserverList* ol;
   if (mBluetoothSignalObserverTable.Get(aNodeName, &ol)) {
     ol->RemoveObserver(aHandler);
+    LOG("[S] '%s', observer length: %d", NS_ConvertUTF16toUTF8(aNodeName).get(), ol->Length());
     // We shouldn't have duplicate instances in the ObserverList, but there's
     // no appropriate way to do duplication check while registering, so
     // assertions are added here.
@@ -409,6 +439,7 @@ RemoveAllSignalHandlers(const nsAString& aKey,
 void
 BluetoothService::UnregisterAllSignalHandlers(BluetoothSignalObserver* aHandler)
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aHandler);
 
@@ -418,6 +449,7 @@ BluetoothService::UnregisterAllSignalHandlers(BluetoothSignalObserver* aHandler)
 void
 BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 {
+  LOG("[S] %s '%s' to %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aSignal.name()).get(), NS_ConvertUTF16toUTF8(aSignal.path()).get());
   MOZ_ASSERT(NS_IsMainThread());
 
   if (aSignal.path().EqualsLiteral(KEY_LOCAL_AGENT)) {
@@ -430,6 +462,7 @@ BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aSignal.path(), &ol)) {
+    LOG("No observer registered for path ");
 #if DEBUG
     nsAutoCString msg("No observer registered for path ");
     msg.Append(NS_ConvertUTF16toUTF8(aSignal.path()));
@@ -438,12 +471,14 @@ BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
     return;
   }
   MOZ_ASSERT(ol->Length());
+  LOG("[S] '%s', observer length: %d", NS_ConvertUTF16toUTF8(aSignal.name()).get(), ol->Length());
   ol->Broadcast(aSignal);
 }
 
 nsresult
 BluetoothService::StartStopBluetooth(bool aStart)
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -479,6 +514,7 @@ BluetoothService::StartStopBluetooth(bool aStart)
 void
 BluetoothService::SetEnabled(bool aEnabled)
 {
+  LOG("[S] %s, aEnabled: %d, mEnalbed: %d", __FUNCTION__, aEnabled, mEnabled);
   MOZ_ASSERT(NS_IsMainThread());
 
   AutoInfallibleTArray<BluetoothParent*, 10> childActors;
@@ -516,6 +552,7 @@ BluetoothService::SetEnabled(bool aEnabled)
 nsresult
 BluetoothService::HandleStartup()
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!gToggleInProgress);
 
@@ -538,6 +575,7 @@ BluetoothService::HandleStartup()
 nsresult
 BluetoothService::HandleStartupSettingsCheck(bool aEnable)
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   return StartStopBluetooth(aEnable);
 }
@@ -635,6 +673,7 @@ BluetoothService::HandleSettingsChanged(const nsAString& aData)
 nsresult
 BluetoothService::HandleShutdown()
 {
+  LOG("[S] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   // This is a two phase shutdown. First we notify all child processes that
@@ -752,6 +791,7 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
 void
 BluetoothService::Notify(const BluetoothSignal& aData)
 {
+  LOG("[S] %s", __FUNCTION__);
   nsString type = NS_LITERAL_STRING("bluetooth-pairing-request");
 
   AutoSafeJSContext cx;
@@ -762,6 +802,7 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     NS_WARNING("Failed to set properties of system message!");
     return;
   }
+  LOG("[S] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
 
   BT_LOG("[S] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
 
