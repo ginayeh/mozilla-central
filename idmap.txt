@@ -1,0 +1,5 @@
+*.c text
+*.cpp text
+*.h text
+*.idl text
+*.js text
