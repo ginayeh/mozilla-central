@@ -940,6 +940,8 @@ BluetoothAdapter::SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorRe
 
   LOG("[Media] mTitle: %s, mArtist: %s, mAlbum: %s, mMediaNumber: %lld, mTotalMediaCount: %lld, mDuration: %lld", metadata.mTitle, metadata.mArtist, metadata.mAlbum, metadata.mMediaNumber, metadata.mTotalMediaCount, metadata.mDuration);
 
+  LOG("[Media] mTitle: %s, mArtist: %s, mAlbum: %s, mMediaNumber: %lld, mTotalMediaCount: %lld, mDuration: %lld", metadata.mTitle, metadata.mArtist, metadata.mAlbum, metadata.mMediaNumber, metadata.mTotalMediaCount, metadata.mDuration);
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -969,6 +971,8 @@ BluetoothAdapter::SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, E
   nsRefPtr<DOMRequest> request = new DOMRequest(win);
   nsRefPtr<BluetoothReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
+
+  LOG("[Media] mDuration: %lld, mPosition: %lld, mPlayStatus: %s", status.mDuration, status.mPosition, status.mPlayStatus);
 
   LOG("[Media] mDuration: %lld, mPosition: %lld, mPlayStatus: %s", status.mDuration, status.mPosition, status.mPlayStatus);
 
