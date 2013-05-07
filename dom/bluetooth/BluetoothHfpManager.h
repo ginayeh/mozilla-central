@@ -77,6 +77,10 @@ public:
   bool IsConnected();
   void GetAddress(nsAString& aDeviceAddress);
 
+  void ConnectSco(BluetoothReplyRunnable* aRunnable);
+  void DisconnectSco(BluetoothReplyRunnable* aRunnable);
+  bool IsScoConnected();
+
 private:
   class GetVolumeTask;
   class SendRingIndicatorTask;

@@ -30,7 +30,8 @@ public:
   virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
   virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
 
-  bool Connect(const nsAString& aDeviceObjectPath);
+  bool Connect(const nsAString& aDeviceAddress,
+               BluetoothReplyRunnable* aRunnable);
   void Disconnect();
   bool Listen();
   bool IsConnected();
@@ -45,6 +46,7 @@ private:
 
   SocketConnectionStatus mPrevSocketStatus;
   nsRefPtr<BluetoothSocket> mSocket;
+  nsRefPtr<BluetoothReplyRunnable> mRunnable;
 };
 
 END_BLUETOOTH_NAMESPACE

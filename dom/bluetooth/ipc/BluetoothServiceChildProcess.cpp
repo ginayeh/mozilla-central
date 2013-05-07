@@ -336,6 +336,27 @@ BluetoothServiceChildProcess::ConfirmReceivingFile(
               DenyReceivingFileRequest(nsString(aDeviceAddress)));
 }
 
+void
+BluetoothServiceChildProcess::ConnectSco(BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, ConnectScoRequest());
+}
+
+void
+BluetoothServiceChildProcess::DisconnectSco(BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, DisconnectScoRequest());
+}
+
+bool
+BluetoothServiceChildProcess::IsScoConnected()
+{
+/*  if (gBluetoothChild) {
+    return BluetoothChild->SendIsScoConnected();
+  }*/
+  return false;
+}
+
 nsresult
 BluetoothServiceChildProcess::HandleStartup()
 {

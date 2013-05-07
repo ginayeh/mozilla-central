@@ -202,7 +202,8 @@ BluetoothScoManager::HandleShutdown()
 }
 
 bool
-BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
+BluetoothScoManager::Connect(const nsAString& aDeviceAddress,
+                             BluetoothReplyRunnable* aRunnable)
 {
   LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
@@ -223,6 +224,10 @@ BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
+
+  if (aRunnable && !mRunnable) {
+    mRunnable = aRunnable;
+  }
 
   nsresult rv = bs->GetScoSocket(aDeviceAddress,
                                  true,
@@ -272,6 +277,14 @@ BluetoothScoManager::OnConnectSuccess(BluetoothSocket* aSocket)
   LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket == mSocket);
 
+  if (mRunnable) {
+    BluetoothValue v = true;
+    nsAutoString errorStr;
+    DispatchBluetoothReply(mRunnable, v, errorStr);
+
+    mRunnable.forget();
+  }
+
   nsString address;
   mSocket->GetAddress(address);
   NotifyAudioManager(address);
@@ -284,6 +297,15 @@ BluetoothScoManager::OnConnectError(BluetoothSocket* aSocket)
 {
   LOG("[Sco] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket == mSocket);
+
+  if (mRunnable) {
+    BluetoothValue v;
+    nsAutoString errorStr;
+    errorStr.AssignLiteral("Failed to create sco socket!");
+    DispatchBluetoothReply(mRunnable, v, errorStr);
+
+    mRunnable.forget();
+  }
 
   mSocket->Disconnect();
   mPrevSocketStatus = mSocket->GetConnectionStatus();

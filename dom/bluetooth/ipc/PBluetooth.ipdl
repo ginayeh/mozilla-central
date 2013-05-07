@@ -129,6 +129,14 @@ struct DenyReceivingFileRequest
   nsString devicePath;
 };
 
+struct ConnectScoRequest
+{
+};
+
+struct DisconnectScoRequest
+{
+};
+
 union Request
 {
   DefaultAdapterPathRequest;
@@ -152,6 +160,8 @@ union Request
   StopSendingFileRequest;
   ConfirmReceivingFileRequest;
   DenyReceivingFileRequest;
+  ConnectScoRequest;
+  DisconnectScoRequest;
 };
 
 protocol PBluetooth

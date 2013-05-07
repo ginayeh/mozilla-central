@@ -331,7 +331,8 @@ private:
 };
 
 void
-OpenScoSocket(const nsAString& aDeviceAddress)
+OpenScoSocket(const nsAString& aDeviceAddress,
+              BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
   LOG("[Hfp] %s", __FUNCTION__);
@@ -342,7 +343,7 @@ OpenScoSocket(const nsAString& aDeviceAddress)
     return;
   }
 
-  if (!sco->Connect(aDeviceAddress)) {
+  if (!sco->Connect(aDeviceAddress, aRunnable)) {
     NS_WARNING("Failed to create a sco socket!");
   }
 }
@@ -936,7 +937,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
         // If there's no SCO, set up a SCO link.
         nsAutoString address;
         mSocket->GetAddress(address);
-        sco->Connect(address);
+        sco->Connect(address, nullptr);
       } else if (!mFirstCKPD) {
         // Bluetooth HSP spec 4.5
         // There are two ways to release SCO: sending CHUP to dialer or closing
@@ -1290,7 +1291,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       UpdateCIND(CINDType::CALLSETUP, CallSetupState::OUTGOING, aSend);
 
       mSocket->GetAddress(address);
-      OpenScoSocket(address);
+      OpenScoSocket(address, nullptr);
       break;
     case nsITelephonyProvider::CALL_STATE_ALERTING:
       mCurrentCallArray[aCallIndex].mDirection = false;
@@ -1299,7 +1300,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       // If there's an ongoing call when the headset is just connected, we have
       // to open a sco socket here.
       mSocket->GetAddress(address);
-      OpenScoSocket(address);
+      OpenScoSocket(address, nullptr);
       break;
     case nsITelephonyProvider::CALL_STATE_CONNECTED:
       mCurrentCallIndex = aCallIndex;
@@ -1310,7 +1311,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
           sStopSendingRingFlag = true;
 
           mSocket->GetAddress(address);
-          OpenScoSocket(address);
+          OpenScoSocket(address, nullptr);
         case nsITelephonyProvider::CALL_STATE_ALERTING:
           // Outgoing call
           UpdateCIND(CINDType::CALL, CallState::IN_PROGRESS, aSend);
@@ -1499,4 +1500,44 @@ void
 BluetoothHfpManager::GetAddress(nsAString& aDeviceAddress)
 {
   return mSocket->GetAddress(aDeviceAddress);
+}
+
+void
+BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  nsAutoString errorStr;
+  BluetoothValue v;
+  if (!mSocket) {
+    errorStr.AssignLiteral("BluetoothHfpManager is not connected");
+    DispatchBluetoothReply(aRunnable, v, errorStr);
+    return;
+  }
+
+  nsAutoString address;
+  mSocket->GetAddress(address);
+
+  OpenScoSocket(address, aRunnable);
+}
+
+void
+BluetoothHfpManager::DisconnectSco(BluetoothReplyRunnable* aRunnable)
+{
+  nsAutoString errorStr;
+  BluetoothValue v;
+  if (!mSocket) {
+    errorStr.AssignLiteral("BluetoothHfpManager is not connected");
+    DispatchBluetoothReply(aRunnable, v, errorStr);
+    return;
+  }
+
+  CloseScoSocket();
+}
+
+bool
+BluetoothHfpManager::IsScoConnected()
+{
+  BluetoothScoManager* sco = BluetoothScoManager::Get();
+  NS_ENSURE_TRUE(sco, false);
+  return sco->IsConnected(); 
 }

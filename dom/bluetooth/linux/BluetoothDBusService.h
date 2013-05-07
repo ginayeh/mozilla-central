@@ -146,6 +146,15 @@ public:
   ConfirmReceivingFile(const nsAString& aDeviceAddress, bool aConfirm,
                        BluetoothReplyRunnable* aRunnable);
 
+  virtual void
+  ConnectSco(BluetoothReplyRunnable* aRunnable);
+
+  virtual void
+  DisconnectSco(BluetoothReplyRunnable* aRunnable);
+
+  virtual bool
+  IsScoConnected();
+
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,
                                   const char* aInterface,
