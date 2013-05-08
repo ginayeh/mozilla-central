@@ -74,7 +74,7 @@ class GetDevicesTask : public BluetoothReplyRunnable
 {
 public:
   GetDevicesTask(BluetoothAdapter* aAdapterPtr,
-                       nsIDOMDOMRequest* aReq) :
+                 nsIDOMDOMRequest* aReq) :
     BluetoothReplyRunnable(aReq),
     mAdapterPtr(aAdapterPtr)
   {
@@ -139,6 +139,38 @@ public:
   }
 private:
   nsRefPtr<BluetoothAdapter> mAdapterPtr;
+};
+
+class GetScoConnectionStatusTask : public BluetoothReplyRunnable
+{
+public:
+  GetScoConnectionStatusTask(nsIDOMDOMRequest* aReq) :
+    BluetoothReplyRunnable(aReq)
+  {
+    MOZ_ASSERT(aReq);
+  }
+
+  virtual bool ParseSuccessfulReply(JS::Value* aValue)
+  {
+    LOG("[A] GetScoConnectionStatusTask::ParseSuccessfulReply");
+    *aValue = JSVAL_VOID;
+
+    const BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
+    if (v.type() != BluetoothValue::Tbool) {
+      NS_WARNING("Not a boolean!");
+      SetError(NS_LITERAL_STRING("BluetoothReplyTypeError"));
+      return false;
+    }
+
+    aValue->setBoolean(v.get_bool());
+    return true;
+  }
+
+  void
+  ReleaseMembers()
+  {
+    BluetoothReplyRunnable::ReleaseMembers();
+  }
 };
 
 static int kCreatePairedDeviceTimeout = 50000; // unit: msec
@@ -853,12 +885,20 @@ BluetoothAdapter::DisconnectSco(nsIDOMDOMRequest** aRequest)
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::IsScoConnected(bool* aConnected)
+BluetoothAdapter::IsScoConnected(nsIDOMDOMRequest** aRequest)
 {
+  nsCOMPtr<nsIDOMDOMRequest> req;
+  nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+
+  nsRefPtr<BluetoothReplyRunnable> results =
+    new GetScoConnectionStatusTask(req);
+
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
+  bs->IsScoConnected(results);
 
-  *aConnected = bs->IsScoConnected();
+  req.forget(aRequest);
   return NS_OK;
 }
 

@@ -149,8 +149,8 @@ public:
   virtual void
   DisconnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual bool
-  IsScoConnected() MOZ_OVERRIDE;
+  virtual void 
+  IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
 protected:
   BluetoothServiceChildProcess();

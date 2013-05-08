@@ -191,6 +191,9 @@ protected:
 
   bool
   DoRequest(const DisconnectScoRequest& aRequest);
+
+  bool
+  DoRequest(const IsScoConnectedRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

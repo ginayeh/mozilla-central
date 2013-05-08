@@ -61,7 +61,7 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   // Connect/Disconnect SCO (audio) connection
   nsIDOMDOMRequest connectSco();
   nsIDOMDOMRequest disconnectSco();
-  bool isScoConnected();
+  nsIDOMDOMRequest isScoConnected();
 
   // Fired when discoverying and any device is discovered.
   [implicit_jscontext] attribute jsval ondevicefound;

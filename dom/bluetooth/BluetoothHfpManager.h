@@ -136,6 +136,8 @@ private:
   // is called.
   nsRefPtr<BluetoothSocket> mHandsfreeSocket;
   nsRefPtr<BluetoothSocket> mHeadsetSocket;
+
+//  nsRefPtr<BluetoothScoSocket> mScoSocket;
 };
 
 END_BLUETOOTH_NAMESPACE

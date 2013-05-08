@@ -18,6 +18,15 @@
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 using mozilla::unused;
 USING_BLUETOOTH_NAMESPACE
 
@@ -229,6 +238,8 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_ConnectScoRequest());
     case Request::TDisconnectScoRequest:
       return actor->DoRequest(aRequest.get_DisconnectScoRequest());
+    case Request::TIsScoConnectedRequest:
+      return actor->DoRequest(aRequest.get_IsScoConnectedRequest());
     default:
       MOZ_NOT_REACHED("Unknown type!");
       return false;
@@ -592,5 +603,15 @@ BluetoothRequestParent::DoRequest(const DisconnectScoRequest& aRequest)
   MOZ_ASSERT(mRequestType == Request::TDisconnectScoRequest);
 
   mService->DisconnectSco(mReplyRunnable.get()); 
+  return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const IsScoConnectedRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TIsScoConnectedRequest);
+
+  mService->IsScoConnected(mReplyRunnable.get()); 
   return true;
 }

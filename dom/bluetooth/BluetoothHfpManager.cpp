@@ -1537,6 +1537,8 @@ BluetoothHfpManager::DisconnectSco(BluetoothReplyRunnable* aRunnable)
 bool
 BluetoothHfpManager::IsScoConnected()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
   BluetoothScoManager* sco = BluetoothScoManager::Get();
   NS_ENSURE_TRUE(sco, false);
   return sco->IsConnected(); 

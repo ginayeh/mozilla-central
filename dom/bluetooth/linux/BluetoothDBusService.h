@@ -152,8 +152,8 @@ public:
   virtual void
   DisconnectSco(BluetoothReplyRunnable* aRunnable);
 
-  virtual bool
-  IsScoConnected();
+  virtual void 
+  IsScoConnected(BluetoothReplyRunnable* aRunnable);
 
 private:
   nsresult SendGetPropertyMessage(const nsAString& aPath,

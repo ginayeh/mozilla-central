@@ -13,6 +13,15 @@
 
 #include "BluetoothChild.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 namespace {
@@ -348,13 +357,11 @@ BluetoothServiceChildProcess::DisconnectSco(BluetoothReplyRunnable* aRunnable)
   SendRequest(aRunnable, DisconnectScoRequest());
 }
 
-bool
-BluetoothServiceChildProcess::IsScoConnected()
+void
+BluetoothServiceChildProcess::IsScoConnected(BluetoothReplyRunnable* aRunnable)
 {
-/*  if (gBluetoothChild) {
-    return BluetoothChild->SendIsScoConnected();
-  }*/
-  return false;
+  LOG("[SC] %s", __FUNCTION__);
+  SendRequest(aRunnable, IsScoConnectedRequest());
 }
 
 nsresult

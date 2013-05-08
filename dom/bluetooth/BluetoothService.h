@@ -269,8 +269,8 @@ public:
   virtual void
   DisconnectSco(BluetoothReplyRunnable* aRunnable) = 0;
 
-  virtual bool
-  IsScoConnected() = 0;
+  virtual void
+  IsScoConnected(BluetoothReplyRunnable* aRunnable) = 0;
 
   bool
   IsEnabled() const

@@ -2935,12 +2935,15 @@ BluetoothDBusService::DisconnectSco(BluetoothReplyRunnable* aRunnable)
   hfp->DisconnectSco(aRunnable);
 }
 
-bool
-BluetoothDBusService::IsScoConnected()
+void
+BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-  NS_ENSURE_TRUE(hfp, false);
-  return hfp->IsScoConnected();
+  NS_ENSURE_TRUE_VOID(hfp);
+  BluetoothValue status = hfp->IsScoConnected();
+  nsAutoString errorStr;
+  DispatchBluetoothReply(aRunnable, status, errorStr);
 }
