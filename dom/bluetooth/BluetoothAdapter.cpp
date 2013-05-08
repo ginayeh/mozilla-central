@@ -851,6 +851,7 @@ BluetoothAdapter::ConfirmReceivingFile(const nsAString& aDeviceAddress,
 NS_IMETHODIMP
 BluetoothAdapter::ConnectSco(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -869,6 +870,7 @@ BluetoothAdapter::ConnectSco(nsIDOMDOMRequest** aRequest)
 NS_IMETHODIMP
 BluetoothAdapter::DisconnectSco(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -887,6 +889,7 @@ BluetoothAdapter::DisconnectSco(nsIDOMDOMRequest** aRequest)
 NS_IMETHODIMP
 BluetoothAdapter::IsScoConnected(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);

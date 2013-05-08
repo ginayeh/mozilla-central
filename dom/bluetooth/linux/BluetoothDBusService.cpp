@@ -2932,7 +2932,11 @@ BluetoothDBusService::DisconnectSco(BluetoothReplyRunnable* aRunnable)
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
-  hfp->DisconnectSco(aRunnable);
+  hfp->DisconnectSco();
+
+  BluetoothValue v = true;
+  nsAutoString errorStr;
+  DispatchBluetoothReply(aRunnable, v, errorStr);
 }
 
 void

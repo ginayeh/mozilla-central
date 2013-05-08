@@ -77,8 +77,9 @@ public:
   bool IsConnected();
   void GetAddress(nsAString& aDeviceAddress);
 
-  void ConnectSco(BluetoothReplyRunnable* aRunnable);
-  void DisconnectSco(BluetoothReplyRunnable* aRunnable);
+  bool ConnectSco(BluetoothReplyRunnable* aRunnable);
+  bool DisconnectSco();
+  bool ListenSco();
   bool IsScoConnected();
 
 private:
@@ -124,6 +125,7 @@ private:
   nsTArray<Call> mCurrentCallArray;
   nsAutoPtr<BluetoothTelephonyListener> mListener;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  nsRefPtr<BluetoothReplyRunnable> mScoRunnable;
 
   // If a connection has been established, mSocket will be the socket
   // communicating with the remote socket. We maintain the invariant that if
@@ -137,7 +139,8 @@ private:
   nsRefPtr<BluetoothSocket> mHandsfreeSocket;
   nsRefPtr<BluetoothSocket> mHeadsetSocket;
 
-//  nsRefPtr<BluetoothScoSocket> mScoSocket;
+  nsRefPtr<BluetoothSocket> mScoSocket;
+  SocketConnectionStatus mScoSocketStatus;
 };
 
 END_BLUETOOTH_NAMESPACE
