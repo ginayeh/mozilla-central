@@ -2918,24 +2918,35 @@ BluetoothDBusService::ConfirmReceivingFile(const nsAString& aDeviceAddress,
 void
 BluetoothDBusService::ConnectSco(BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
-  hfp->ConnectSco(aRunnable);
+  if(!hfp->ConnectSco(aRunnable)) {
+    BluetoothValue v;
+    nsAutoString errorStr;
+    errorStr.AssignLiteral("HFP is not connected or Sco has been connected");
+    DispatchBluetoothReply(aRunnable, v, errorStr);
+  }
 }
 
 void
 BluetoothDBusService::DisconnectSco(BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
-  hfp->DisconnectSco();
 
-  BluetoothValue v = true;
+  BluetoothValue v;
   nsAutoString errorStr;
+  if (!hfp->DisconnectSco()) {
+    errorStr.AssignLiteral("HFP is not connected or Sco has been disconnected");
+  } else {
+    v = true;
+  }
   DispatchBluetoothReply(aRunnable, v, errorStr);
 }
 

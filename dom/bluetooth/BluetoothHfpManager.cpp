@@ -441,6 +441,13 @@ BluetoothHfpManager::Init()
 
   Listen();
 
+  mScoSocket = new BluetoothSocket(this,
+      BluetoothSocketType::SCO,
+      true,
+      false);
+  mScoSocketStatus = mScoSocket->GetConnectionStatus();
+  ListenSco();
+
   return true;
 }
 
@@ -1398,6 +1405,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 void
 BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket);
 
   /**
@@ -1420,7 +1428,9 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
     mHandsfreeSocket->Disconnect();
     mHandsfreeSocket = nullptr;
   } else if (aSocket == mScoSocket) {
+    LOG("[Hfp] aSocket == mScoSocket");
     if (mScoRunnable) {
+      LOG("[Hfp] mScoRunnable");
       BluetoothValue v = true;
       nsAutoString errorStr;
       DispatchBluetoothReply(mRunnable, v, errorStr);
@@ -1467,7 +1477,6 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
   // For active connection request, we need to reply the DOMRequest
   LOG("[Hfp] %s", __FUNCTION__);
 
-
   if (aSocket == mScoSocket) {
     if (mScoRunnable) {
       BluetoothValue v;
@@ -1480,7 +1489,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 
     mScoSocket->Disconnect();
     mScoSocketStatus = mScoSocket->GetConnectionStatus();
-//    ListenSco();
+    ListenSco();
     return;
   }
 
@@ -1510,7 +1519,7 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   // Sco disconnect
   if (aSocket == mScoSocket) {
     if (mScoSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
-//      ListenSco();
+      ListenSco();
 
 //    nsString address = NS_LITERAL_STRING("");
 //    NotifyAudioManager(address);
@@ -1551,6 +1560,7 @@ BluetoothHfpManager::GetAddress(nsAString& aDeviceAddress)
 bool
 BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -1563,15 +1573,16 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
     return false;
   }
 
-  nsAutoString address;
-  mSocket->GetAddress(address);
+//  nsAutoString address;
+//  mSocket->GetAddress(address);
 
 //  OpenScoSocket(address, aRunnable);
 
   SocketConnectionStatus status = mScoSocket->GetConnectionStatus();
+  LOG("[Hfp] status: %d", status);
   if (status == SocketConnectionStatus::SOCKET_CONNECTED ||
       status == SocketConnectionStatus::SOCKET_CONNECTING ||
-      aRunnable != mScoRunnable) {
+      (mScoRunnable && (aRunnable != mScoRunnable))) {
     NS_WARNING("SCO connection exists or is being established");
     return false;
   }
@@ -1590,6 +1601,7 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
 bool
 BluetoothHfpManager::DisconnectSco()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   if (!mSocket) {
     NS_WARNING("BluetoothHfpManager is not connected");
     return false;
@@ -1602,6 +1614,7 @@ BluetoothHfpManager::DisconnectSco()
 bool
 BluetoothHfpManager::ListenSco()
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -1615,7 +1628,7 @@ BluetoothHfpManager::ListenSco()
     return true;
   }
 
-  mSocket->Disconnect();
+  mScoSocket->Disconnect();
 
   if (!mScoSocket->Listen(-1)) {
     NS_WARNING("Can't listen on SCO socket!");
