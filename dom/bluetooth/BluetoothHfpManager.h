@@ -103,6 +103,7 @@ private:
 
   void NotifyDialer(const nsAString& aCommand);
   void NotifySettings();
+  void NotifyAudioManager();
 
   bool SendCommand(const char* aCommand, uint8_t aValue = 0);
   bool SendLine(const char* aMessage);

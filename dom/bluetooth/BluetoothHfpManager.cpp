@@ -31,6 +31,7 @@
 #define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
 #define MOBILE_CONNECTION_ICCINFO_CHANGED "mobile-connection-iccinfo-changed"
 #define MOBILE_CONNECTION_VOICE_CHANGED "mobile-connection-voice-changed"
+#define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 
 /**
  * These constants are used in result code such as +CLIP and +CCWA. The value
@@ -536,6 +537,27 @@ BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
     return;
   }
 }
+
+void
+BluetoothHfpManager::NotifyAudioManager()
+{
+  LOG("[Hfp] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsCOMPtr<nsIObserverService> obs =
+    do_GetService("@mozilla.org/observer-service;1");
+  NS_ENSURE_TRUE_VOID(obs);
+
+  const PRUnichar* addr =
+    mDevicePath.IsEmpty() ? nullptr : mDevicePath.BeginReading();
+
+  if (NS_FAILED(obs->NotifyObservers(nullptr,
+          BLUETOOTH_SCO_STATUS_CHANGED,
+          addr))) {
+    NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
+  }
+}
+
 
 nsresult
 BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
@@ -1298,8 +1320,9 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       mCurrentCallArray[aCallIndex].mDirection = false;
       UpdateCIND(CINDType::CALLSETUP, CallSetupState::OUTGOING, aSend);
 
-      mSocket->GetAddress(address);
-      OpenScoSocket(address, nullptr);
+//      mSocket->GetAddress(address);
+//      OpenScoSocket(address, nullptr);
+      ConnectSco(nullptr);
       break;
     case nsITelephonyProvider::CALL_STATE_ALERTING:
       mCurrentCallArray[aCallIndex].mDirection = false;
@@ -1307,8 +1330,9 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
       // If there's an ongoing call when the headset is just connected, we have
       // to open a sco socket here.
-      mSocket->GetAddress(address);
-      OpenScoSocket(address, nullptr);
+//      mSocket->GetAddress(address);
+//      OpenScoSocket(address, nullptr);
+      ConnectSco(nullptr);
       break;
     case nsITelephonyProvider::CALL_STATE_CONNECTED:
       mCurrentCallIndex = aCallIndex;
@@ -1318,8 +1342,9 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
           // Incoming call, no break
           sStopSendingRingFlag = true;
 
-          mSocket->GetAddress(address);
-          OpenScoSocket(address, nullptr);
+//          mSocket->GetAddress(address);
+//          OpenScoSocket(address, nullptr);
+          ConnectSco(nullptr);
         case nsITelephonyProvider::CALL_STATE_ALERTING:
           // Outgoing call
           UpdateCIND(CINDType::CALL, CallState::IN_PROGRESS, aSend);
@@ -1389,7 +1414,8 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
         // There is no call, close Sco and clear mCurrentCallArray
         if (index == callArrayLength) {
-          CloseScoSocket();
+//          CloseScoSocket();
+          DisconnectSco();
           ResetCallArray();
         }
       }
@@ -1440,7 +1466,7 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
 
 //    nsString address;
 //    mSocket->GetAddress(address);
-//    NotifyAudioManager(address);
+    NotifyAudioManager();
 
     mScoSocketStatus = mScoSocket->GetConnectionStatus();
  
@@ -1522,7 +1548,7 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
       ListenSco();
 
 //    nsString address = NS_LITERAL_STRING("");
-//    NotifyAudioManager(address);
+      NotifyAudioManager();
     }
     return;
   }
@@ -1533,7 +1559,8 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   }
 
   mSocket = nullptr;
-  CloseScoSocket();
+//  CloseScoSocket();
+  DisconnectSco();
 
   Listen();
   NotifySettings();
