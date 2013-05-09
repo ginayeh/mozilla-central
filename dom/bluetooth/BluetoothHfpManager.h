@@ -68,7 +68,7 @@ public:
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();
   bool Listen();
-  bool ConnectSco(BluetoothReplyRunnable* aRunnable);
+  bool ConnectSco(BluetoothReplyRunnable* aRunnable = nullptr);
   bool DisconnectSco();
   bool ListenSco();
 
