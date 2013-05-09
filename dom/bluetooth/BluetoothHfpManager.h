@@ -68,6 +68,9 @@ public:
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();
   bool Listen();
+  bool ConnectSco(BluetoothReplyRunnable* aRunnable);
+  bool DisconnectSco();
+  bool ListenSco();
 
   /**
    * @param aSend A boolean indicates whether we need to notify headset or not
@@ -75,12 +78,8 @@ public:
   void HandleCallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aNumber, bool aSend);
   bool IsConnected();
-  void GetAddress(nsAString& aDeviceAddress);
-
-  bool ConnectSco(BluetoothReplyRunnable* aRunnable);
-  bool DisconnectSco();
-  bool ListenSco();
   bool IsScoConnected();
+  void GetAddress(nsAString& aDeviceAddress);
 
 private:
   class GetVolumeTask;
@@ -108,6 +107,10 @@ private:
   bool SendCommand(const char* aCommand, uint8_t aValue = 0);
   bool SendLine(const char* aMessage);
   void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend);
+
+  void OnScoConnectSuccess();
+  void OnScoConnectError();
+  void OnScoDisconnect();
 
   int mCurrentVgs;
   int mCurrentVgm;
