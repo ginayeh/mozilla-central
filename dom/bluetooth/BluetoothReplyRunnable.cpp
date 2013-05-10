@@ -9,6 +9,15 @@
 #include "DOMRequest.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 USING_BLUETOOTH_NAMESPACE
 
 BluetoothReplyRunnable::BluetoothReplyRunnable(nsIDOMDOMRequest* aReq)
@@ -55,6 +64,7 @@ BluetoothReplyRunnable::FireErrorString()
 NS_IMETHODIMP
 BluetoothReplyRunnable::Run()
 {
+  LOG("[R] Run");
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mDOMRequest);
   MOZ_ASSERT(mReply);

@@ -152,7 +152,7 @@ public:
   virtual void
   DisconnectSco(BluetoothReplyRunnable* aRunnable);
 
-  virtual void 
+  virtual void
   IsScoConnected(BluetoothReplyRunnable* aRunnable);
 
 private:

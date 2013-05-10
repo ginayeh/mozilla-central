@@ -863,7 +863,7 @@ public:
   Run()
   {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (!hfp || !hfp->Listen() || !hfp->ListenSco()) {
+    if (!hfp || !hfp->Listen()) {
       NS_WARNING("Failed to start listening for BluetoothHfpManager!");
       return NS_ERROR_FAILURE;
     }
@@ -2914,7 +2914,7 @@ BluetoothDBusService::DisconnectSco(BluetoothReplyRunnable* aRunnable)
   }
 
   NS_NAMED_LITERAL_STRING(replyError,
-    "SCO socket doesn't exist or HFP is not  connected");
+    "SCO socket doesn't exist or HFP is not connected");
   DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
 }
 
@@ -2927,5 +2927,5 @@ BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
   DispatchBluetoothReply(aRunnable,
-                         hfp->IsScoConnected(), NS_LITERAL_STRING(""));
+                         hfp->IsScoConnected(), EmptyString());
 }

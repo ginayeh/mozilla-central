@@ -602,7 +602,7 @@ BluetoothRequestParent::DoRequest(const DisconnectScoRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TDisconnectScoRequest);
 
-  mService->DisconnectSco(mReplyRunnable.get()); 
+  mService->DisconnectSco(mReplyRunnable.get());
   return true;
 }
 
@@ -612,6 +612,6 @@ BluetoothRequestParent::DoRequest(const IsScoConnectedRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TIsScoConnectedRequest);
 
-  mService->IsScoConnected(mReplyRunnable.get()); 
+  mService->IsScoConnected(mReplyRunnable.get());
   return true;
 }
