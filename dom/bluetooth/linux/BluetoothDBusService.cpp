@@ -77,10 +77,11 @@ USING_BLUETOOTH_NAMESPACE
 #endif
 
 #define B2G_AGENT_CAPABILITIES "DisplayYesNo"
-#define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC ".Manager"
-#define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC ".Adapter"
-#define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC ".Device"
-#define DBUS_AGENT_IFACE BLUEZ_DBUS_BASE_IFC ".Agent"
+#define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC  ".Manager"
+#define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC  ".Adapter"
+#define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC   ".Device"
+#define DBUS_AGENT_IFACE BLUEZ_DBUS_BASE_IFC    ".Agent"
+//#define DBUS_SINK_IFACE BLUEZ_DBUS_BASE_IFC     ".AudioSink"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
@@ -132,6 +133,13 @@ static Properties sManagerProperties[] = {
   {"Adapters", DBUS_TYPE_ARRAY},
 };
 
+/*static Properties sSinkProperties[] = {
+  {"State", DBUS_TYPE_STRING},
+  {"Connected", DBUS_TYPE_BOOLEAN},
+  {"Playing", DBUS_TYPE_BOOLEAN},
+  {"Protected", DBUS_TYPE_BOOLEAN}
+};*/
+
 static const char* sBluetoothDBusIfaces[] =
 {
   DBUS_MANAGER_IFACE,
@@ -165,6 +173,7 @@ static nsString sAdapterPath;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 typedef bool (*FilterFunc)(const BluetoothValue&);
+typedef void (*SinkCallback)(DBusMessage*, void*);
 
 class RemoveDeviceTask : public nsRunnable {
 public:
@@ -363,6 +372,36 @@ public:
 private:
   BluetoothSignal mSignal;
 };
+
+/*class SinkPropertyChangedHandler : public nsRunnable
+{
+public:
+  SinkPropertyChangedHandler(const nsAString& aAddress,
+                             const BluetoothValue& aValue)
+    : mAddress(aAddress)
+    , mValue(aValue)
+  {
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(mValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+    const InfallibleTArray<BluetoothNamedValue>& arr =
+      mValue.get_ArrayOfBluetoothNamedValue();
+    MOZ_ASSERT(arr.Length() == 1);
+
+//    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+//    a2dp->HandleSinkPropertyChanged(mAddress, arr[0].get_nsString());
+    return NS_OK;
+  }
+
+private:
+  nsString mAddress;
+  BluetoothValue mValue;
+};*/
 
 static bool
 IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
@@ -1011,6 +1050,39 @@ GetIntCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
                   UnpackIntMessage);
 }
 
+void
+RunSinkCallback(bool aIsConnected,
+                DBusMessage* aMsg,
+                void *aParam)
+{
+  const char* objectPath = (const char*) aParam;
+  nsString address =
+    GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
+  delete [] objectPath;
+  LOG("[B] %s, aIsConnected: %d, address: %s", __FUNCTION__, aIsConnected, NS_ConvertUTF16toUTF8(address).get());
+
+  BluetoothValue v;
+  nsAutoString replyError;
+  UnpackVoidMessage(aMsg, nullptr, v, replyError);
+  if (!v.get_bool()) {
+    NS_WARNING("Failed");
+    LOG("[B] Error");
+    return;
+  }
+}
+
+void
+SinkConnectCallback(DBusMessage* aMsg, void* aParam)
+{
+  RunSinkCallback(true, aMsg, aParam);
+}
+
+void
+SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
+{
+  RunSinkCallback(false, aMsg, aParam);
+}
+
 bool
 IsDeviceConnectedTypeBoolean()
 {
@@ -1583,6 +1655,27 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
+/*  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
+                                    "PropertyChanged")) {
+    ParsePropertyChange(aMsg,
+                        v,
+                        errorStr,
+                        sSinkProperties,
+                        ArrayLength(sSinkProperties));
+
+    if (!errorStr.IsEmpty()) {
+      NS_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
+      return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+    // Dispatch SinkPropertyChanged in main thread
+    nsString address = GetAddressFromObjectPath(signalPath);
+    nsRefPtr<SinkPropertyChangedHandler> handler =
+      new SinkPropertyChangedHandler(address, v);
+    if (NS_FAILED(NS_DispatchToMainThread(handler))) {
+      NS_WARNING("Failed to dispatch to main thread!");
+    }
+    return DBUS_HANDLER_RESULT_HANDLED;*/
   } else {
     nsAutoCString signalStr;
     signalStr += dbus_message_get_member(aMsg);
@@ -1888,6 +1981,54 @@ BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
                                                   aRunnable));
   if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Cannot dispatch firmware loading task!");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
+                                      const nsAString& aMessage)
+{
+  LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(mConnection);
+
+  if (!IsReady()) {
+    NS_WARNING("Bluetooth service is not ready yet!");
+    return NS_ERROR_FAILURE;
+  }
+
+  SinkCallback callback;
+  if (aMessage.EqualsLiteral("Connect")) {
+    callback = SinkConnectCallback;
+  } else if (aMessage.EqualsLiteral("Disconnect")) {
+    callback = SinkDisconnectCallback;
+  } else {
+    NS_WARNING("Unknown sink message");
+    return NS_ERROR_FAILURE;
+  }
+
+  LOG("[B] aDeviceAddress: %s, aMessage: %s", NS_ConvertUTF16toUTF8(aDeviceAddress).get(), aMessage);
+
+  // Create objectPath for further use (in callback funciton)
+  nsString path = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
+  char* objectPath = new char[path.Length() + 1];
+  strcpy(objectPath, NS_ConvertUTF16toUTF8(path).get());
+
+  LOG("[B] objectPath: %s", objectPath);
+
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  callback,
+                                  (void*)objectPath,
+                                  objectPath,
+                                  DBUS_SINK_IFACE,
+                                  NS_ConvertUTF16toUTF8(aMessage).get(),
+                                  DBUS_TYPE_INVALID);
+  if (!ret) {
+    NS_WARNING("Could not start async function!");
     return NS_ERROR_FAILURE;
   }
 
