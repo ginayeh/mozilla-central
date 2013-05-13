@@ -14,6 +14,14 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+enum SinkState {
+  SINK_DISCONNECTED = 1,
+  SINK_CONNECTING,
+  SINK_CONNECTED,
+  SINK_PLAYING
+};
+
+class BluetoothA2dpManagerObserver;
 class BluetoothValue;
 class BluetoothReplyRunnable;
 class BluetoothSocket;
@@ -29,25 +37,23 @@ public:
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
 
 private:
-  enum SinkState {
-    SINK_DISCONNECTED = 1,
-    SINK_CONNECTING,
-    SINK_CONNECTED,
-    SINK_PLAYING
-  };
+  friend class BluetoothHfpManagerObserver;
 
   BluetoothA2dpManager();
   nsresult HandleShutdown();
   bool Init();
   void Cleanup();
-  SinkState StatusStringToSinkState(const nsAString& aStatus);
+
+  enum SinkState StatusStringToSinkState(const nsAString& aStatus);
   void HandleSinkStateChanged(SinkState aState);
+
+  void NotifyStatusChanged();
+  void NotifyAudioManager(const nsAString& aDeviceAddress);
 
   bool mConnected;
   bool mPlaying;
   nsString mDeviceAddress;
-  enum SinkState mPrevSinkState;
-
+  SinkState mPrevSinkState;
 };
 
 END_BLUETOOTH_NAMESPACE
