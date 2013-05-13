@@ -18,6 +18,7 @@
 
 #include "base/basictypes.h"
 #include "BluetoothDBusService.h"
+#include "BluetoothA2dpManager.h"
 #include "BluetoothHfpManager.h"
 #include "BluetoothOppManager.h"
 #include "BluetoothReplyRunnable.h"
@@ -81,7 +82,7 @@ USING_BLUETOOTH_NAMESPACE
 #define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC  ".Adapter"
 #define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC   ".Device"
 #define DBUS_AGENT_IFACE BLUEZ_DBUS_BASE_IFC    ".Agent"
-//#define DBUS_SINK_IFACE BLUEZ_DBUS_BASE_IFC     ".AudioSink"
+#define DBUS_SINK_IFACE BLUEZ_DBUS_BASE_IFC     ".AudioSink"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
@@ -133,12 +134,11 @@ static Properties sManagerProperties[] = {
   {"Adapters", DBUS_TYPE_ARRAY},
 };
 
-/*static Properties sSinkProperties[] = {
+static Properties sSinkProperties[] = {
   {"State", DBUS_TYPE_STRING},
   {"Connected", DBUS_TYPE_BOOLEAN},
-  {"Playing", DBUS_TYPE_BOOLEAN},
-  {"Protected", DBUS_TYPE_BOOLEAN}
-};*/
+  {"Playing", DBUS_TYPE_BOOLEAN}
+};
 
 static const char* sBluetoothDBusIfaces[] =
 {
@@ -373,13 +373,11 @@ private:
   BluetoothSignal mSignal;
 };
 
-/*class SinkPropertyChangedHandler : public nsRunnable
+class SinkPropertyChangedHandler : public nsRunnable
 {
 public:
-  SinkPropertyChangedHandler(const nsAString& aAddress,
-                             const BluetoothValue& aValue)
-    : mAddress(aAddress)
-    , mValue(aValue)
+  SinkPropertyChangedHandler(const BluetoothSignal& aSignal)
+    : mSignal(aSignal)
   {
   }
 
@@ -387,21 +385,22 @@ public:
   Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+    MOZ_ASSERT(mSignal.name().EqualsLiteral("PropertyChanged"));
+    MOZ_ASSERT(mSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
 
-    const InfallibleTArray<BluetoothNamedValue>& arr =
-      mValue.get_ArrayOfBluetoothNamedValue();
-    MOZ_ASSERT(arr.Length() == 1);
+    // Replace object path with device address
+    nsString address = GetAddressFromObjectPath(mSignal.path());
+    mSignal.path() = address;
+    LOG("[B] signalPath: %s", NS_ConvertUTF16toUTF8(mSignal.path()).get());
 
-//    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-//    a2dp->HandleSinkPropertyChanged(mAddress, arr[0].get_nsString());
+    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    a2dp->HandleSinkPropertyChanged(mSignal);
     return NS_OK;
   }
 
 private:
-  nsString mAddress;
-  BluetoothValue mValue;
-};*/
+  BluetoothSignal mSignal;
+};
 
 static bool
 IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
@@ -1655,27 +1654,13 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
-/*  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
+  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
                                     "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
-
-    if (!errorStr.IsEmpty()) {
-      NS_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
-      return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-    }
-
-    // Dispatch SinkPropertyChanged in main thread
-    nsString address = GetAddressFromObjectPath(signalPath);
-    nsRefPtr<SinkPropertyChangedHandler> handler =
-      new SinkPropertyChangedHandler(address, v);
-    if (NS_FAILED(NS_DispatchToMainThread(handler))) {
-      NS_WARNING("Failed to dispatch to main thread!");
-    }
-    return DBUS_HANDLER_RESULT_HANDLED;*/
   } else {
     nsAutoCString signalStr;
     signalStr += dbus_message_get_member(aMsg);
@@ -1690,9 +1675,14 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   }
 
   BluetoothSignal signal(signalName, signalPath, v);
-  nsRefPtr<DistributeBluetoothSignalTask>
-    t = new DistributeBluetoothSignalTask(signal);
-  if (NS_FAILED(NS_DispatchToMainThread(t))) {
+  nsRefPtr<nsRunnable> task;
+  if (signalInterface.EqualsLiteral(DBUS_SINK_IFACE)) {
+    task = new SinkPropertyChangedHandler(signal);
+  } else {
+    task = new DistributeBluetoothSignalTask(signal);
+  }
+
+  if (NS_FAILED(NS_DispatchToMainThread(task))) {
     NS_WARNING("Failed to dispatch to main thread!");
   }
 
@@ -2010,7 +2000,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
     return NS_ERROR_FAILURE;
   }
 
-  LOG("[B] aDeviceAddress: %s, aMessage: %s", NS_ConvertUTF16toUTF8(aDeviceAddress).get(), aMessage);
+  LOG("[B] aDeviceAddress: %s, aMessage: %s", NS_ConvertUTF16toUTF8(aDeviceAddress).get(), NS_ConvertUTF16toUTF8(aMessage).get());
 
   // Create objectPath for further use (in callback funciton)
   nsString path = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
