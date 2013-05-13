@@ -106,7 +106,7 @@ BluetoothA2dpManagerObserver::Observe(nsISupports* aSubject,
 NS_IMPL_ISUPPORTS1(BluetoothA2dpManagerObserver, nsIObserver)
 
 BluetoothA2dpManager::BluetoothA2dpManager()
-  : mCurrentSinkState(SinkState::SINK_DISCONNECTED)
+  : mPrevSinkState(SinkState::SINK_DISCONNECTED)
 {
 }
 
@@ -135,6 +135,25 @@ BluetoothA2dpManager::Cleanup()
   LOGV("[A2dp] %s", __FUNCTION__);
   sA2dpObserver->Shutdown();
   sA2dpObserver = nullptr;
+}
+
+SinkState
+BluetoothA2dpManager::StatusStringToSinkState(const nsAString& aStatus)
+{
+  SinkState state;
+  if (aStatus.EqualsLiteral("disconnected")) {
+    state = SinkState::SINK_DISCONNECTED;
+  } else if (aStatus.EqualsLiteral("connecting")) {
+    state = SinkState::SINK_CONNECTING;
+  } else if (aStatus.EqualsLiteral("connecting")) {
+    state = SinkState::SINK_CONNECTED;
+  } else if (aStatus.EqualsLiteral("connecting")) {
+    state = SINK_PLAYING;
+  } else {
+    state = 0;
+  }
+
+  return state;
 }
 
 //static
@@ -185,17 +204,18 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
     return false;
   }
 
-  if (mCurrentSinkState == SinkState::SINK_CONNECTED ||
-      mCurrentSinkState == SinkState::SINK_CONNECTING) {
+  if (mPrevSinkState == SinkState::SINK_CONNECTED ||
+      mPrevSinkState == SinkState::SINK_CONNECTING) {
     NS_WARNING("BluetoothA2dpManager is connecting/connected");
     return false;
   }
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
-
-  mCurrentSinkState = SinkState::SINK_CONNECTING;
   nsresult rv = bs->SendSinkMessage(aDeviceAddress, NS_LITERAL_STRING("Connect"));
+
+  mDeviceAddress = aDeviceAddress;
+  mPrevSinkState = SinkState::SINK_CONNECTING;
   return NS_SUCCEEDED(rv);
 }
 
@@ -203,15 +223,112 @@ void
 BluetoothA2dpManager::Disconnect()
 {
   LOG("[A2dp] %s", __FUNCTION__);
-  if (mCurrentSinkState == SinkState::SINK_DISCONNECTED) {
+  if (mPrevSinkState == SinkState::SINK_DISCONNECTED) {
     NS_WARNING("BluetoothA2dpManager has been disconnected");
     return false;
   }
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
-
-  mCurrentSinkState = SinkState::SINK_DISCONNECTING;
   nsresult rv = bs->SendSinkMessage(aDeviceAddress, "Disconnect");
+
+  mPrevSinkState = SinkState::SINK_DISCONNECTING;
+  mDeviceAddress.Truncate();
   return NS_SUCCEEDED(rv);
+}
+
+void
+BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aSignal.path().Equals(mDeviceAddress));
+  MOZ_ASSERT(aSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+  const InfallibleTArray<BluetoothNamedValue>& arr =
+    v.get_ArrayOfBluetoothNamedValue();
+  MOZ_ASSERT(arr.Length() == 1);
+
+  const nsString& name = arr[0].name();
+  const BluetoothValue& value = arr[0].value();
+  if (name.EqualsLiteral("Connected")) {
+    MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
+    mConnected = value.get_bool();
+  } else if (name.EqualsLiteral("Playing")) {
+    MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
+    mPlaying = value.get_bool();
+  } else if (name.EqualsLiteral("State")) {
+    MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
+    SinkState state = StatusStringToSinkState(value.get_nsString());
+    if (state) {
+      HandleSinkStateChanged(state);
+    }
+  } else {
+    NS_WARNING("Unknown sink property");
+  }
+}
+
+/* HandleSinkPropertyChanged update sink state in A2dp
+ *
+ * Possible values: "disconnected", "connecting", "connected", "playing"
+ *
+ * 1. "disconnected" -> "connecting"
+ * Either an incoming or outgoing connection attempt ongoing
+ * 2. "connecting" -> "disconnected"
+ * Connection attempt failed
+ * 3. "connecting" -> "connected"
+ * Successfully connected
+ * 4. "connected" -> "playing"
+ * Audio stream active
+ * 5. "playing" -> "connected"
+ * Audio stream suspended
+ * 6. "connected" -> "disconnected"
+ *    "playing" -> "disconnected"
+ * Disconnected from the remote device
+ */
+void
+BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
+{
+  switch (aState) {
+    case SinkState::SINK_DISCONNECTED:
+      switch (mPrevSinkState) {
+        case SinkState::SINK_CONNECTED:
+        case SinkState::SINK_PLAYING:
+          // Disconnected from the remote device
+
+          break;
+        case SinkState::SINK_CONNECTING:
+          // Connection attempt Failed
+
+          break;
+        default:
+
+      }
+      break;
+    case SinkState::SINK_CONNECTING:
+      MOZ_ASSERT(mPrevSinkState == SinkState::SINK_DISCONNECTED);
+
+      break;
+    case SinkState::SINK_CONNECTED:
+      switch (mPrevSinkState) {
+        case SinkState::SINK_CONNECTING:
+          // Successfully connected
+
+          break;
+        case SinkState::SINK_PLAYING:
+          // Audio stream suspended
+
+          break;
+        default:
+
+      }
+      break;
+    case SinkState::SINK_PLAYING:
+      MOZ_ASSERT(mPrevSinkState == SinkState::SINK_CONNECTED);
+
+      break;
+    default:
+      NS_WARNING("Unknown sink status");
+  }
+
+  mPrevSinkState = state;
 }

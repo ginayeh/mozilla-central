@@ -14,6 +14,7 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothValue;
 class BluetoothReplyRunnable;
 class BluetoothSocket;
 
@@ -23,25 +24,11 @@ public:
   static BluetoothA2dpManager* Get();
   ~BluetoothA2dpManager();
 
-/*  virtual void ReceiveSocketData(
-    BluetoothSocket* aSocket,
-    nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage) MOZ_OVERRIDE;
-  virtual void OnConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;*/
-
   bool Connect(const nsAString& aDeviceAddress);
   void Disconnect();
-//  void HandleSinkPropertyChanged(const nsAString& aDeviceAddress,
-                                 const nsAString& aStatus);
+  void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
 
 private:
-  BluetoothA2dpManager();
-  nsresult HandleShutdown();
-  bool Init();
-  void Cleanup();
-//  SinkState StatusStringToSinkState(const nsAString& aStatus);
-
   enum SinkState {
     SINK_DISCONNECTED = 1,
     SINK_CONNECTING,
@@ -49,8 +36,18 @@ private:
     SINK_PLAYING
   };
 
+  BluetoothA2dpManager();
+  nsresult HandleShutdown();
+  bool Init();
+  void Cleanup();
+  SinkState StatusStringToSinkState(const nsAString& aStatus);
+  void HandleSinkStateChanged(SinkState aState);
+
+  bool mConnected;
+  bool mPlaying;
   nsString mDeviceAddress;
-  enum SinkState mCurrentSinkState;
+  enum SinkState mPrevSinkState;
+
 };
 
 END_BLUETOOTH_NAMESPACE
