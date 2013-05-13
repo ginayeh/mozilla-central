@@ -195,9 +195,8 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
   NS_ENSURE_TRUE(bs, false);
 
   mCurrentSinkState = SinkState::SINK_CONNECTING;
-//  nsresult rv = bs->SendSinkMessage(aDeviceAddress, "Connect");
-//  return NS_FAILED(rv) ? false : true;
-  return true;
+  nsresult rv = bs->SendSinkMessage(aDeviceAddress, NS_LITERAL_STRING("Connect"));
+  return NS_SUCCEEDED(rv);
 }
 
 void
@@ -213,5 +212,6 @@ BluetoothA2dpManager::Disconnect()
   NS_ENSURE_TRUE(bs, false);
 
   mCurrentSinkState = SinkState::SINK_DISCONNECTING;
-//  nsresult rv = bs->SendSinkMessage(aDeviceAddress, "Disconnect");
+  nsresult rv = bs->SendSinkMessage(aDeviceAddress, "Disconnect");
+  return NS_SUCCEEDED(rv);
 }

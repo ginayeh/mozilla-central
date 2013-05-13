@@ -30,25 +30,26 @@ public:
   virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
   virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;*/
 
-  bool Connect(const nsAString& aDeviceObjectPath,
-               const bool aIsHandsfree,
-               BluetoothReplyRunnable* aRunnable);
+  bool Connect(const nsAString& aDeviceAddress);
   void Disconnect();
+//  void HandleSinkPropertyChanged(const nsAString& aDeviceAddress,
+                                 const nsAString& aStatus);
 
 private:
   BluetoothA2dpManager();
   nsresult HandleShutdown();
   bool Init();
   void Cleanup();
+//  SinkState StatusStringToSinkState(const nsAString& aStatus);
 
   enum SinkState {
-    SINK_DISCONNECTED,
+    SINK_DISCONNECTED = 1,
     SINK_CONNECTING,
     SINK_CONNECTED,
     SINK_PLAYING
   };
 
-  nsString mAddress;
+  nsString mDeviceAddress;
   enum SinkState mCurrentSinkState;
 };
 
