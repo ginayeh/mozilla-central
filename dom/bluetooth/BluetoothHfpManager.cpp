@@ -1369,6 +1369,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       }
 
       UpdateCIND(CINDType::CALLSETUP, CallSetupState::OUTGOING, aSend);
+      mCurrentCallIndex = aCallIndex;
       ConnectSco();
       break;
     case nsITelephonyProvider::CALL_STATE_ALERTING:
@@ -1376,6 +1377,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
       // If there's an ongoing call when the headset is just connected, we have
       // to open a sco socket here.
+      mCurrentCallIndex = aCallIndex;
       ConnectSco();
       break;
     case nsITelephonyProvider::CALL_STATE_CONNECTED:
@@ -1640,7 +1642,7 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 void
 BluetoothHfpManager::OnScoConnectSuccess()
 {
-  LOG("[Hfp] %s", __FUNCTION__);
+  LOG("[Sco] %s", __FUNCTION__);
   // For active connection request, we need to reply the DOMRequest
   if (mScoRunnable) {
     DispatchBluetoothReply(mScoRunnable,
