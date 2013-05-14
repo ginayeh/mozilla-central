@@ -114,7 +114,7 @@ private:
 
   void NotifyDialer(const nsAString& aCommand);
   void NotifyStatusChanged(const nsAString& aType);
-  void NotifyAudioManager(const nsAString& aAddress);
+  void NotifyAudioManager(bool aStatus);
 
   bool SendCommand(const char* aCommand, uint8_t aValue = 0);
   bool SendLine(const char* aMessage);

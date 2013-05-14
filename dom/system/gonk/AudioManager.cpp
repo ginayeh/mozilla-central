@@ -34,6 +34,16 @@ using namespace mozilla;
 #define HEADPHONES_STATUS_OFF       NS_LITERAL_STRING("off").get()
 #define HEADPHONES_STATUS_UNKNOWN   NS_LITERAL_STRING("unknown").get()
 #define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
+#define BLUETOOTH_A2DP_STATUS_CHANGED "bluetooth-a2dp-status-changed"
+
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 static void BinderDeadCallback(status_t aErr);
 static void InternalSetAudioRoutes(SwitchState aState);
@@ -183,37 +193,120 @@ InternalSetAudioRoutes(SwitchState aState)
   }
 }
 
+static nsresult
+ParseBluetoothStatusChagnedMessage(const nsACString& aMessage,
+                                   nsACString& aRetAddress,
+                                   bool* aRetStatus)
+{
+  LOG("[Audio] %s", __FUNCTION__);
+  LOG("aMessage: %s", aMessage.BeginReading());
+  /**
+   * Example message:
+   * "address=xx:xx:xx:xx:xx:xx,status=true"
+   * "status=false,address=xx:xx:xx:xx:xx:xx"
+   */
+
+  // Parse string with ','
+  int begin = 0;
+  nsTArray<nsCString> commands;
+  for (uint32_t i = begin; i < aMessage.Length(); ++i) {
+    if (aMessage[i] == ',') {
+      nsCString tmp(nsDependentCSubstring(aMessage, begin, i - begin));
+      LOG("tmp: %s", tmp.BeginReading());
+      commands.AppendElement(tmp);
+      begin = i + 1;
+    }
+  }
+  nsCString tmp(nsDependentCSubstring(aMessage, begin));
+  LOG("tmp: %s", tmp.BeginReading());
+  commands.AppendElement(tmp);
+
+  // Extract device address and connection status from parsing result
+  int length = commands.Length();
+  MOZ_ASSERT(length == 2);
+  for (int i = 0; i < length; i++) {
+    nsCString command(commands[i]);
+    int pos = command.FindChar('=');
+    if (pos == -1) {
+      NS_WARNING("Wrong format in BluetoothStatusChanged message");
+      return NS_ERROR_FAILURE;
+    }
+
+    nsCString key(nsDependentCSubstring(command, 0, pos));
+    nsCString value(nsDependentCSubstring(command, pos + 1, command.Length()));
+    LOG("value: %s", value.BeginReading());
+    if (key.EqualsLiteral("status")) {
+      if (value.EqualsLiteral("true")) {
+        *aRetStatus = 1;
+      } else if (value.EqualsLiteral("false")) {
+        *aRetStatus = 0;
+      } else {    
+        NS_WARNING("Unknown value in BluetoothStatusChanged message");
+        return NS_ERROR_FAILURE;
+      }
+    } else if (key.EqualsLiteral("address")) {
+      aRetAddress = value; 
+    } else {
+      NS_WARNING("Unknown key in BluetoothStatusChanged message");
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  LOG("status: %d", *aRetStatus);
+  LOG("address: %s", aRetAddress.BeginReading());
+  return NS_OK;
+}
+
 nsresult
 AudioManager::Observe(nsISupports* aSubject,
                       const char* aTopic,
                       const PRUnichar* aData)
 {
+  bool status;
+  nsCString address;
+  nsCString data = NS_ConvertUTF16toUTF8(aData);
+  nsresult rv = ParseBluetoothStatusChagnedMessage(data, address, &status);
+  if (NS_FAILED(rv)) { 
+    NS_WARNING("Failed to parse BluetoothStatusChanged message");
+    return NS_ERROR_FAILURE;
+  }
+
+  LOG("status: %d", status);
+  LOG("address: %s", address.BeginReading());
+  audio_policy_dev_state_t audioState = AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
+  if (!status) {
+    audioState = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
+  }
+
+
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED)) {
-    if (NS_strlen(aData) > 0) {
+    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
+                                          audioState, address.BeginReading());
+    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
+                                          audioState, address.BeginReading());
+    if (status) {
       String8 cmd;
       cmd.appendFormat("bt_samplerate=%d", kBtSampleRate);
       AudioSystem::setParameters(0, cmd);
-      const char* address = NS_ConvertUTF16toUTF8(nsDependentString(aData)).get();
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_AVAILABLE, address);
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_AVAILABLE, address);
       SetForceForUse(nsIAudioManager::USE_COMMUNICATION, nsIAudioManager::FORCE_BT_SCO);
     } else {
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
       // only force to none if the current force setting is bt_sco
       int32_t force;
       GetForceForUse(nsIAudioManager::USE_COMMUNICATION, &force);
       if (force == nsIAudioManager::FORCE_BT_SCO)
         SetForceForUse(nsIAudioManager::USE_COMMUNICATION, nsIAudioManager::FORCE_NONE);
     }
-
-    return NS_OK;
+  } else if (!strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED)) {
+    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
+                                          audioState, address.BeginReading());
+    if (status) {
+      String8 cmd("bluetooth_enabled=true");
+      AudioSystem::setParameters(0, cmd);
+      cmd.setTo("A2dpSuspended=false");
+      AudioSystem::setParameters(0, cmd);
+    }
   }
-  return NS_ERROR_UNEXPECTED;
+  return NS_OK;
 }
 
 static void
