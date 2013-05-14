@@ -48,7 +48,7 @@ private:
   void HandleSinkStateChanged(SinkState aState);
 
   void NotifyStatusChanged();
-  void NotifyAudioManager(const nsAString& aDeviceAddress);
+  void NotifyAudioManager();
 
   bool mConnected;
   bool mPlaying;

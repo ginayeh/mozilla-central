@@ -98,8 +98,9 @@ BluetoothA2dpManagerObserver::Observe(nsISupports* aSubject,
 {
   MOZ_ASSERT(gBluetoothA2dpManager);
 
+  // XXX
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    return gBluetoothA2dpManager->HandleShutdown();
+//    return gBluetoothA2dpManager->HandleShutdown();
   }
 
   MOZ_ASSERT(false, "BluetoothA2dpManager got unexpected topic!");
@@ -256,6 +257,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
     mConnected = value.get_bool();
     NotifyStatusChanged();
+    NotifyAudioManager();
   } else if (name.EqualsLiteral("Playing")) {
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
     mPlaying = value.get_bool();

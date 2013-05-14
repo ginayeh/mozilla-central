@@ -533,17 +533,28 @@ BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
 }
 
 void
-BluetoothHfpManager::NotifyAudioManager(const nsAString& aAddress)
+BluetoothHfpManager::NotifyAudioManager(bool aStatus)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIObserverService> obs =
     do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_TRUE_VOID(obs);
 
+  nsAutoString message;
+  message.AppendLiteral("address=");
+  message.Append(mDeviceAddress);
+  if (aStatus) {
+    message.AppendLiteral(",status=true");
+  } else {
+    message.AppendLiteral(",status=false");
+  }
+
+  LOG("[Hfp] message: %s", NS_ConvertUTF16toUTF8(message).get());
   if (NS_FAILED(obs->NotifyObservers(nullptr,
                                      BLUETOOTH_SCO_STATUS_CHANGED,
-                                     aAddress.BeginReading()))) {
+                                     message.BeginReading()))) {
     NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
   }
 }
@@ -1546,7 +1557,7 @@ BluetoothHfpManager::OnScoConnectSuccess()
     mScoRunnable = nullptr;
   }
 
-  NotifyAudioManager(mDeviceAddress);
+  NotifyAudioManager(true);
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-sco-status-changed"));
 
   mScoSocketStatus = mScoSocket->GetConnectionStatus();
@@ -1570,7 +1581,7 @@ BluetoothHfpManager::OnScoDisconnect()
 {
   if (mScoSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
     ListenSco();
-    NotifyAudioManager(EmptyString());
+    NotifyAudioManager(false);
     NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-sco-status-changed"));
   }
 }
