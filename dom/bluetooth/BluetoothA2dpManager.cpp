@@ -144,6 +144,7 @@ BluetoothA2dpManager::Cleanup()
 SinkState
 BluetoothA2dpManager::StatusStringToSinkState(const nsAString& aStatus)
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   SinkState state;
   if (aStatus.EqualsLiteral("disconnected")) {
     state = SinkState::SINK_DISCONNECTED;
@@ -153,10 +154,12 @@ BluetoothA2dpManager::StatusStringToSinkState(const nsAString& aStatus)
     state = SinkState::SINK_CONNECTED;
   } else if (aStatus.EqualsLiteral("playing")) {
     state = SINK_PLAYING;
+  } else if (aStatus.EqualsLiteral("disconnecting")) {
+    state = SINK_DISCONNECTING;
   } else {
     NS_WARNING("Unknown sink status");
   }
-
+  LOG("[A2dp] aStatus: %s, state: %d", NS_ConvertUTF16toUTF8(aStatus).get(), state);
   return state;
 }
 
@@ -208,9 +211,10 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
     return false;
   }
 
-  if (mPrevSinkState == SinkState::SINK_CONNECTED ||
-      mPrevSinkState == SinkState::SINK_CONNECTING) {
-    NS_WARNING("BluetoothA2dpManager is connecting/connected");
+  LOG("[A2dp] mPrevSinkState: %d", mPrevSinkState);
+  if (mPrevSinkState == SinkState::SINK_CONNECTED) {
+//      mPrevSinkState == SinkState::SINK_CONNECTING) {
+    NS_WARNING("BluetoothA2dpManager is connected");
     return false;
   }
 
@@ -237,14 +241,17 @@ BluetoothA2dpManager::Disconnect()
   bs->SendSinkMessage(mDeviceAddress, NS_LITERAL_STRING("Disconnect"));
 
   mPrevSinkState = SinkState::SINK_DISCONNECTED;
-  mDeviceAddress.Truncate();
 }
 
 void
 BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 {
+  LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aSignal.path().Equals(mDeviceAddress));
+  LOG("[A2dp] aSignal.path(): %s, mDeviceAddress: %s", NS_ConvertUTF16toUTF8(aSignal.path()).get(), NS_ConvertUTF16toUTF8(mDeviceAddress).get());
+  if (mDeviceAddress.EqualsLiteral("")) {
+    LOG("[A2dp] ignore '%s'", NS_ConvertUTF16toUTF8(aSignal.value().get_ArrayOfBluetoothNamedValue()[0].name()).get());
+  }
   MOZ_ASSERT(aSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
 
   const InfallibleTArray<BluetoothNamedValue>& arr =
@@ -253,9 +260,11 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
   const nsString& name = arr[0].name();
   const BluetoothValue& value = arr[0].value();
+  LOG("[A2dp] name: %s", NS_ConvertUTF16toUTF8(name).get());
   if (name.EqualsLiteral("Connected")) {
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
     mConnected = value.get_bool();
+    LOG("[A2dp] mConnected: %d", mConnected);
     NotifyStatusChanged();
     NotifyAudioManager();
   } else if (name.EqualsLiteral("Playing")) {
@@ -289,18 +298,23 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
  * 6. "connected" -> "disconnected"
  *    "playing" -> "disconnected"
  * Disconnected from the remote device
+ * 7. "disconnecting" -> "disconnected"
+ * Disconnected from local
  */
 void
 BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
 {
   switch (aState) {
     case SinkState::SINK_DISCONNECTED:
+      mDeviceAddress.Truncate();
       switch (mPrevSinkState) {
         case SinkState::SINK_CONNECTED:
         case SinkState::SINK_PLAYING:
           // Disconnected from the remote device
 
           break;
+        case SinkState::SINK_DISCONNECTING:
+          // Disconnected from local
         case SinkState::SINK_CONNECTING:
           // Connection attempt Failed
 
@@ -310,7 +324,8 @@ BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
       }
       break;
     case SinkState::SINK_CONNECTING:
-      MOZ_ASSERT(mPrevSinkState == SinkState::SINK_DISCONNECTED);
+//      MOZ_ASSERT(mPrevSinkState == SinkState::SINK_DISCONNECTED);
+      LOG("[A2dp] mPrevSinkState: %d", mPrevSinkState);
 
       break;
     case SinkState::SINK_CONNECTED:
