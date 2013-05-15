@@ -18,7 +18,8 @@ enum SinkState {
   SINK_DISCONNECTED = 1,
   SINK_CONNECTING,
   SINK_CONNECTED,
-  SINK_PLAYING
+  SINK_PLAYING,
+  SINK_DISCONNECTING
 };
 
 class BluetoothA2dpManagerObserver;
