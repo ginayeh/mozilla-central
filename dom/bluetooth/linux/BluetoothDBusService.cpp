@@ -381,6 +381,7 @@ public:
   NS_IMETHOD
   Run()
   {
+    LOG("[B] SinkPropertyChangedHandler::Run");
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mSignal.name().EqualsLiteral("PropertyChanged"));
     MOZ_ASSERT(mSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
@@ -425,6 +426,7 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
         return true;
       }
     } else {
+      LOG("error_msg: %s", error_msg);
       aErrorStr = NS_ConvertUTF8toUTF16(error_msg);
       return true;
     }
@@ -1005,6 +1007,7 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
   LOGV("[B] %s", __FUNCTION__);
   DBusError err;
   dbus_error_init(&err);
+
   if (!IsDBusMessageError(aMsg, aErr, aErrorStr) &&
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN &&
       !dbus_message_get_args(aMsg, &err, DBUS_TYPE_INVALID)) {
@@ -1014,9 +1017,7 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
     }
   }
   // XXXbent Need to figure out something better than this here.
-  if (aErrorStr.IsEmpty()) {
-    aValue = true;
-  }
+  aValue = aErrorStr.IsEmpty();
 }
 
 void
@@ -1059,12 +1060,14 @@ RunSinkCallback(bool aIsConnected,
 void
 SinkConnectCallback(DBusMessage* aMsg, void* aParam)
 {
+  LOG("[B] %s", __FUNCTION__);
   RunSinkCallback(true, aMsg, aParam);
 }
 
 void
 SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
+  LOG("[B] %s", __FUNCTION__);
   RunSinkCallback(false, aMsg, aParam);
 }
 
