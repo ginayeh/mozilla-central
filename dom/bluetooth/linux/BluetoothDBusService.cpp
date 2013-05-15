@@ -392,9 +392,9 @@ public:
     // Replace object path with device address
     nsString address = GetAddressFromObjectPath(mSignal.path());
     mSignal.path() = address;
-    LOG("[B] signalPath: %s", NS_ConvertUTF16toUTF8(mSignal.path()).get());
 
     BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
     a2dp->HandleSinkPropertyChanged(mSignal);
     return NS_OK;
   }
