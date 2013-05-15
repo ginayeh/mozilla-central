@@ -37,15 +37,6 @@ using namespace mozilla;
 #define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
 #define BLUETOOTH_A2DP_STATUS_CHANGED "bluetooth-a2dp-status-changed"
 
-#undef LOG
-#if defined(MOZ_WIDGET_GONK)
-#include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
-#else
-#define BTDEBUG true
-#define LOG(args...) if (BTDEBUG) printf(args);
-#endif
-
 // Refer AudioService.java from Android
 static int sMaxStreamVolumeTbl[AUDIO_STREAM_CNT] = {
   5,   // voice call
@@ -218,12 +209,14 @@ AudioManager::Observe(nsISupports* aSubject,
                       const char* aTopic,
                       const PRUnichar* aData)
 {
+  LOG("[Audio] %s", __FUNCTION__);
   bool status;
   nsCString address;
   nsCString data = NS_ConvertUTF16toUTF8(aData);
   nsresult rv = ParseBluetoothStatusChagnedMessage(data, address, &status);
   if (NS_FAILED(rv)) { 
     NS_WARNING("Failed to parse BluetoothStatusChanged message");
+    LOG("Failed to parse BluetoothStatusChanged message");
     return NS_ERROR_FAILURE;
   }
 
@@ -302,6 +295,8 @@ AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (NS_FAILED(obs->AddObserver(this, BLUETOOTH_SCO_STATUS_CHANGED, false))) {
     NS_WARNING("Failed to add bluetooth-sco-status-changed oberver!");
+  } else if (NS_FAILED(obs->AddObserver(this, BLUETOOTH_A2DP_STATUS_CHANGED, false))) {
+    NS_WARNING("Failed to add bluetooth-a2dp-status-changed oberver!");
   }
 
   for (int loop = 0; loop < AUDIO_STREAM_CNT; loop++) {
@@ -319,6 +314,8 @@ AudioManager::~AudioManager() {
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (NS_FAILED(obs->RemoveObserver(this, BLUETOOTH_SCO_STATUS_CHANGED))) {
     NS_WARNING("Failed to add bluetooth-sco-status-changed oberver!");
+  } else if (NS_FAILED(obs->RemoveObserver(this, BLUETOOTH_A2DP_STATUS_CHANGED))) {
+    NS_WARNING("Failed to add bluetooth-a2dp-status-changed oberver!");
   }
 }
 
