@@ -8,6 +8,7 @@
 
 #include "BluetoothHfpManager.h"
 
+#include "BluetoothA2dpManager.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
@@ -1132,6 +1133,10 @@ BluetoothHfpManager::Disconnect()
     mSocket->Disconnect();
     mSocket = nullptr;
   }
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Disconnect();
 }
 
 bool
@@ -1515,6 +1520,11 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-hfp-status-changed"));
 
   ListenSco();
+
+  LOG("mDeviceAddress: %s", NS_ConvertUTF16toUTF8(mDeviceAddress).get()) ;
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Connect(mDeviceAddress);
 }
 
 void
@@ -1569,6 +1579,10 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   Listen();
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-hfp-status-changed"));
   Reset();
+
+/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Disconnect();*/
 }
 
 void
