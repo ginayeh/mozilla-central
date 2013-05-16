@@ -1112,10 +1112,6 @@ BluetoothHfpManager::Disconnect()
     mSocket->Disconnect();
     mSocket = nullptr;
   }
-
-/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Disconnect();*/
 }
 
 bool
@@ -1429,11 +1425,6 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
     return;
   }
 
-  LOG("mDeviceAddress: %s", NS_ConvertUTF16toUTF8(mDeviceAddress).get()) ;
-  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Connect(mDeviceAddress);
-
   LOG("[Hfp] %s", __FUNCTION__);
   /**
    * If the created connection is an inbound connection, close another server
@@ -1479,6 +1470,11 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-hfp-status-changed"));
 
   ListenSco();
+
+  LOG("mDeviceAddress: %s", NS_ConvertUTF16toUTF8(mDeviceAddress).get()) ;
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Connect(mDeviceAddress);
 }
 
 void

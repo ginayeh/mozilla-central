@@ -1041,6 +1041,7 @@ RunSinkCallback(bool aIsConnected,
                 DBusMessage* aMsg,
                 void *aParam)
 {
+  LOG("[B] %s", __FUNCTION__);
   const char* objectPath = (const char*) aParam;
   nsString address =
     GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
@@ -1051,9 +1052,12 @@ RunSinkCallback(bool aIsConnected,
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
   if (!v.get_bool()) {
-    NS_WARNING("Failed");
-    LOG("[B] Error");
-    return;
+    LOG("[B] Error")
+    if (aIsConnected) {
+      NS_WARNING("Failed to connect sink.");
+      return;
+    } 
+    NS_WARNING("Failed to disconnect sink.");
   }
 }
 

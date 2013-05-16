@@ -15,11 +15,9 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
-#include "nsContentUtils.h"
 #include "nsIAudioManager.h"
+//#include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsISettingsService.h"
-#include "nsRadioInterfaceLayer.h"
 
 #define BLUETOOTH_A2DP_STATUS_CHANGED "bluetooth-a2dp-status-changed"
 
@@ -42,7 +40,7 @@
 #define CR_LF "\xd\xa";
 
 using namespace mozilla;
-using namespace mozilla::ipc;
+//using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
 
 namespace {
@@ -98,9 +96,8 @@ BluetoothA2dpManagerObserver::Observe(nsISupports* aSubject,
 {
   MOZ_ASSERT(gBluetoothA2dpManager);
 
-  // XXX
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-//    return gBluetoothA2dpManager->HandleShutdown();
+    return gBluetoothA2dpManager->HandleShutdown();
   }
 
   MOZ_ASSERT(false, "BluetoothA2dpManager got unexpected topic!");
@@ -111,6 +108,8 @@ NS_IMPL_ISUPPORTS1(BluetoothA2dpManagerObserver, nsIObserver)
 
 BluetoothA2dpManager::BluetoothA2dpManager()
   : mSinkState(SinkState::SINK_DISCONNECTED)
+  , mConnected(false)
+  , mPlaying(false)
 {
 }
 
@@ -273,6 +272,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     // Indicates if a stream is active to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
     mPlaying = value.get_bool();
+    LOG("[A2dp] mPlaying: %d", mPlaying);
   } else if (name.EqualsLiteral("State")) {
     MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
     SinkState state = StatusStringToSinkState(value.get_nsString());
@@ -338,7 +338,7 @@ BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
 
       break;
     case SinkState::SINK_CONNECTED:
-      switch (mSinkState) {
+      switch (prevSinkState) {
         case SinkState::SINK_CONNECTING:
           // Successfully connected
 //          NotifyStatusChanged();
@@ -353,7 +353,7 @@ BluetoothA2dpManager::HandleSinkStateChanged(SinkState aState)
       }
       break;
     case SinkState::SINK_PLAYING:
-      MOZ_ASSERT(mSinkState == SinkState::SINK_CONNECTED);
+      MOZ_ASSERT(prevSinkState == SinkState::SINK_CONNECTED);
 
       break;
     case SinkState::SINK_DISCONNECTING:

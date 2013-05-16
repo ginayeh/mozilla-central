@@ -88,7 +88,6 @@ public:
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
-
 private:
   BluetoothOppManager();
   void StartFileTransfer();
