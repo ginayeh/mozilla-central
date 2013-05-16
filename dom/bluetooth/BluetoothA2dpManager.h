@@ -54,7 +54,7 @@ private:
   bool mConnected;
   bool mPlaying;
   nsString mDeviceAddress;
-  SinkState mPrevSinkState;
+  SinkState mSinkState;
 };
 
 END_BLUETOOTH_NAMESPACE
