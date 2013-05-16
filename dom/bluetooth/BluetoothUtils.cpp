@@ -77,6 +77,8 @@ GetObjectPathFromAddress(const nsAString& aAdapterPath,
   // The object path would be like /org/bluez/2906/hci0/dev_00_23_7F_CB_B4_F1,
   // and the adapter path would be the first part of the object path, according
   // to the example above, it's /org/bluez/2906/hci0.
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+
   nsString devicePath(aAdapterPath);
   devicePath.AppendLiteral("/dev_");
   devicePath.Append(aDeviceAddress);

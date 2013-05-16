@@ -278,7 +278,6 @@ AudioManager::Observe(nsISupports* aSubject,
     audioState = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
   }
 
-
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
                                           audioState, address.BeginReading());

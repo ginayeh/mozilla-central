@@ -8,9 +8,7 @@
 #define mozilla_dom_bluetooth_bluetootha2dpmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothSocketObserver.h"
-#include "mozilla/ipc/UnixSocket.h"
-#include "nsIObserver.h"
+//#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -24,7 +22,6 @@ enum SinkState {
 
 class BluetoothA2dpManagerObserver;
 class BluetoothValue;
-class BluetoothReplyRunnable;
 class BluetoothSocket;
 
 class BluetoothA2dpManager// : public BluetoothSocketObserver
@@ -38,7 +35,7 @@ public:
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
 
 private:
-  friend class BluetoothHfpManagerObserver;
+  friend class BluetoothA2dpManagerObserver;
 
   BluetoothA2dpManager();
   nsresult HandleShutdown();
