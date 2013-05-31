@@ -8,6 +8,7 @@
 #define mozilla_dom_bluetooth_bluetootha2dpmanager_h__
 
 #include "BluetoothCommon.h"
+#include "BluetoothProfileManagerBase.h"
 //#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -24,15 +25,22 @@ class BluetoothA2dpManagerObserver;
 class BluetoothValue;
 class BluetoothSocket;
 
-class BluetoothA2dpManager// : public BluetoothSocketObserver
+class BluetoothA2dpManager : public BluetoothProfileManagerBase
 {
 public:
+  NS_DECL_ISUPPORTS
+
   static BluetoothA2dpManager* Get();
   ~BluetoothA2dpManager();
 
   bool Connect(const nsAString& aDeviceAddress);
   void Disconnect();
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
+
+  virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
+                                   const nsAString& aServiceUuid,
+                                   int aChannel) MOZ_OVERRIDE;
+  virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
 private:
   friend class BluetoothA2dpManagerObserver;
@@ -42,7 +50,6 @@ private:
   bool Init();
   void Cleanup();
 
-  enum SinkState StatusStringToSinkState(const nsAString& aStatus);
   void HandleSinkStateChanged(SinkState aState);
 
   void NotifyStatusChanged();

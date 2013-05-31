@@ -11,12 +11,20 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothProfileManagerBase
+class BluetoothProfileManagerBase : public nsISupports
 {
 public:
+//  NS_DECL_ISUPPORTS
+
+/*  BluetoothProfileManagerBase()
+  {
+  }*/
+
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) = 0;
+
+  virtual void GetAddress(nsAString& aDeviceAddress) = 0;
 };
 
 END_BLUETOOTH_NAMESPACE

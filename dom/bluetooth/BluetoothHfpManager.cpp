@@ -365,6 +365,7 @@ IsValidDtmf(const char aChar) {
 }
 
 BluetoothHfpManager::BluetoothHfpManager()
+//  : BluetoothProfileManagerBase(nullptr)
 {
   Reset();
 }
@@ -543,19 +544,13 @@ BluetoothHfpManager::NotifyAudioManager(bool aStatus)
     do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_TRUE_VOID(obs);
 
-  nsAutoString message;
-  message.AppendLiteral("address=");
-  message.Append(mDeviceAddress);
-  if (aStatus) {
-    message.AppendLiteral(",status=true");
-  } else {
-    message.AppendLiteral(",status=false");
-  }
+  nsAutoString data;
+  data.AppendInt(aStatus);
 
-  LOG("[Hfp] message: %s", NS_ConvertUTF16toUTF8(message).get());
-  if (NS_FAILED(obs->NotifyObservers(nullptr,
+  LOG("[Hfp] message: %s", NS_ConvertUTF16toUTF8(data).get());
+  if (NS_FAILED(obs->NotifyObservers(this,
                                      BLUETOOTH_SCO_STATUS_CHANGED,
-                                     message.BeginReading()))) {
+                                     data.BeginReading()))) {
     NS_WARNING("Failed to notify bluetooth-sco-status-changed observsers!");
   }
 }
@@ -1700,3 +1695,6 @@ BluetoothHfpManager::IsScoConnected()
   }
   return false;
 }
+
+NS_IMPL_ISUPPORTS0(BluetoothHfpManager)
+

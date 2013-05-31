@@ -220,14 +220,14 @@ AudioManager::Observe(nsISupports* aSubject,
                       const PRUnichar* aData)
 {
   LOG("[Audio] %s", __FUNCTION__);
-  bool status;
   nsString address;
-  nsCString data = NS_ConvertUTF16toUTF8(aData);
-  if (data.EqualsLiteral("true")) {
-    status = true;
-  } else if (data.EqualsLiteral("false")) {
-    status = false;
-  } else { 
+  nsresult rv;
+  int status = NS_ConvertUTF16toUTF8(aData).ToInteger(&rv);
+  if (NS_FAILED(rv) || status > 1 || status < 0) {
+    nsCString errorMsg;
+    errorMsg.Append("Wrong data value of ");
+    errorMsg.Append(aTopic);
+    NS_WARNING(errorMsg.BeginReading());
     return NS_ERROR_FAILURE;
   }
 
