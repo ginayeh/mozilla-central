@@ -241,6 +241,7 @@ BluetoothOppManager::BluetoothOppManager() : mConnected(false)
                                            , mSuccessFlag(false)
                                            , mWaitingForConfirmationFlag(false)
                                            , mCurrentBlobIndex(-1)
+//                                           , BluetoothProfileManagerBase(nullptr)
 {
   LOG("[O] %s", __FUNCTION__);
   mConnectedDeviceAddress.AssignLiteral(BLUETOOTH_ADDRESS_NONE);
@@ -1548,4 +1549,6 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
     Listen();
   }
 }
+
+NS_IMPL_ISUPPORTS0(BluetoothOppManager)
 
