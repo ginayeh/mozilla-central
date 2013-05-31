@@ -21,13 +21,23 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "AudioChannelService.h"
+#include "BluetoothProfileManagerBase.h"
 
 using namespace mozilla::dom::gonk;
 using namespace android;
 using namespace mozilla::hal;
 using namespace mozilla;
+using namespace mozilla::dom::bluetooth;
 
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
+//#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
 
 #define HEADPHONES_STATUS_CHANGED "headphones-status-changed"
 #define HEADPHONES_STATUS_HEADSET   NS_LITERAL_STRING("headset").get()
@@ -211,17 +221,22 @@ AudioManager::Observe(nsISupports* aSubject,
 {
   LOG("[Audio] %s", __FUNCTION__);
   bool status;
-  nsCString address;
+  nsString address;
   nsCString data = NS_ConvertUTF16toUTF8(aData);
-  nsresult rv = ParseBluetoothStatusChagnedMessage(data, address, &status);
-  if (NS_FAILED(rv)) { 
-    NS_WARNING("Failed to parse BluetoothStatusChanged message");
-    LOG("Failed to parse BluetoothStatusChanged message");
+  if (data.EqualsLiteral("true")) {
+    status = true;
+  } else if (data.EqualsLiteral("false")) {
+    status = false;
+  } else { 
     return NS_ERROR_FAILURE;
   }
 
+  BluetoothProfileManagerBase* profile =
+    static_cast<BluetoothProfileManagerBase*>(aSubject);
+  profile->GetAddress(address);
+
   LOG("status: %d", status);
-  LOG("address: %s", address.BeginReading());
+  LOG("address: %s", NS_ConvertUTF16toUTF8(address).BeginReading());
   audio_policy_dev_state_t audioState = AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
   if (!status) {
     audioState = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
@@ -229,9 +244,9 @@ AudioManager::Observe(nsISupports* aSubject,
 
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
-                                          audioState, address.BeginReading());
+                                          audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-                                          audioState, address.BeginReading());
+                                          audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
     if (status) {
       String8 cmd;
       cmd.appendFormat("bt_samplerate=%d", kBtSampleRate);
@@ -246,7 +261,7 @@ AudioManager::Observe(nsISupports* aSubject,
     }
   } else if (!strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
-                                          audioState, address.BeginReading());
+                                          audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
     if (status) {
       String8 cmd("bluetooth_enabled=true");
       AudioSystem::setParameters(0, cmd);
