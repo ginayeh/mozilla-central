@@ -1128,6 +1128,10 @@ BluetoothHfpManager::Disconnect()
     mSocket->Disconnect();
     mSocket = nullptr;
   }
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Disconnect();
 }
 
 bool
@@ -1571,9 +1575,9 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   NotifyStatusChanged(NS_LITERAL_STRING("bluetooth-hfp-status-changed"));
   Reset();
 
-  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Disconnect();
+  a2dp->Disconnect();*/
 }
 
 void

@@ -205,14 +205,13 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  LOG("[A2dp] %s", __FUNCTION__);
+  LOG("[A2dp] %s, mConnected: %d", __FUNCTION__, mConnected);
 
   if (gInShutdown) {
     NS_WARNING("Connect called while in shutdown!");
     return false;
   }
 
-  LOG("[A2dp] mSinkState: %d", mSinkState);
   if (mConnected) {
 //      mSinkState == SinkState::SINK_CONNECTING) {
     NS_WARNING("BluetoothA2dpManager is connected");
@@ -232,9 +231,9 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 void
 BluetoothA2dpManager::Disconnect()
 {
-  LOG("[A2dp] %s, mSinkState: %d", __FUNCTION__, mSinkState);
-  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-
+  LOG("[A2dp] %s, mConnected: %d, mDeviceAddres: %s", __FUNCTION__, mConnected,
+NS_ConvertUTF16toUTF8(mDeviceAddress).get());
+//  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
   if (!mConnected) {
     NS_WARNING("BluetoothA2dpManager has been disconnected");
     return;

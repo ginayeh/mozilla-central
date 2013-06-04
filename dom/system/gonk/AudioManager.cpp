@@ -271,6 +271,13 @@ AudioManager::Observe(nsISupports* aSubject,
                       const PRUnichar* aData)
 {
   LOG("[Audio] %s", __FUNCTION__);
+
+  if ((strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED) != 0) &&
+      (strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED) != 0)) {
+    NS_WARNING("Unexpected topic in AudioManager");
+    return NS_ERROR_FAILURE;
+  }
+
   nsString address;
   nsresult rv;
   int status = NS_ConvertUTF16toUTF8(aData).ToInteger(&rv);
@@ -284,21 +291,23 @@ AudioManager::Observe(nsISupports* aSubject,
 
   BluetoothProfileManagerBase* profile =
     static_cast<BluetoothProfileManagerBase*>(aSubject);
+/*  nsRefPtr<BluetoothProfileManagerBase> manager = do_QueryInterface(aSubject);
+  NS_ENSURE_TRUE(manager, NS_OK);*/
+
   profile->GetAddress(address);
 
   LOG("status: %d", status);
   LOG("address: %s", NS_ConvertUTF16toUTF8(address).BeginReading());
-  audio_policy_dev_state_t audioState = AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
-  if (!status) {
-    audioState = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
-  }
+  audio_policy_dev_state_t audioState = status
+    ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE
+    : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
 
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
                                           audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
                                           audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
-    if (status) {
+    if (audioState == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
       String8 cmd;
       cmd.appendFormat("bt_samplerate=%d", kBtSampleRate);
       AudioSystem::setParameters(0, cmd);
@@ -313,7 +322,7 @@ AudioManager::Observe(nsISupports* aSubject,
   } else if (!strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
                                           audioState, NS_ConvertUTF16toUTF8(address).BeginReading());
-    if (status) {
+    if (audioState == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
       String8 cmd("bluetooth_enabled=true");
       AudioSystem::setParameters(0, cmd);
       cmd.setTo("A2dpSuspended=false");
