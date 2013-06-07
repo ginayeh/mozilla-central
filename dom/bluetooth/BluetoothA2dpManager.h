@@ -9,6 +9,7 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothProfileManagerBase.h"
+#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -25,9 +26,11 @@ class BluetoothValue;
 class BluetoothSocket;
 
 class BluetoothA2dpManager : public BluetoothProfileManagerBase
+                           , public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
 
   static BluetoothA2dpManager* Get();
   ~BluetoothA2dpManager();
