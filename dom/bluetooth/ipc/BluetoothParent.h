@@ -194,6 +194,9 @@ protected:
 
   bool
   DoRequest(const IsScoConnectedRequest& aRequest);
+
+  bool
+  DoRequest(const UpdateMusicMetaDataRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -17,6 +17,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsIDOMBluetoothDeviceEvent.h"
 #include "nsTArrayHelpers.h"
+#include "DictionaryHelpers.h"
 #include "DOMRequest.h"
 #include "nsThreadUtils.h"
 
@@ -752,6 +753,7 @@ BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
                           uint16_t aProfileId,
                           nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -771,6 +773,7 @@ NS_IMETHODIMP
 BluetoothAdapter::Disconnect(uint16_t aProfileId,
                              nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -791,6 +794,7 @@ BluetoothAdapter::SendFile(const nsAString& aDeviceAddress,
                            nsIDOMBlob* aBlob,
                            nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -817,6 +821,7 @@ NS_IMETHODIMP
 BluetoothAdapter::StopSendingFile(const nsAString& aDeviceAddress,
                                   nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -837,6 +842,7 @@ BluetoothAdapter::ConfirmReceivingFile(const nsAString& aDeviceAddress,
                                        bool aConfirmation,
                                        nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -855,6 +861,7 @@ BluetoothAdapter::ConfirmReceivingFile(const nsAString& aDeviceAddress,
 NS_IMETHODIMP
 BluetoothAdapter::ConnectSco(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -873,6 +880,7 @@ BluetoothAdapter::ConnectSco(nsIDOMDOMRequest** aRequest)
 NS_IMETHODIMP
 BluetoothAdapter::DisconnectSco(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -891,6 +899,7 @@ BluetoothAdapter::DisconnectSco(nsIDOMDOMRequest** aRequest)
 NS_IMETHODIMP
 BluetoothAdapter::IsScoConnected(nsIDOMDOMRequest** aRequest)
 {
+  LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsIDOMDOMRequest> req;
   nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
@@ -901,6 +910,49 @@ BluetoothAdapter::IsScoConnected(nsIDOMDOMRequest** aRequest)
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
   bs->IsScoConnected(results);
+
+  req.forget(aRequest);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+BluetoothAdapter::SendMusicMetaData(const JS::Value& aOptions,
+                                    nsIDOMDOMRequest** aRequest)
+{
+  LOG("[A] %s", __FUNCTION__);
+
+  idl::MusicMetaData metadata;
+
+  nsresult rv;
+  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AutoPushJSContext cx(sc->GetNativeContext());
+  rv = metadata.Init(cx, &aOptions);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMDOMRequest> req;
+  rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsRefPtr<BluetoothReplyRunnable> results =
+    new BluetoothVoidReplyRunnable(req);
+
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
+  LOG("[A] title: %s", NS_ConvertUTF16toUTF8(metadata.title).get());
+  LOG("[A] artist: %s", NS_ConvertUTF16toUTF8(metadata.artist).get());
+  LOG("[A] album: %s", NS_ConvertUTF16toUTF8(metadata.album).get());
+  LOG("[A] mediaNumber: %d", metadata.mediaNumber);
+  LOG("[A] totalMediaCount: %d", metadata.totalMediaCount);
+  LOG("[A] playingTime: %d", metadata.playingTime);
+  bs->UpdateMusicMetaData(metadata.title,
+                          metadata.artist,
+                          metadata.album,
+                          metadata.mediaNumber,
+                          metadata.totalMediaCount,
+                          metadata.playingTime,
+                          results);
 
   req.forget(aRequest);
   return NS_OK;

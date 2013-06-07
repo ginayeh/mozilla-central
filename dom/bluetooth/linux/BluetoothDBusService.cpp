@@ -81,14 +81,13 @@ USING_BLUETOOTH_NAMESPACE
 #define B2G_AGENT_CAPABILITIES "DisplayYesNo"
 #define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC  ".Manager"
 #define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC  ".Adapter"
-#define DBUS_DEVICE_IFACE BLUEZ_DBUS_BASE_IFC   ".Device"
-#define DBUS_AGENT_IFACE BLUEZ_DBUS_BASE_IFC    ".Agent"
-#define DBUS_SINK_IFACE BLUEZ_DBUS_BASE_IFC     ".AudioSink"
+#define DBUS_DEVICE_IFACE  BLUEZ_DBUS_BASE_IFC  ".Device"
+#define DBUS_AGENT_IFACE   BLUEZ_DBUS_BASE_IFC  ".Agent"
+#define DBUS_SINK_IFACE    BLUEZ_DBUS_BASE_IFC  ".AudioSink"
+#define DBUS_CTL_IFACE     BLUEZ_DBUS_BASE_IFC  ".Control"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
-
-#define PROP_DEVICE_CONNECTED_TYPE "org.bluez.device.conn.type"
 
 typedef struct {
   const char* name;
@@ -501,6 +500,7 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       !dbus_message_get_args(aMsg, &err, DBUS_TYPE_INVALID)) {
     if (dbus_error_is_set(&err)) {
       aErrorStr = NS_ConvertUTF8toUTF16(err.message);
+      LOG("[B] %s", err.message);
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
   }
@@ -1884,7 +1884,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
   }
 
   nsString objectPath = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
-  bool ret = dbus_func_args_async(mConnection,
+  bool ret = dbus_func_args_async(mConnection,                     
                                   -1,
                                   callback,
                                   nullptr,
@@ -2003,25 +2003,22 @@ BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
   }
 
   nsTArray<nsString> deviceAddresses;
+  BluetoothProfileManagerBase* profile;
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
       aProfileId == BluetoothServiceClass::HEADSET) {
-    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    if (hfp->IsConnected()) {
-      nsString address;
-      hfp->GetAddress(address);
-      deviceAddresses.AppendElement(address);
-    }
+    profile = BluetoothHfpManager::Get();
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
-    BluetoothOppManager* opp = BluetoothOppManager::Get();
-    if (opp->IsTransferring()) {
-      nsString address;
-      opp->GetAddress(address);
-      deviceAddresses.AppendElement(address);
-    }
+    profile = BluetoothOppManager::Get();
   } else {
     errorStr.AssignLiteral("Unknown profile");
     DispatchBluetoothReply(aRunnable, values, errorStr);
     return NS_OK;
+  }
+
+  if (profile->IsConnected()) {
+    nsString address;
+    profile->GetAddress(address);
+    deviceAddresses.AppendElement(address);
   }
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
@@ -2562,16 +2559,18 @@ BluetoothDBusService::IsConnected(const uint16_t aProfileId)
   MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
 
+  BluetoothProfileManagerBase* profile;
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
       aProfileId == BluetoothServiceClass::HEADSET) {
-    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    return (hfp->IsConnected());
+    profile = BluetoothHfpManager::Get();
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
-    BluetoothOppManager* opp = BluetoothOppManager::Get();
-    return opp->IsTransferring();
+    profile = BluetoothOppManager::Get();
+  } else {
+    NS_WARNING("Unknown profile");
+    return false;
   }
 
-  return false;
+  return profile->IsConnected();
 }
 
 class ConnectBluetoothSocketRunnable : public nsRunnable
@@ -2924,3 +2923,81 @@ BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
                          hfp->IsScoConnected(), EmptyString());
 }
 
+void
+BluetoothDBusService::UpdateMusicMetaData(const nsAString& aTitle,
+                                          const nsAString& aArtist,
+                                          const nsAString& aAlbum,
+                                          uint32_t aMediaNumber,
+                                          uint32_t aTotalMediaCount,
+                                          uint32_t aPlayingTime,
+                                          BluetoothReplyRunnable* aRunnable)
+{
+  LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+
+  if (!IsReady()) {
+    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  } else if (!a2dp->IsConnected()) {
+    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  }
+
+  nsAutoString address;
+  a2dp->GetAddress(address);
+  nsString objectPath =
+    GetObjectPathFromAddress(sAdapterPath, address);
+
+  LOG("[B] aTitle: %s", NS_ConvertUTF16toUTF8(aTitle).get());
+  LOG("[B] aArtist: %s", NS_ConvertUTF16toUTF8(aArtist).get());
+  LOG("[B] aAlbum: %s", NS_ConvertUTF16toUTF8(aAlbum).get());
+  LOG("[B] aMediaNumber: %d", aMediaNumber);
+  LOG("[B] aTotalMediaCount: %d", aTotalMediaCount);
+  LOG("[B] aPlayingTime: %d", aPlayingTime);
+  nsCString tempTitle = NS_ConvertUTF16toUTF8(aTitle);
+  nsCString tempArtist = NS_ConvertUTF16toUTF8(aArtist);
+  nsCString tempAlbum = NS_ConvertUTF16toUTF8(aAlbum);
+  nsCString tempMediaNumber, tempTotalMediaCount, tempPlayingTime;
+  tempMediaNumber.AppendInt(aMediaNumber);
+  tempTotalMediaCount.AppendInt(aTotalMediaCount);
+  tempPlayingTime.AppendInt(aPlayingTime);
+
+  const char* title = tempTitle.get();
+  const char* album = tempAlbum.get();
+  const char* artist = tempArtist.get();
+  const char* mediaNumber = tempMediaNumber.get();
+  const char* totalMediaCount = tempTotalMediaCount.get();
+  const char* playingTime = tempPlayingTime.get();
+
+  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
+  LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
+  LOG("[B] title: %s", title);
+  LOG("[B] album: %s", album);
+  LOG("[B] artist: %s", artist);
+  LOG("[B] mediaNumber: %s", mediaNumber);
+  LOG("[B] totalMediaCount: %s", totalMediaCount);
+  LOG("[B] playingTime: %s", playingTime);
+
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  NS_ConvertUTF16toUTF8(objectPath).get(),
+                                  DBUS_CTL_IFACE,
+                                  "UpdateMetaData",
+                                  DBUS_TYPE_STRING, &title,
+                                  DBUS_TYPE_STRING, &artist,
+                                  DBUS_TYPE_STRING, &album,
+                                  DBUS_TYPE_STRING, &mediaNumber,
+                                  DBUS_TYPE_STRING, &totalMediaCount,
+                                  DBUS_TYPE_STRING, &playingTime,
+                                  DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE_VOID(ret);
+
+  runnable.forget();
+}

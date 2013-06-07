@@ -339,6 +339,25 @@ BluetoothServiceChildProcess::IsScoConnected(BluetoothReplyRunnable* aRunnable)
   SendRequest(aRunnable, IsScoConnectedRequest());
 }
 
+void
+BluetoothServiceChildProcess::UpdateMusicMetaData(
+                                              const nsAString& aTitle,
+                                              const nsAString& aArtist,
+                                              const nsAString& aAlbum,
+                                              uint32_t aMediaNumber,
+                                              uint32_t aTotalMediaCount,
+                                              uint32_t aPlayingTime,
+                                              BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              UpdateMusicMetaDataRequest(nsString(aTitle),
+                                         nsString(aArtist),
+                                         nsString(aAlbum),
+                                         aMediaNumber,
+                                         aTotalMediaCount,
+                                         aPlayingTime));
+}
+
 nsresult
 BluetoothServiceChildProcess::HandleStartup()
 {
