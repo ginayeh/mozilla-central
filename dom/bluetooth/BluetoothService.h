@@ -15,6 +15,7 @@
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
+#include "DictionaryHelpers.h"
 
 namespace mozilla {
 namespace ipc {
@@ -269,6 +270,15 @@ public:
 
   virtual void
   IsScoConnected(BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual void
+  UpdateMusicMetaData(const nsAString& aTitle,
+                      const nsAString& aArtist,
+                      const nsAString& aAlbum,
+                      uint32_t aMediaNumber,
+                      uint32_t aTotalMediaCount,
+                      uint32_t aPlayingTime,
+                      BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
   SendSinkMessage(const nsAString& aDeviceAddresses,

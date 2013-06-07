@@ -75,10 +75,6 @@ public:
   void ExtractPacketHeaders(const ObexHeaderSet& aHeader);
   bool ExtractBlobHeaders();
 
-  // Return true if there is an ongoing file-transfer session, please see
-  // Bug 827267 for more information.
-  bool IsTransferring();
-
   // Implement interface BluetoothSocketObserver
   void ReceiveSocketData(
     BluetoothSocket* aSocket,
@@ -92,6 +88,7 @@ public:
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
+  virtual bool IsConnected() MOZ_OVERRIDE;
 
 private:
   BluetoothOppManager();

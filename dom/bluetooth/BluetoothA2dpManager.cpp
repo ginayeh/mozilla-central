@@ -314,5 +314,11 @@ BluetoothA2dpManager::GetAddress(nsAString& aDeviceAddress)
   aDeviceAddress = mDeviceAddress;
 }
 
+bool
+BluetoothA2dpManager::IsConnected()
+{
+  return mConnected;
+}
+
 NS_IMPL_ISUPPORTS1(BluetoothA2dpManager, nsIObserver)
 

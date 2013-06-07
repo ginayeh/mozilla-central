@@ -72,6 +72,7 @@ public:
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
+  virtual bool IsConnected() MOZ_OVERRIDE;
 
   void Connect(const nsAString& aDeviceAddress,
                const bool aIsHandsfree,
@@ -89,7 +90,6 @@ public:
                               const nsAString& aNumber, const bool aIsOutgoing,
                               bool aSend);
 
-  bool IsConnected();
   bool IsScoConnected();
 
 private:
