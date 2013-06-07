@@ -13,7 +13,7 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothProfileManagerBase : public nsISupports
+class BluetoothProfileManagerBase// : public nsISupports
 {
 public:
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
