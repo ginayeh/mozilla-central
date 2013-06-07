@@ -53,7 +53,6 @@ enum BluetoothCmeError {
 
 class BluetoothHfpManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
-                          , public nsIObserver
                           , public BatteryObserver
 {
 public:

@@ -26,7 +26,6 @@ class BluetoothValue;
 class BluetoothSocket;
 
 class BluetoothA2dpManager : public BluetoothProfileManagerBase
-                           , public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS

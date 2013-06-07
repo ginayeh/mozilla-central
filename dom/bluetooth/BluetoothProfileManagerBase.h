@@ -10,10 +10,11 @@
 #define ERR_SERVICE_CHANNEL_NOT_FOUND "DeviceChannelRetrievalError"
 
 #include "BluetoothCommon.h"
+#include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothProfileManagerBase// : public nsISupports
+class BluetoothProfileManagerBase : public nsIObserver
 {
 public:
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,

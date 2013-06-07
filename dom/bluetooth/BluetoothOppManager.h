@@ -27,7 +27,6 @@ class ObexHeaderSet;
 
 class BluetoothOppManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
-                          , public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
