@@ -208,6 +208,7 @@ BluetoothHfpManager::Observe(nsISupports* aSubject,
                              const char* aTopic,
                              const PRUnichar* aData)
 {
+  LOG("[H] %s", __FUNCTION__);
   if (!strcmp(aTopic, MOZSETTINGS_CHANGED_ID)) {
     return HandleVolumeChanged(nsDependentString(aData));
   } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
