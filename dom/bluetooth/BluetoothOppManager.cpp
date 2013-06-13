@@ -83,7 +83,8 @@ BluetoothOppManager::Observe(nsISupports* aSubject,
   LOG("[O] %s", __FUNCTION__);
 
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    return HandleShutdown();
+    HandleShutdown();
+    return NS_OK;
   }
 
   MOZ_ASSERT(false, "BluetoothOppManager got unexpected topic!");
@@ -205,6 +206,7 @@ BluetoothOppManager::BluetoothOppManager() : mConnected(false)
 {
   LOG("[O] %s", __FUNCTION__);
   mConnectedDeviceAddress.AssignLiteral(BLUETOOTH_ADDRESS_NONE);
+  Init();
 }
 
 BluetoothOppManager::~BluetoothOppManager()
@@ -214,7 +216,7 @@ BluetoothOppManager::~BluetoothOppManager()
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE_VOID(obs);
   if (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID))) {
-    NS_WARNING("Can't unregister observers, or already unregistered!");
+    BT_WARNING("Failed to remove shutdown observer!");
   }
 
 }
@@ -225,7 +227,7 @@ BluetoothOppManager::Init()
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE(obs, false);
   if (NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false))) {
-    NS_WARNING("Failed to add shutdown observer!");
+    BT_WARNING("Failed to add shutdown observer!");
     return false;
   }
 
@@ -300,7 +302,7 @@ BluetoothOppManager::Disconnect()
   }
 }
 
-nsresult
+void
 BluetoothOppManager::HandleShutdown()
 {
   LOG("[O] %s", __FUNCTION__);
@@ -308,7 +310,6 @@ BluetoothOppManager::HandleShutdown()
   sInShutdown = true;
   Disconnect();
   sInstance = nullptr;
-  return NS_OK;
 }
 
 bool
