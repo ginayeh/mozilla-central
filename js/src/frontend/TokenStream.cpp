@@ -311,8 +311,8 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     if (originPrincipals)
         JS_HoldPrincipals(originPrincipals);
 
-    JSSourceHandler listener = cx->runtime->debugHooks.sourceHandler;
-    void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
+    JSSourceHandler listener = cx->runtime()->debugHooks.sourceHandler;
+    void *listenerData = cx->runtime()->debugHooks.sourceHandlerData;
 
     if (listener)
         listener(options.filename, options.lineno, base, length, &listenerTSData, listenerData);
@@ -370,7 +370,7 @@ TokenStream::~TokenStream()
     if (sourceMap)
         js_free(sourceMap);
     if (originPrincipals)
-        JS_DropPrincipals(cx->runtime, originPrincipals);
+        JS_DropPrincipals(cx->runtime(), originPrincipals);
 }
 
 /* Use the fastest available getc. */
@@ -605,7 +605,7 @@ TokenStream::reportStrictModeErrorNumberVA(uint32_t offset, bool strictMode, uns
     unsigned flags = JSREPORT_STRICT;
     if (strictMode)
         flags |= JSREPORT_ERROR;
-    else if (cx->hasStrictOption())
+    else if (cx->hasExtraWarningsOption())
         flags |= JSREPORT_WARNING;
     else
         return true;
@@ -635,8 +635,8 @@ CompileError::throwError()
          * sending the error on to the regular error reporter.
          */
         bool reportError = true;
-        if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook) {
-            reportError = hook(cx, message, &report, cx->runtime->debugHooks.debugErrorHookData);
+        if (JSDebugErrorHook hook = cx->runtime()->debugHooks.debugErrorHook) {
+            reportError = hook(cx, message, &report, cx->runtime()->debugHooks.debugErrorHookData);
         }
 
         /* Report the error */
@@ -784,7 +784,7 @@ TokenStream::reportWarning(unsigned errorNumber, ...)
 bool
 TokenStream::reportStrictWarningErrorNumberVA(uint32_t offset, unsigned errorNumber, va_list args)
 {
-    if (!cx->hasStrictOption())
+    if (!cx->hasExtraWarningsOption())
         return true;
 
     return reportCompileErrorNumberVA(offset, JSREPORT_STRICT|JSREPORT_WARNING, errorNumber, args);

@@ -43,6 +43,7 @@ webidl_files = \
   CommandEvent.webidl \
   Comment.webidl \
   CompositionEvent.webidl \
+  ConvolverNode.webidl \
   Coordinates.webidl \
   CSS.webidl \
   CSSPrimitiveValue.webidl \
@@ -79,6 +80,7 @@ webidl_files = \
   File.webidl \
   FileHandle.webidl \
   FileList.webidl \
+  FileMode.webidl \
   FileReader.webidl \
   FileReaderSync.webidl \
   FileRequest.webidl \
@@ -179,6 +181,7 @@ webidl_files = \
   MozActivity.webidl \
   MozMmsMessage.webidl \
   MozNamedAttrMap.webidl \
+  MozTimeManager.webidl \
   MutationEvent.webidl \
   MutationObserver.webidl \
   NetDashboard.webidl \

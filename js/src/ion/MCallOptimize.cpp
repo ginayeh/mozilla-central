@@ -147,7 +147,7 @@ IonBuilder::inlineMathFunction(CallInfo &callInfo, MMathFunction::Function funct
 
     callInfo.unwrapArgs();
 
-    MathCache *cache = cx->runtime->getMathCache(cx);
+    MathCache *cache = cx->runtime()->getMathCache(cx);
     if (!cache)
         return InliningStatus_Error;
 
@@ -811,7 +811,7 @@ IonBuilder::inlineStringObject(CallInfo &callInfo)
 
     callInfo.unwrapArgs();
 
-    RootedString emptyString(cx, cx->runtime->emptyString);
+    RootedString emptyString(cx, cx->runtime()->emptyString);
     RootedObject templateObj(cx, StringObject::create(cx, emptyString, TenuredObject));
     if (!templateObj)
         return InliningStatus_Error;
@@ -966,11 +966,12 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
         MDefinition *id = callInfo.getArg(idxi);
         MDefinition *elem = callInfo.getArg(elemi);
 
-        if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &elem, /* canModify = */ false))
-            return InliningStatus_NotInlined;
-
+        // We can only inline setelem on dense arrays that do not need type
+        // barriers and on typed arrays.
         int arrayType;
-        if (!ElementAccessIsDenseNative(obj, id) &&
+        if ((!ElementAccessIsDenseNative(obj, id) ||
+             PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL,
+                                           &elem, /* canModify = */ false)) &&
             !ElementAccessIsTypedArray(obj, id, &arrayType))
         {
             return InliningStatus_NotInlined;
@@ -1012,8 +1013,7 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
 }
 
 bool
-IonBuilder::inlineUnsafeSetDenseArrayElement(
-    CallInfo &callInfo, uint32_t base)
+IonBuilder::inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base)
 {
     // Note: we do not check the conditions that are asserted as true
     // in intrinsic_UnsafeSetElement():

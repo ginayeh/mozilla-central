@@ -839,11 +839,10 @@ nsXPCWrappedJSClass::GetArraySizeFromParam(JSContext* cx,
         return false;
 
     const nsXPTParamInfo& arg_param = method->params[argnum];
-    const nsXPTType& arg_type = arg_param.GetType();
 
     // This should be enforced by the xpidl compiler, but it's not.
     // See bug 695235.
-    NS_ABORT_IF_FALSE(arg_type.TagPart() == nsXPTType::T_U32,
+    NS_ABORT_IF_FALSE(arg_param.GetType().TagPart() == nsXPTType::T_U32,
                       "size_is references parameter of invalid type.");
 
     if (arg_param.IsIndirect())
@@ -1010,6 +1009,11 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                 if (reportable && e_result == NS_ERROR_NO_INTERFACE &&
                     !strcmp(anInterfaceName, "nsIInterfaceRequestor") &&
                     !strcmp(aPropertyName, "getInterface")) {
+                    reportable = false;
+                }
+
+                // More special case, see bug 877760.
+                if (e_result == NS_ERROR_XPC_JSOBJECT_HAS_NO_FUNCTION_NAMED) {
                     reportable = false;
                 }
             }
