@@ -361,17 +361,13 @@ BluetoothHfpManager::Init()
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE(obs, false);
 
-  nsresult rv =
-    obs->AddObserver(this, MOZSETTINGS_CHANGED_ID, false) &&
-    obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false) &&
-    obs->AddObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID, false) &&
-    obs->AddObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID, false);
-
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(obs->AddObserver(this, MOZSETTINGS_CHANGED_ID, false)) ||
+      NS_FAILED(obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false)) ||
+      NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID, false)) ||
+      NS_FAILED(obs->AddObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID, false))) {
     BT_WARNING("Failed to add observers!");
     return false;
   }
-
 
   hal::RegisterBatteryObserver(this);
 
@@ -386,7 +382,7 @@ BluetoothHfpManager::Init()
   NS_ENSURE_TRUE(settings, false);
 
   nsCOMPtr<nsISettingsServiceLock> settingsLock;
-  rv = settings->CreateLock(getter_AddRefs(settingsLock));
+  nsresult rv = settings->CreateLock(getter_AddRefs(settingsLock));
   NS_ENSURE_SUCCESS(rv, false);
 
   nsRefPtr<GetVolumeTask> callback = new GetVolumeTask();
@@ -415,13 +411,10 @@ BluetoothHfpManager::~BluetoothHfpManager()
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE_VOID(obs);
 
-  nsresult rv =
-    obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID) &&
-    obs->RemoveObserver(this, MOZSETTINGS_CHANGED_ID) &&
-    obs->RemoveObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID) &&
-    obs->RemoveObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID);
-
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) ||
+      NS_FAILED(obs->RemoveObserver(this, MOZSETTINGS_CHANGED_ID)) ||
+      NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_ICCINFO_CHANGED_ID)) ||
+      NS_FAILED(obs->RemoveObserver(this, MOBILE_CONNECTION_VOICE_CHANGED_ID))) {
     BT_WARNING("Failed to remove observers!");
   }
 
