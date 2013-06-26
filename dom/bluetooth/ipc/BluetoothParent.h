@@ -196,7 +196,13 @@ protected:
   DoRequest(const IsScoConnectedRequest& aRequest);
 
   bool
-  DoRequest(const UpdateMusicMetaDataRequest& aRequest);
+  DoRequest(const SendMetaDataRequest& aRequest);
+
+  bool
+  DoRequest(const SendPlayStatusRequest& aRequest);
+
+  bool
+  DoRequest(const SendNotificationRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

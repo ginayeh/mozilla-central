@@ -141,7 +141,7 @@ struct IsScoConnectedRequest
 {
 };
 
-struct UpdateMusicMetaDataRequest
+struct SendMetaDataRequest
 {
   nsString title;
   nsString artist;
@@ -149,6 +149,19 @@ struct UpdateMusicMetaDataRequest
   uint32_t mediaNumber;
   uint32_t totalMediaCount;
   uint32_t playingTime;
+};
+
+struct SendPlayStatusRequest
+{
+  uint32_t duration;
+  uint32_t position;
+  uint32_t playStatus;
+};
+
+struct SendNotificationRequest
+{
+  uint16_t eventId;
+  uint64_t data;
 };
 
 union Request
@@ -177,7 +190,9 @@ union Request
   ConnectScoRequest;
   DisconnectScoRequest;
   IsScoConnectedRequest;
-  UpdateMusicMetaDataRequest;
+  SendMetaDataRequest;
+  SendPlayStatusRequest;
+  SendNotificationRequest;
 };
 
 protocol PBluetooth

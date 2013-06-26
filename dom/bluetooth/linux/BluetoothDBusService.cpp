@@ -2924,13 +2924,13 @@ BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
 }
 
 void
-BluetoothDBusService::UpdateMusicMetaData(const nsAString& aTitle,
-                                          const nsAString& aArtist,
-                                          const nsAString& aAlbum,
-                                          uint32_t aMediaNumber,
-                                          uint32_t aTotalMediaCount,
-                                          uint32_t aPlayingTime,
-                                          BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::SendMetaData(const nsAString& aTitle,
+                                   const nsAString& aArtist,
+                                   const nsAString& aAlbum,
+                                   uint32_t aMediaNumber,
+                                   uint32_t aTotalMediaCount,
+                                   uint32_t aPlayingTime,
+                                   BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
@@ -2996,6 +2996,101 @@ BluetoothDBusService::UpdateMusicMetaData(const nsAString& aTitle,
                                   DBUS_TYPE_STRING, &mediaNumber,
                                   DBUS_TYPE_STRING, &totalMediaCount,
                                   DBUS_TYPE_STRING, &playingTime,
+                                  DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE_VOID(ret);
+
+  runnable.forget();
+}
+
+void
+BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
+                                     uint32_t aPosition,
+                                     uint32_t aPlayStatus,
+                                     BluetoothReplyRunnable* aRunnable)
+{
+  LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+
+  if (!IsReady()) {
+    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  } else if (!a2dp->IsConnected()) {
+    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  }
+
+  nsAutoString address;
+  a2dp->GetAddress(address);
+  nsString objectPath =
+    GetObjectPathFromAddress(sAdapterPath, address);
+
+  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
+  LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
+  LOG("[B] duration: %d", aDuration);
+  LOG("[B] position: %d", aPosition);
+  LOG("[B] playStatus: %d", aPlayStatus);
+
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  NS_ConvertUTF16toUTF8(objectPath).get(),
+                                  DBUS_CTL_IFACE,
+                                  "UpdatePlayStatus",
+                                  DBUS_TYPE_UINT32, &aDuration,
+                                  DBUS_TYPE_UINT32, &aPosition,
+                                  DBUS_TYPE_UINT32, &aPlayStatus,
+                                  DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE_VOID(ret);
+
+  runnable.forget();
+}
+
+void
+BluetoothDBusService::SendNotification(uint16_t aEventId,
+                                       uint64_t aData,
+                                       BluetoothReplyRunnable* aRunnable)
+{
+  LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+
+  if (!IsReady()) {
+    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  } else if (!a2dp->IsConnected()) {
+    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
+    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    return;
+  }
+
+  nsAutoString address;
+  a2dp->GetAddress(address);
+  nsString objectPath =
+    GetObjectPathFromAddress(sAdapterPath, address);
+
+  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
+  LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
+  LOG("[B] eventId: %d", aEventId);
+  LOG("[B] data: %llu", aData);
+
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  GetVoidCallback,
+                                  (void*)runnable,
+                                  NS_ConvertUTF16toUTF8(objectPath).get(),
+                                  DBUS_CTL_IFACE,
+                                  "UpdateNotification",
+                                  DBUS_TYPE_UINT16, &aEventId,
+                                  DBUS_TYPE_UINT64, &aData,
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE_VOID(ret);
 

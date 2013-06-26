@@ -21,15 +21,6 @@
 using mozilla::unused;
 USING_BLUETOOTH_NAMESPACE
 
-#undef LOG
-#if defined(MOZ_WIDGET_GONK)
-#include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
-#else
-#define BTDEBUG true
-#define LOG(args...) if (BTDEBUG) printf(args);
-#endif
-
 /*******************************************************************************
  * BluetoothRequestParent::ReplyRunnable
  ******************************************************************************/
@@ -239,8 +230,12 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_DisconnectScoRequest());
     case Request::TIsScoConnectedRequest:
       return actor->DoRequest(aRequest.get_IsScoConnectedRequest());
-    case Request::TUpdateMusicMetaDataRequest:
-      return actor->DoRequest(aRequest.get_UpdateMusicMetaDataRequest());
+    case Request::TSendMetaDataRequest:
+      return actor->DoRequest(aRequest.get_SendMetaDataRequest());
+    case Request::TSendPlayStatusRequest:
+      return actor->DoRequest(aRequest.get_SendPlayStatusRequest());
+    case Request::TSendNotificationRequest:
+      return actor->DoRequest(aRequest.get_SendNotificationRequest());
     default:
       MOZ_CRASH("Unknown type!");
   }
@@ -616,20 +611,42 @@ BluetoothRequestParent::DoRequest(const IsScoConnectedRequest& aRequest)
 }
 
 bool
-BluetoothRequestParent::DoRequest(const UpdateMusicMetaDataRequest& aRequest)
+BluetoothRequestParent::DoRequest(const SendMetaDataRequest& aRequest)
 {
   MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TUpdateMusicMetaDataRequest);
+  MOZ_ASSERT(mRequestType == Request::TSendMetaDataRequest);
 
-  LOG("title: %s, artist: %s, album: %s", NS_ConvertUTF16toUTF8(aRequest.title()).get(),
-                                          NS_ConvertUTF16toUTF8(aRequest.artist()).get(),
-                                          NS_ConvertUTF16toUTF8(aRequest.album()).get());
-  mService->UpdateMusicMetaData(aRequest.title(),
-                                aRequest.artist(),
-                                aRequest.album(),
-                                aRequest.mediaNumber(),
-                                aRequest.totalMediaCount(),
-                                aRequest.playingTime(),
-                                mReplyRunnable.get());
+  mService->SendMetaData(aRequest.title(),
+                         aRequest.artist(),
+                         aRequest.album(),
+                         aRequest.mediaNumber(),
+                         aRequest.totalMediaCount(),
+                         aRequest.playingTime(),
+                         mReplyRunnable.get());
+  return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const SendPlayStatusRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TSendPlayStatusRequest);
+
+  mService->SendPlayStatus(aRequest.duration(),
+                           aRequest.position(),
+                           aRequest.playStatus(),
+                           mReplyRunnable.get());
+  return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const SendNotificationRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TSendNotificationRequest);
+
+  mService->SendNotification(aRequest.eventId(),
+                             aRequest.data(),
+                             mReplyRunnable.get());
   return true;
 }
