@@ -340,22 +340,36 @@ BluetoothServiceChildProcess::IsScoConnected(BluetoothReplyRunnable* aRunnable)
 }
 
 void
-BluetoothServiceChildProcess::UpdateMusicMetaData(
-                                              const nsAString& aTitle,
-                                              const nsAString& aArtist,
-                                              const nsAString& aAlbum,
-                                              uint32_t aMediaNumber,
-                                              uint32_t aTotalMediaCount,
-                                              uint32_t aPlayingTime,
-                                              BluetoothReplyRunnable* aRunnable)
+BluetoothServiceChildProcess::SendMetaData(const nsAString& aTitle,
+                                           const nsAString& aArtist,
+                                           const nsAString& aAlbum,
+                                           uint32_t aMediaNumber,
+                                           uint32_t aTotalMediaCount,
+                                           uint32_t aPlayingTime,
+                                           BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
-              UpdateMusicMetaDataRequest(nsString(aTitle),
-                                         nsString(aArtist),
-                                         nsString(aAlbum),
-                                         aMediaNumber,
-                                         aTotalMediaCount,
-                                         aPlayingTime));
+              SendMetaDataRequest(nsString(aTitle), nsString(aArtist),
+                                  nsString(aAlbum), aMediaNumber,
+                                  aTotalMediaCount, aPlayingTime));
+}
+
+void
+BluetoothServiceChildProcess::SendPlayStatus(uint32_t aDuration,
+                                             uint32_t aPosition,
+                                             uint32_t aPlayStatus,
+                                             BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              SendPlayStatusRequest(aDuration, aPosition, aPlayStatus));
+}
+
+void
+BluetoothServiceChildProcess::SendNotification(uint16_t aEventId,
+                                               uint64_t aData,
+                                               BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, SendNotificationRequest(aEventId, aData));
 }
 
 nsresult

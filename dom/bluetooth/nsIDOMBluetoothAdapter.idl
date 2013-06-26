@@ -7,32 +7,54 @@
 #include "nsIDOMEventTarget.idl"
 
 /**
- * AvrcpMusicMetadata are used to keep music medadata from Applications.
- * Please see specification of AVRCP 1.3 for more details.
+ * MusicMetadata, MusicPlayStatus, and MusicNotification are used to keep music
+ * medadata from Applications. Please see specification of AVRCP 1.3 for more
+ * details.
  *
- * @album:          album name
- * @artist:         artist name
- * @genre:          music genre
- * @title:          track title
- * @numberOfTracks: number of tracks in the album
- * @trackNumber:    track number
- * @trackDuration:  track duration
+ * @title:           track title
+ * @artist:          artist name
+ * @album:           album name
+ * @mediaNumber:     track number
+ * @totalMediaCount: number of tracks in the album
+ * @playingTime:     playing time
  */
 dictionary MusicMetaData
 {
-  DOMString title;
-  DOMString artist;
-  DOMString album;
-  unsigned long mediaNumber;
-  unsigned long totalMediaCount;
-  unsigned long playingTime;
+  DOMString  title;
+  DOMString  artist;
+  DOMString  album;
+  unsigned long  mediaNumber;
+  unsigned long  totalMediaCount;
+  unsigned long  playingTime;
+};
+
+/**
+ * @duration:   current track length
+ * @position:   playing time
+ * @playStatus: play status
+ */
+dictionary MusicPlayStatus
+{
+  unsigned long  duration;
+  unsigned long  position;
+  unsigned long  playStatus;
+};
+
+/**
+ * @eventId: 
+ * @data:   
+ */
+dictionary MusicNotification
+{
+  unsigned short  eventId;
+  unsigned long long  data;
 };
 
 interface nsIDOMDOMRequest;
 interface nsIDOMBlob;
 interface nsIDOMBluetoothDevice;
 
-[scriptable, builtinclass, uuid(11bec397-461e-47cc-930c-f1169f4090b5)]
+[scriptable, builtinclass, uuid(fbaa8f37-18c5-4ffd-b61f-12b94b11606e)]
 interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
 {
   readonly attribute DOMString address;
@@ -82,8 +104,8 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
 
   // Send Music metadata
   nsIDOMDOMRequest sendMusicMetaData(in jsval aOptions);
-//  nsIDOMDOMRequest sendMusicPlayStatus(in jsval aOptions);
-//  nsIDOMDOMRequest sendMusic
+  nsIDOMDOMRequest sendMusicPlayStatus(in jsval aOptions);
+  nsIDOMDOMRequest sendMusicNotification(in jsval aOptions);
 
   // Connect/Disconnect SCO (audio) connection
   nsIDOMDOMRequest connectSco();
