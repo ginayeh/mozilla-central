@@ -159,6 +159,10 @@ static Properties sSinkProperties[] = {
   {"Playing", DBUS_TYPE_BOOLEAN}
 };
 
+static Properties sControlProperties[] = {
+  {"Connected", DBUS_TYPE_BOOLEAN}
+};
+
 static const char* sBluetoothDBusIfaces[] =
 {
   DBUS_MANAGER_IFACE,
@@ -176,7 +180,8 @@ static const char* sBluetoothDBusSignals[] =
   "type='signal',interface='org.bluez.Network'",
   "type='signal',interface='org.bluez.NetworkServer'",
   "type='signal',interface='org.bluez.HealthDevice'",
-  "type='signal',interface='org.bluez.AudioSink'"
+  "type='signal',interface='org.bluez.AudioSink'",
+  "type='signal',interface='org.bluez.Control'"
 };
 
 /**
@@ -245,6 +250,36 @@ public:
 private:
   BluetoothSignal mSignal;
 };
+
+class ControlPropertyChangedHandler : public nsRunnable
+{
+public:
+  ControlPropertyChangedHandler(const BluetoothSignal& aSignal)
+    : mSignal(aSignal)
+  {
+  }
+
+  NS_IMETHOD
+  Run()
+  {
+    LOG("[B] ControlPropertyChangedHandler::Run");
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(mSignal.name().EqualsLiteral("PropertyChanged"));
+    MOZ_ASSERT(mSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+    // Replace object path with device address
+    nsString address = GetAddressFromObjectPath(mSignal.path());
+    mSignal.path() = address;
+
+    InfallibleTArray<BluetoothNamedValue>& arr = mSignal.value().get_ArrayOfBluetoothNamedValue();
+    LOG("[B] value: %d", arr[0].value().get_bool());
+    return NS_OK;
+  }
+
+private:
+  BluetoothSignal mSignal;
+};
+
 
 class SinkPropertyChangedHandler : public nsRunnable
 {
@@ -1393,9 +1428,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   DBusError err;
   dbus_error_init(&err);
 
-  nsAutoString signalPath;
-  nsAutoString signalName;
-  nsAutoString signalInterface;
+  nsAutoString signalPath, signalName, signalInterface;
 
   BT_LOG("%s: %s, %s, %s", __FUNCTION__,
                           dbus_message_get_interface(aMsg),
@@ -1549,13 +1582,23 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
-  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
-                                    "PropertyChanged")) {
+  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
+  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
+    ParsePropertyChange(aMsg,
+                        v,
+                        errorStr,
+                        sControlProperties,
+                        ArrayLength(sControlProperties));
+  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
+    // Forward the signal to BluetoothService and notify Music App via system
+    // message. Then, Music App should send current play status to us.
+    signalPath.AssignLiteral(KEY_LOCAL_AGENT);
+    v = InfallibleTArray<BluetoothNamedValue>();
   } else {
     errorStr = NS_ConvertUTF8toUTF16(dbus_message_get_member(aMsg));
     errorStr.AppendLiteral(" Signal not handled!");
@@ -1570,6 +1613,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   nsRefPtr<nsRunnable> task;
   if (signalInterface.EqualsLiteral(DBUS_SINK_IFACE)) {
     task = new SinkPropertyChangedHandler(signal);
+  } else if (signalInterface.EqualsLiteral(DBUS_CTL_IFACE) &&
+             signalName.EqualsLiteral("PropertyChanged")) {
+    task = new ControlPropertyChangedHandler(signal);
   } else {
     task = new DistributeBluetoothSignalTask(signal);
   }
