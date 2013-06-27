@@ -89,6 +89,25 @@ USING_BLUETOOTH_NAMESPACE
 #define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
 
+#define ERR_SERVICE_NOT_READY         "ServiceNotReadyError"
+#define ERR_UNKNOWN_PROFILE           "UnknownProfileError"
+#define ERR_PAIRING_REQUEST_RETRIEVAL "PairingRequestRetrievalError"
+#define ERR_MEMORY_ALLOCATION         "MemoryAllocationError"
+
+#define CHECK_SERVICE_STATUS(aRunnable, aErrorReturnValue)           \
+  if (!IsReady()) {                                                  \
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),              \
+                           NS_LITERAL_STRING(ERR_SERVICE_NOT_READY));\
+    return aErrorReturnValue;                                        \
+  }
+
+#define CHECK_SERVICE_STATUS_VOID(aRunnable)                         \
+  if (!IsReady()) {                                                  \
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),              \
+                           NS_LITERAL_STRING(ERR_SERVICE_NOT_READY));\
+    return;                                                          \
+  }
+
 typedef struct {
   const char* name;
   int type;
@@ -373,6 +392,7 @@ BluetoothDBusService::AddServiceRecords(const char* serviceName,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(!NS_IsMainThread());
+//  NS_ENSURE_TRUE(this->IsReady(), false);
 
   DBusMessage* reply =
     dbus_func_args(gThreadConnection->GetConnection(),
@@ -394,6 +414,7 @@ BluetoothDBusService::AddReservedServicesInternal(
                                    nsTArray<uint32_t>& aServiceHandlesContainer)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+//  NS_ENSURE_TRUE(this->IsReady(), false);
 
   int length = aServices.Length();
   if (length == 0) return false;
@@ -419,6 +440,7 @@ void
 BluetoothDBusService::DisconnectAllAcls(const nsAString& aAdapterPath)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+//  NS_ENSURE_TRUE(this->IsReady(), false);
   LOG("[B] %s", __FUNCTION__);
 
   DBusMessage* reply =
@@ -1026,7 +1048,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     DBusMessage *reply = dbus_message_new_method_return(msg);
 
     if (!reply) {
-      errorStr.AssignLiteral("Memory can't be allocated for the message.");
+      errorStr.AssignLiteral(ERR_MEMORY_ALLOCATION);
       goto handle_error;
     }
 
@@ -1144,7 +1166,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     DBusMessage *reply = dbus_message_new_method_return(msg);
 
     if (!reply) {
-      errorStr.AssignLiteral("Memory can't be allocated for the message.");
+      errorStr.AssignLiteral(ERR_MEMORY_ALLOCATION);
       goto handle_error;
     }
 
@@ -1592,7 +1614,7 @@ bool
 BluetoothDBusService::IsReady()
 {
   if (!IsEnabled() || !mConnection || !gThreadConnection || IsToggling()) {
-    NS_WARNING("Bluetooth service is not ready yet!");
+    BT_WARNING(ERR_SERVICE_NOT_READY);
     return false;
   }
   return true;
@@ -1798,14 +1820,9 @@ nsresult
 BluetoothDBusService::GetDefaultAdapterPathInternal(
                                               BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
-
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   nsRefPtr<nsRunnable> func(new DefaultAdapterPropertiesRunnable(runnable));
@@ -1840,14 +1857,9 @@ nsresult
 BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
                                            BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
-
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
 
@@ -1869,9 +1881,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
                                       const nsAString& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mConnection);
-
-  NS_ENSURE_TRUE(IsReady(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(this->IsReady(), NS_ERROR_FAILURE);
 
   SinkCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
@@ -1991,27 +2001,22 @@ nsresult
 BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
                                               BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
-
-  nsAutoString errorStr;
-  BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   nsTArray<nsString> deviceAddresses;
   BluetoothProfileManagerBase* profile;
+  nsAutoString errorStr;
+  BluetoothValue values = InfallibleTArray<BluetoothNamedValue>();
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
       aProfileId == BluetoothServiceClass::HEADSET) {
     profile = BluetoothHfpManager::Get();
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
     profile = BluetoothOppManager::Get();
   } else {
-    errorStr.AssignLiteral("Unknown profile");
-    DispatchBluetoothReply(aRunnable, values, errorStr);
+    DispatchBluetoothReply(aRunnable, values,
+                           NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
     return NS_OK;
   }
 
@@ -2026,11 +2031,7 @@ BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
     new BluetoothArrayOfDevicePropertiesRunnable(deviceAddresses,
                                                  runnable,
                                                  GetConnectedDevicesFilter));
-
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch task!");
-    return NS_ERROR_FAILURE;
-  }
+  mBluetoothCommandThread->Dispatch(func, NS_DISPATCH_NORMAL);
 
   runnable.forget();
   return NS_OK;
@@ -2041,14 +2042,9 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(
                                      const nsTArray<nsString>& aDeviceAddresses,
                                      BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
-
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   nsRefPtr<nsRunnable> func(
@@ -2069,14 +2065,9 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOGV("[B] %s", __FUNCTION__);
-
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   MOZ_ASSERT(aType < ArrayLength(sBluetoothDBusIfaces));
   const char* interface = sBluetoothDBusIfaces[aType];
@@ -2199,6 +2190,7 @@ BluetoothDBusService::RemoveReservedServicesInternal(
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(!NS_IsMainThread());
+//  NS_ENSURE_TRUE(this->IsReady(), false);
 
   int length = aServiceHandles.Length();
   if (length == 0) return false;
@@ -2225,6 +2217,9 @@ BluetoothDBusService::CreatePairedDeviceInternal(
                                               BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
+
   const char *capabilities = B2G_AGENT_CAPABILITIES;
   const char *deviceAgentPath = KEY_REMOTE_AGENT;
 
@@ -2289,12 +2284,7 @@ BluetoothDBusService::RemoveDeviceInternal(const nsAString& aDeviceAddress,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
+  CHECK_SERVICE_STATUS(aRunnable, NS_ERROR_FAILURE);
 
   nsCString deviceObjectPath =
     NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(sAdapterPath,
@@ -2322,24 +2312,25 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress,
                                          const nsAString& aPinCode,
                                          BluetoothReplyRunnable* aRunnable)
 {
-  nsAutoString errorStr;
   LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v = true;
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, false);
+
   DBusMessage *msg;
   if (!sPairingReqTable.Get(aDeviceAddress, &msg)) {
-    BT_WARNING("%s: Couldn't get original request message.", __FUNCTION__);
-    errorStr.AssignLiteral("Couldn't get original request message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_PAIRING_REQUEST_RETRIEVAL);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_PAIRING_REQUEST_RETRIEVAL));
     return false;
   }
 
   DBusMessage *reply = dbus_message_new_method_return(msg);
 
   if (!reply) {
-    BT_WARNING("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_MEMORY_ALLOCATION);
     dbus_message_unref(msg);
-    errorStr.AssignLiteral("Memory can't be allocated for the message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_MEMORY_ALLOCATION));
     return false;
   }
 
@@ -2348,6 +2339,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress,
   nsCString tempPinCode = NS_ConvertUTF16toUTF8(aPinCode);
   const char* pinCode = tempPinCode.get();
 
+  nsAutoString errorStr;
   if (!dbus_message_append_args(reply,
                                 DBUS_TYPE_STRING, &pinCode,
                                 DBUS_TYPE_INVALID)) {
@@ -2362,7 +2354,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress,
   dbus_message_unref(reply);
 
   sPairingReqTable.Remove(aDeviceAddress);
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  DispatchBluetoothReply(aRunnable, BluetoothValue(true), errorStr);
   return result;
 }
 
@@ -2371,30 +2363,32 @@ BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress,
                                          uint32_t aPasskey,
                                          BluetoothReplyRunnable* aRunnable)
 {
-  nsAutoString errorStr;
   LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v = true;
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, false);
+
   DBusMessage *msg;
   if (!sPairingReqTable.Get(aDeviceAddress, &msg)) {
-    BT_WARNING("%s: Couldn't get original request message.", __FUNCTION__);
-    errorStr.AssignLiteral("Couldn't get original request message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_PAIRING_REQUEST_RETRIEVAL);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_PAIRING_REQUEST_RETRIEVAL));
     return false;
   }
 
   DBusMessage *reply = dbus_message_new_method_return(msg);
 
   if (!reply) {
-    BT_WARNING("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_MEMORY_ALLOCATION);
     dbus_message_unref(msg);
-    errorStr.AssignLiteral("Memory can't be allocated for the message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_MEMORY_ALLOCATION));
     return false;
   }
 
   uint32_t passkey = aPasskey;
   bool result;
 
+  nsAutoString errorStr;
   if (!dbus_message_append_args(reply,
                                 DBUS_TYPE_UINT32, &passkey,
                                 DBUS_TYPE_INVALID)) {
@@ -2409,7 +2403,7 @@ BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress,
   dbus_message_unref(reply);
 
   sPairingReqTable.Remove(aDeviceAddress);
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  DispatchBluetoothReply(aRunnable, BluetoothValue(true), errorStr);
   return result;
 }
 
@@ -2419,14 +2413,15 @@ BluetoothDBusService::SetPairingConfirmationInternal(
                                               bool aConfirm,
                                               BluetoothReplyRunnable* aRunnable)
 {
-  nsAutoString errorStr;
   LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v = true;
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, false);
+
   DBusMessage *msg;
   if (!sPairingReqTable.Get(aDeviceAddress, &msg)) {
-    BT_WARNING("%s: Couldn't get original request message.", __FUNCTION__);
-    errorStr.AssignLiteral("Couldn't get original request message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_PAIRING_REQUEST_RETRIEVAL);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_PAIRING_REQUEST_RETRIEVAL));
     return false;
   }
 
@@ -2440,13 +2435,14 @@ BluetoothDBusService::SetPairingConfirmationInternal(
   }
 
   if (!reply) {
-    BT_WARNING("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_MEMORY_ALLOCATION);
     dbus_message_unref(msg);
-    errorStr.AssignLiteral("Memory can't be allocated for the message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_MEMORY_ALLOCATION));
     return false;
   }
 
+  nsAutoString errorStr;
   bool result = dbus_func_send(mConnection, nullptr, reply);
   if (!result) {
     errorStr.AssignLiteral("Can't send message!");
@@ -2455,7 +2451,7 @@ BluetoothDBusService::SetPairingConfirmationInternal(
   dbus_message_unref(reply);
 
   sPairingReqTable.Remove(aDeviceAddress);
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  DispatchBluetoothReply(aRunnable, BluetoothValue(true), errorStr);
   return result;
 }
 
@@ -2465,20 +2461,19 @@ BluetoothDBusService::SetAuthorizationInternal(
                                               bool aAllow,
                                               BluetoothReplyRunnable* aRunnable)
 {
-  nsAutoString errorStr;
   LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v = true;
-  DBusMessage *msg;
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS(aRunnable, false);
 
+  DBusMessage *msg;
   if (!sAuthorizeReqTable.Get(aDeviceAddress, &msg)) {
-    BT_WARNING("%s: Couldn't get original request message.", __FUNCTION__);
-    errorStr.AssignLiteral("Couldn't get original request message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_PAIRING_REQUEST_RETRIEVAL);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_PAIRING_REQUEST_RETRIEVAL));
     return false;
   }
 
   DBusMessage *reply;
-
   if (aAllow) {
     reply = dbus_message_new_method_return(msg);
   } else {
@@ -2487,14 +2482,15 @@ BluetoothDBusService::SetAuthorizationInternal(
   }
 
   if (!reply) {
-    BT_WARNING("%s: Memory can't be allocated for the message.", __FUNCTION__);
+    BT_WARNING("%s: %s", __FUNCTION__, ERR_MEMORY_ALLOCATION);
     dbus_message_unref(msg);
-    errorStr.AssignLiteral("Memory can't be allocated for the message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_MEMORY_ALLOCATION));
     return false;
   }
 
   bool result = dbus_func_send(mConnection, nullptr, reply);
+  nsAutoString errorStr;
   if (!result) {
     errorStr.AssignLiteral("Can't send message!");
   }
@@ -2502,7 +2498,7 @@ BluetoothDBusService::SetAuthorizationInternal(
   dbus_message_unref(reply);
 
   sAuthorizeReqTable.Remove(aDeviceAddress);
-  DispatchBluetoothReply(aRunnable, v, errorStr);
+  DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
   return result;
 }
 
@@ -2513,6 +2509,7 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS_VOID(aRunnable);
 
   if (aProfileId == BluetoothServiceClass::HANDSFREE) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
@@ -2525,7 +2522,7 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
     opp->Connect(aDeviceAddress, aRunnable);
   } else {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING("UnknownProfileError"));
+                           NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
   }
 }
 
@@ -2533,8 +2530,10 @@ void
 BluetoothDBusService::Disconnect(const uint16_t aProfileId,
                                  BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS_VOID(aRunnable);
+
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
       aProfileId == BluetoothServiceClass::HEADSET) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
@@ -2543,7 +2542,7 @@ BluetoothDBusService::Disconnect(const uint16_t aProfileId,
     BluetoothOppManager* opp = BluetoothOppManager::Get();
     opp->Disconnect();
   } else {
-    NS_WARNING("Unknown profile");
+    BT_WARNING(ERR_UNKNOWN_PROFILE);
     return;
   }
 
@@ -2556,8 +2555,9 @@ BluetoothDBusService::Disconnect(const uint16_t aProfileId,
 bool
 BluetoothDBusService::IsConnected(const uint16_t aProfileId)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+  NS_ENSURE_TRUE(IsReady(), false);
 
   BluetoothProfileManagerBase* profile;
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
@@ -2731,6 +2731,7 @@ BluetoothDBusService::GetServiceChannel(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBluetoothCommandThread);
+  NS_ENSURE_TRUE(IsReady(), NS_ERROR_FAILURE);
   LOG("[B] %s", __FUNCTION__);
 
   nsString objectPath(GetObjectPathFromAddress(sAdapterPath, aDeviceAddress));
@@ -2763,6 +2764,7 @@ BluetoothDBusService::UpdateSdpRecords(const nsAString& aDeviceAddress,
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(mConnection);
+  NS_ENSURE_TRUE(IsReady(), false);
 
   nsString objectPath(GetObjectPathFromAddress(sAdapterPath, aDeviceAddress));
 
@@ -2934,15 +2936,12 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS_VOID(aRunnable);
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
 
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
-    return;
-  } else if (!a2dp->IsConnected()) {
+  if (!a2dp->IsConnected()) {
     NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
     return;
@@ -3010,15 +3009,12 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS_VOID(aRunnable);
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
 
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
-    return;
-  } else if (!a2dp->IsConnected()) {
+  if (!a2dp->IsConnected()) {
     NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
     return;
@@ -3058,15 +3054,12 @@ BluetoothDBusService::SendNotification(uint16_t aEventId,
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  CHECK_SERVICE_STATUS_VOID(aRunnable);
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
 
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(replyError, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
-    return;
-  } else if (!a2dp->IsConnected()) {
+  if (!a2dp->IsConnected()) {
     NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
     return;
