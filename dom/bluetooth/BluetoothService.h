@@ -15,7 +15,6 @@
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
-#include "DictionaryHelpers.h"
 
 namespace mozilla {
 namespace ipc {

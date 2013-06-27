@@ -102,7 +102,7 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   nsIDOMDOMRequest stopSendingFile(in DOMString aDeviceAddress);
   nsIDOMDOMRequest confirmReceivingFile(in DOMString aDeviceAddress, in bool aConfirmation);
 
-  // Send Music metadata
+  // AVRCP 1.3 methods
   nsIDOMDOMRequest sendMusicMetaData(in jsval aOptions);
   nsIDOMDOMRequest sendMusicPlayStatus(in jsval aOptions);
   nsIDOMDOMRequest sendMusicNotification(in jsval aOptions);
