@@ -11,7 +11,6 @@
 #include "BluetoothCommon.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "BluetoothService.h"
-#include "DictionaryHelpers.h"
 
 class DBusMessage;
 

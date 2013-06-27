@@ -365,9 +365,10 @@ BluetoothServiceChildProcess::SendPlayStatus(uint32_t aDuration,
 }
 
 void
-BluetoothServiceChildProcess::SendNotification(uint16_t aEventId,
-                                               uint64_t aData,
-                                               BluetoothReplyRunnable* aRunnable)
+BluetoothServiceChildProcess::SendNotification(
+                                              uint16_t aEventId,
+                                              uint64_t aData,
+                                              BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable, SendNotificationRequest(aEventId, aData));
 }

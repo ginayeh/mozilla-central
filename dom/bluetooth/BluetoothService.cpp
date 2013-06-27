@@ -827,6 +827,10 @@ BluetoothService::Notify(const BluetoothSignal& aData)
     MOZ_ASSERT(aData.value().get_ArrayOfBluetoothNamedValue().Length() == 1,
       "PairedStatusChagned: Wrong length of parameters");
     type.AssignLiteral("bluetooth-pairedstatuschanged");
+  } else if (aData.name().EqualsLiteral("GetPlayStatus")) {
+    MOZ_ASSERT(aData.value().get_ArrayOfBluetoothNamedValue().Length() == 0,
+      "GetPlayStatus: Wrong length of parameters");
+    type.AssignLiteral("bluetooth-avrcp-get-play-status");
   } else {
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling service signal: ");
