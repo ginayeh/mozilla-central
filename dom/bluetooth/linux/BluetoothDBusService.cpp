@@ -159,10 +159,6 @@ static Properties sSinkProperties[] = {
   {"Playing", DBUS_TYPE_BOOLEAN}
 };
 
-static Properties sControlProperties[] = {
-  {"Connected", DBUS_TYPE_BOOLEAN}
-};
-
 static const char* sBluetoothDBusIfaces[] =
 {
   DBUS_MANAGER_IFACE,
@@ -180,8 +176,7 @@ static const char* sBluetoothDBusSignals[] =
   "type='signal',interface='org.bluez.Network'",
   "type='signal',interface='org.bluez.NetworkServer'",
   "type='signal',interface='org.bluez.HealthDevice'",
-  "type='signal',interface='org.bluez.AudioSink'",
-  "type='signal',interface='org.bluez.Control'"
+  "type='signal',interface='org.bluez.AudioSink'"
 };
 
 /**
@@ -250,36 +245,6 @@ public:
 private:
   BluetoothSignal mSignal;
 };
-
-class ControlPropertyChangedHandler : public nsRunnable
-{
-public:
-  ControlPropertyChangedHandler(const BluetoothSignal& aSignal)
-    : mSignal(aSignal)
-  {
-  }
-
-  NS_IMETHOD
-  Run()
-  {
-    LOG("[B] ControlPropertyChangedHandler::Run");
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mSignal.name().EqualsLiteral("PropertyChanged"));
-    MOZ_ASSERT(mSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-
-    // Replace object path with device address
-    nsString address = GetAddressFromObjectPath(mSignal.path());
-    mSignal.path() = address;
-
-    InfallibleTArray<BluetoothNamedValue>& arr = mSignal.value().get_ArrayOfBluetoothNamedValue();
-    LOG("[B] value: %d", arr[0].value().get_bool());
-    return NS_OK;
-  }
-
-private:
-  BluetoothSignal mSignal;
-};
-
 
 class SinkPropertyChangedHandler : public nsRunnable
 {
@@ -1428,7 +1393,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   DBusError err;
   dbus_error_init(&err);
 
-  nsAutoString signalPath, signalName, signalInterface;
+  nsAutoString signalPath;
+  nsAutoString signalName;
+  nsAutoString signalInterface;
 
   BT_LOG("%s: %s, %s, %s", __FUNCTION__,
                           dbus_message_get_interface(aMsg),
@@ -1582,23 +1549,13 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sManagerProperties,
                         ArrayLength(sManagerProperties));
-  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE, "PropertyChanged")) {
+  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
+                                    "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
-  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
-    ParsePropertyChange(aMsg,
-                        v,
-                        errorStr,
-                        sControlProperties,
-                        ArrayLength(sControlProperties));
-  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
-    // Forward the signal to BluetoothService and notify Music App via system
-    // message. Then, Music App should send current play status to us.
-    signalPath.AssignLiteral(KEY_LOCAL_AGENT);
-    v = InfallibleTArray<BluetoothNamedValue>();
   } else {
     errorStr = NS_ConvertUTF8toUTF16(dbus_message_get_member(aMsg));
     errorStr.AppendLiteral(" Signal not handled!");
@@ -1613,9 +1570,6 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   nsRefPtr<nsRunnable> task;
   if (signalInterface.EqualsLiteral(DBUS_SINK_IFACE)) {
     task = new SinkPropertyChangedHandler(signal);
-  } else if (signalInterface.EqualsLiteral(DBUS_CTL_IFACE) &&
-             signalName.EqualsLiteral("PropertyChanged")) {
-    task = new ControlPropertyChangedHandler(signal);
   } else {
     task = new DistributeBluetoothSignalTask(signal);
   }
@@ -3050,7 +3004,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
 void
 BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
                                      uint32_t aPosition,
-                                     uint32_t aPlayStatus,
+                                     const nsAString& aPlayStatus,
                                      BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
@@ -3075,7 +3029,7 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
   LOG("[B] duration: %d", aDuration);
   LOG("[B] position: %d", aPosition);
-  LOG("[B] playStatus: %d", aPlayStatus);
+  LOG("[B] playStatus: %s", NS_ConvertUTF16toUTF8(aPlayStatus).get());
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
@@ -3093,38 +3047,42 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   runnable.forget();
 }
 
+static void
+UpdateNotificationCallback(DBusMessage* aMsg, void* aParam)
+{
+  LOG("[B] %s", __FUNCTION__);
+}
+
 void
-BluetoothDBusService::SendNotification(uint16_t aEventId,
-                                       uint64_t aData,
-                                       BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::SendNotification(ControlEventId aEventId,
+                                       uint64_t aData)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
-  CHECK_SERVICE_STATUS_VOID(aRunnable);
+  NS_ENSURE_TRUE_VOID(this->IsReady());
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
 
-  if (!a2dp->IsConnected()) {
+/*  if (!a2dp->IsConnected()) {
     NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
     return;
-  }
+  }*/
 
   nsAutoString address;
   a2dp->GetAddress(address);
   nsString objectPath =
     GetObjectPathFromAddress(sAdapterPath, address);
 
-  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
   LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
   LOG("[B] eventId: %d", aEventId);
   LOG("[B] data: %llu", aData);
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  GetVoidCallback,
-                                  (void*)runnable,
+                                  UpdateNotificationCallback,
+                                  nullptr,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,
                                   "UpdateNotification",
@@ -3132,6 +3090,4 @@ BluetoothDBusService::SendNotification(uint16_t aEventId,
                                   DBUS_TYPE_UINT64, &aData,
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE_VOID(ret);
-
-  runnable.forget();
 }

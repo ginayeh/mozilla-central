@@ -156,25 +156,32 @@ public:
                const nsAString& aAlbum,
                uint32_t aMediaNumber,
                uint32_t aTotalMediaCount,
-               uint32_t aPlayingTime,
+               uint32_t aPosition,
                BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
   SendPlayStatus(uint32_t aDuration,
                  uint32_t aPosition,
-                 uint32_t aPlayStatus,
+                 const nsAString& aPlayStatus,
                  BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  SendNotification(uint16_t aEventId,
-                   uint64_t aData,
-                   BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) MOZ_OVERRIDE;
 
 private:
+  enum ControlEventId {
+    EVENT_PLAYBACK_STATUS_CHANGED            = 0x01,
+    EVENT_TRACK_CHANGED                      = 0x02,
+    EVENT_TRACK_REACHED_END                  = 0x03,
+    EVENT_TRACK_REACHED_START                = 0x04,
+    EVENT_PLAYBACK_POS_CHANGED               = 0x05,
+    EVENT_BATT_STATUS_CHANGED                = 0x06,
+    EVENT_SYSTEM_STATUS_CHANGED              = 0x07,
+    EVENT_PLAYER_APPLICATION_SETTING_CHANGED = 0x08,
+    EVENT_UNKNOWN
+  };
+
   nsresult SendGetPropertyMessage(const nsAString& aPath,
                                   const char* aInterface,
                                   void (*aCB)(DBusMessage *, void *),
@@ -185,7 +192,10 @@ private:
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable);
 
+  void SendNotification(ControlEventId aEventId, uint64_t aData);
+
   void DisconnectAllAcls(const nsAString& aAdapterPath);
+
 };
 
 END_BLUETOOTH_NAMESPACE

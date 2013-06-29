@@ -148,20 +148,14 @@ struct SendMetaDataRequest
   nsString album;
   uint32_t mediaNumber;
   uint32_t totalMediaCount;
-  uint32_t playingTime;
+  uint32_t position;
 };
 
 struct SendPlayStatusRequest
 {
   uint32_t duration;
   uint32_t position;
-  uint32_t playStatus;
-};
-
-struct SendNotificationRequest
-{
-  uint16_t eventId;
-  uint64_t data;
+  nsString playStatus;
 };
 
 union Request
@@ -192,7 +186,6 @@ union Request
   IsScoConnectedRequest;
   SendMetaDataRequest;
   SendPlayStatusRequest;
-  SendNotificationRequest;
 };
 
 protocol PBluetooth

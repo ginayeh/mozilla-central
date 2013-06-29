@@ -234,8 +234,6 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_SendMetaDataRequest());
     case Request::TSendPlayStatusRequest:
       return actor->DoRequest(aRequest.get_SendPlayStatusRequest());
-    case Request::TSendNotificationRequest:
-      return actor->DoRequest(aRequest.get_SendNotificationRequest());
     default:
       MOZ_CRASH("Unknown type!");
   }
@@ -621,7 +619,7 @@ BluetoothRequestParent::DoRequest(const SendMetaDataRequest& aRequest)
                          aRequest.album(),
                          aRequest.mediaNumber(),
                          aRequest.totalMediaCount(),
-                         aRequest.playingTime(),
+                         aRequest.position(),
                          mReplyRunnable.get());
   return true;
 }
@@ -636,17 +634,5 @@ BluetoothRequestParent::DoRequest(const SendPlayStatusRequest& aRequest)
                            aRequest.position(),
                            aRequest.playStatus(),
                            mReplyRunnable.get());
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const SendNotificationRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TSendNotificationRequest);
-
-  mService->SendNotification(aRequest.eventId(),
-                             aRequest.data(),
-                             mReplyRunnable.get());
   return true;
 }
