@@ -200,9 +200,6 @@ protected:
 
   bool
   DoRequest(const SendPlayStatusRequest& aRequest);
-
-  bool
-  DoRequest(const SendNotificationRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

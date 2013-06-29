@@ -15,7 +15,7 @@
  * @album:           album name
  * @mediaNumber:     track number
  * @totalMediaCount: number of tracks in the album
- * @playingTime:     playing time
+ * @position:        playing time (ms)
  */
 dictionary MusicMetaData
 {
@@ -24,36 +24,28 @@ dictionary MusicMetaData
   DOMString  album;
   unsigned long  mediaNumber;
   unsigned long  totalMediaCount;
-  unsigned long  playingTime;
+  unsigned long  position;
 };
 
 /**
- * @duration:   current track length
- * @position:   playing time
- * @playStatus: play status
+ * @duration:   current track length (ms)
+ * @position:   playing time (ms)
+ * @playStatus: STOPPED/PLAYING/PAUSED/FWD_SEEK/REV_SEEK/ERROR
+};
+
  */
 dictionary MusicPlayStatus
 {
   unsigned long  duration;
   unsigned long  position;
-  unsigned long  playStatus;
-};
-
-/**
- * @eventId:
- * @data:
- */
-dictionary MusicNotification
-{
-  unsigned short  eventId;
-  unsigned long long  data;
+  DOMString  playStatus;
 };
 
 interface nsIDOMDOMRequest;
 interface nsIDOMBlob;
 interface nsIDOMBluetoothDevice;
 
-[scriptable, builtinclass, uuid(fbaa8f37-18c5-4ffd-b61f-12b94b11606e)]
+[scriptable, builtinclass, uuid(1a0c6c90-23e3-4f4c-8076-98e4341c2024)]
 interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
 {
   readonly attribute DOMString address;
@@ -104,7 +96,6 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   // AVRCP 1.3 methods
   nsIDOMDOMRequest sendMusicMetaData(in jsval aOptions);
   nsIDOMDOMRequest sendMusicPlayStatus(in jsval aOptions);
-  nsIDOMDOMRequest sendMusicNotification(in jsval aOptions);
 
   // Connect/Disconnect SCO (audio) connection
   nsIDOMDOMRequest connectSco();

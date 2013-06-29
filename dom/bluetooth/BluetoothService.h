@@ -276,19 +276,14 @@ public:
                const nsAString& aAlbum,
                uint32_t aMediaNumber,
                uint32_t aTotalMediaCount,
-               uint32_t aPlayingTime,
+               uint32_t aPosition,
                BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual void
   SendPlayStatus(uint32_t aDuration,
                  uint32_t aPosition,
-                 uint32_t aPlayStatus,
+                 const nsAString& aPlayStatus,
                  BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual void
-  SendNotification(uint16_t aEventId,
-                   uint64_t aData,
-                   BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
   SendSinkMessage(const nsAString& aDeviceAddresses,

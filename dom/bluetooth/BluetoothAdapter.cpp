@@ -945,13 +945,13 @@ BluetoothAdapter::SendMusicMetaData(const JS::Value& aOptions,
   LOG("[A] album: %s", NS_ConvertUTF16toUTF8(metadata.album).get());
   LOG("[A] mediaNumber: %d", metadata.mediaNumber);
   LOG("[A] totalMediaCount: %d", metadata.totalMediaCount);
-  LOG("[A] playingTime: %d", metadata.playingTime);
+  LOG("[A] position: %d", metadata.position);
   bs->SendMetaData(metadata.title,
                    metadata.artist,
                    metadata.album,
                    metadata.mediaNumber,
                    metadata.totalMediaCount,
-                   metadata.playingTime,
+                   metadata.position,
                    results);
 
   req.forget(aRequest);
@@ -985,47 +985,11 @@ BluetoothAdapter::SendMusicPlayStatus(const JS::Value& aOptions,
   NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
   LOG("[A] duration: %d", status.duration);
   LOG("[A] position: %d", status.position);
-  LOG("[A] playStatus: %d", status.playStatus);
+  LOG("[A] playStatus: %s", NS_ConvertUTF16toUTF8(status.playStatus).get());
   bs->SendPlayStatus(status.duration,
                      status.position,
                      status.playStatus,
                      results);
-
-  req.forget(aRequest);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-BluetoothAdapter::SendMusicNotification(const JS::Value& aOptions,
-                                        nsIDOMDOMRequest** aRequest)
-{
-  LOG("[A] %s", __FUNCTION__);
-
-  idl::MusicNotification notification;
-
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AutoPushJSContext cx(sc->GetNativeContext());
-  rv = notification.Init(cx, &aOptions);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMDOMRequest> req;
-  rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<BluetoothReplyRunnable> results =
-    new BluetoothVoidReplyRunnable(req);
-  
-  LOG("[A] eventId: %d", notification.eventId);
-  LOG("[A] data: %llu", notification.data);
-
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-  bs->SendNotification(notification.eventId,
-                       notification.data,
-                       results);
 
   req.forget(aRequest);
   return NS_OK;
