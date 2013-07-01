@@ -1435,7 +1435,9 @@ public:
 
     BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-//    bs->SendPlayStatus(duration, position, playStatus); 
+    
+    bs->UpdatePlayStatus(duration, position, playStatus);
+    return NS_OK;
   }
 };
 
@@ -3007,27 +3009,6 @@ BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
                          hfp->IsScoConnected(), EmptyString());
 }
 
-static ControlPlayStatus
-PlayStatusStringToControlPlayStatus(const nsAString& aPlayStatus)
-{
-  ControlPlayStatus playStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
-  if (aPlayStatus.EqualsLiteral("STOPPED")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_STOPPED;
-  } if (aPlayStatus.EqualsLiteral("PLAYING")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_PLAYING;
-  } else if (aPlayStatus.EqualsLiteral("PAUSED")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_PAUSED;
-  } else if (aPlayStatus.EqualsLiteral("FWD_SEEK")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_FWD_SEEK;
-  } else if (aPlayStatus.EqualsLiteral("REV_SEEK")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_REV_SEEK;
-  } else if (aPlayStatus.EqualsLiteral("ERROR")) {
-    playStatus = ControlPlayStatus::PLAYSTATUS_ERROR;
-  }
-
-  return playStatus;
-}
-
 void
 BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                                    const nsAString& aArtist,
@@ -3117,7 +3098,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   if (aMediaNumber != prevMediaNumber || !aTitle.Equals(prevTitle)) {
     eventId = ControlEventId::EVENT_TRACK_CHANGED;
     data = aMediaNumber;
-    SendNotification(eventId, data);
+    UpdateNotification(eventId, data);
   }
 
   a2dp->UpdateMetaData(aTitle, aArtist, aAlbum,
@@ -3134,6 +3115,14 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   MOZ_ASSERT(NS_IsMainThread());
   CHECK_SERVICE_STATUS_VOID(aRunnable);
 
+  ControlPlayStatus playStatus =
+    PlayStatusStringToControlPlayStatus(aPlayStatus);
+  if (playStatus ==  ControlPlayStatus::PLAYSTATUS_UNKNOWN) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING("Invalid play status"));
+    return;
+  }
+
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
 
@@ -3144,14 +3133,6 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   } else if (!a2dp->IsAvrcpConnected()) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_AVRCP_IS_DISCONNECTED));
-    return;
-  }
-
-  ControlPlayStatus playStatus =
-    PlayStatusStringToControlPlayStatus(aPlayStatus);
-  if (playStatus ==  ControlPlayStatus::PLAYSTATUS_UNKNOWN) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING("Invalid play status"));
     return;
   }
 
@@ -3198,21 +3179,22 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   }
 
   if (eventId != ControlEventId::EVENT_UNKNOWN) {
-    SendNotification(eventId, data);
+    UpdateNotification(eventId, data);
   }
 
   a2dp->UpdatePlayStatus(aDuration, aPosition, playStatus);
 }
 
 static void
-UpdateNotificationCallback(DBusMessage* aMsg, void* aParam)
+ControlCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 }
 
 void
-BluetoothDBusService::SendNotification(ControlEventId aEventId,
-                                       uint64_t aData)
+BluetoothDBusService::UpdatePlayStatus(uint32_t aDuration,
+                                       uint32_t aPosition,
+                                       ControlPlayStatus aPlayStatus)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
@@ -3220,12 +3202,46 @@ BluetoothDBusService::SendNotification(ControlEventId aEventId,
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
+  MOZ_ASSERT(!a2dp->IsConnected());
+  MOZ_ASSERT(!a2dp->IsAvrcpConnected());
 
-/*  if (!a2dp->IsConnected()) {
-    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
-    return;
-  }*/
+  nsAutoString address;
+  a2dp->GetAddress(address);
+  nsString objectPath =
+    GetObjectPathFromAddress(sAdapterPath, address);
+
+  LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
+  LOG("[B] duration: %d", aDuration);
+  LOG("[B] position: %d", aPosition);
+  LOG("[B] playStatus: %d", aPlayStatus);
+
+  uint32_t tempPlayStatus = aPlayStatus;
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  ControlCallback,
+                                  nullptr,
+                                  NS_ConvertUTF16toUTF8(objectPath).get(),
+                                  DBUS_CTL_IFACE,
+                                  "UpdatePlayStatus",
+                                  DBUS_TYPE_UINT32, &aDuration,
+                                  DBUS_TYPE_UINT32, &aPosition,
+                                  DBUS_TYPE_UINT32, &tempPlayStatus,
+                                  DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE_VOID(ret);
+}
+
+void
+BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
+                                         uint64_t aData)
+{
+  LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
+  NS_ENSURE_TRUE_VOID(this->IsReady());
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  MOZ_ASSERT(!a2dp->IsConnected());
+  MOZ_ASSERT(!a2dp->IsAvrcpConnected());
 
   nsAutoString address;
   a2dp->GetAddress(address);
@@ -3238,7 +3254,7 @@ BluetoothDBusService::SendNotification(ControlEventId aEventId,
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  UpdateNotificationCallback,
+                                  ControlCallback,
                                   nullptr,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,
