@@ -1412,6 +1412,33 @@ private:
   nsString mPath;
 };
 
+class SendPlayStatusTask : public nsRunnable
+{
+public:
+  SendPlayStatusTask()
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  nsresult Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
+
+    uint32_t duration, position;
+    ControlPlayStatus playStatus;
+    a2dp->GetDuration(&duration);
+    a2dp->GetPosition(&position);
+    a2dp->GetPlayStatus(&playStatus);
+
+    BluetoothService* bs = BluetoothService::Get();
+    NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
+//    bs->SendPlayStatus(duration, position, playStatus); 
+  }
+};
+
 // Called by dbus during WaitForAndDispatchEventNative()
 // This function is called on the IOThread
 static DBusHandlerResult
@@ -1598,6 +1625,10 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
+  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE, "GetPlayStatus")) {
+    nsRefPtr<nsRunnable> task = new SendPlayStatusTask();
+    NS_DispatchToMainThread(task);
+    return DBUS_HANDLER_RESULT_HANDLED;
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
                         v,
