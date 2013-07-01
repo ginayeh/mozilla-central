@@ -93,7 +93,28 @@ enum ControlPlayStatus {
   PLAYSTATUS_REV_SEEK = 0x04,
   PLAYSTATUS_UNKNOWN,
   PLAYSTATUS_ERROR    = 0xFF,
-}; 
+};
+
+ControlPlayStatus
+PlayStatusStringToControlPlayStatus(const nsAString& aPlayStatus)
+{
+  ControlPlayStatus playStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
+  if (aPlayStatus.EqualsLiteral("STOPPED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_STOPPED;
+  } if (aPlayStatus.EqualsLiteral("PLAYING")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PLAYING;
+  } else if (aPlayStatus.EqualsLiteral("PAUSED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PAUSED;
+  } else if (aPlayStatus.EqualsLiteral("FWD_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_FWD_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("REV_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_REV_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("ERROR")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_ERROR;
+  }
+
+  return playStatus;
+}
 
 END_BLUETOOTH_NAMESPACE
 
