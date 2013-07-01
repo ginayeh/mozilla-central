@@ -93,6 +93,8 @@ USING_BLUETOOTH_NAMESPACE
 #define ERR_UNKNOWN_PROFILE           "UnknownProfileError"
 #define ERR_PAIRING_REQUEST_RETRIEVAL "PairingRequestRetrievalError"
 #define ERR_MEMORY_ALLOCATION         "MemoryAllocationError"
+#define ERR_A2DP_IS_DISCONNECTED      "A2dpIsDisconnected"
+#define ERR_AVRCP_IS_DISCONNECTED     "AvrcpIsDisconnected"
 
 #define CHECK_SERVICE_STATUS(aRunnable, aErrorReturnValue)           \
   if (!IsReady()) {                                                  \
@@ -159,6 +161,10 @@ static Properties sSinkProperties[] = {
   {"Playing", DBUS_TYPE_BOOLEAN}
 };
 
+static Properties sControlProperties[] = {
+  {"Connected", DBUS_TYPE_BOOLEAN}
+};
+
 static const char* sBluetoothDBusIfaces[] =
 {
   DBUS_MANAGER_IFACE,
@@ -176,7 +182,8 @@ static const char* sBluetoothDBusSignals[] =
   "type='signal',interface='org.bluez.Network'",
   "type='signal',interface='org.bluez.NetworkServer'",
   "type='signal',interface='org.bluez.HealthDevice'",
-  "type='signal',interface='org.bluez.AudioSink'"
+  "type='signal',interface='org.bluez.AudioSink'",
+  "type='signal',interface='org.bluez.Control'"
 };
 
 /**
@@ -246,6 +253,40 @@ private:
   BluetoothSignal mSignal;
 };
 
+class ControlPropertyChangedHandler : public nsRunnable
+{
+public:
+  ControlPropertyChangedHandler(const BluetoothSignal& aSignal)
+    : mSignal(aSignal)
+  {
+  }
+
+  nsresult Run()
+  {
+    LOG("[B] ControlPropertyChangedHandler::Run");
+    MOZ_ASSERT(NS_IsMainThread());
+    if (mSignal.value().type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
+       BT_WARNING("Wrong value type for ControlPropertyChangedHandler");
+       return NS_ERROR_FAILURE;
+    }
+
+    InfallibleTArray<BluetoothNamedValue>& arr =
+      mSignal.value().get_ArrayOfBluetoothNamedValue();
+    MOZ_ASSERT(arr[0].name().EqualsLiteral("Connected"));
+    MOZ_ASSERT(arr[0].value().type() == BluetoothValue::Tbool);
+    bool connected = arr[0].value().get_bool();
+
+    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
+    a2dp->SetAvrcpConnected(connected);
+    return NS_OK;
+  }
+
+private:
+  BluetoothSignal mSignal;
+};
+
+
 class SinkPropertyChangedHandler : public nsRunnable
 {
 public:
@@ -260,7 +301,8 @@ public:
     LOG("[B] SinkPropertyChangedHandler::Run");
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mSignal.name().EqualsLiteral("PropertyChanged"));
-    MOZ_ASSERT(mSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+    MOZ_ASSERT(mSignal.value().type() ==
+               BluetoothValue::TArrayOfBluetoothNamedValue);
 
     // Replace object path with device address
     nsString address = GetAddressFromObjectPath(mSignal.path());
@@ -1556,6 +1598,12 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
+  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
+    ParsePropertyChange(aMsg,
+                        v,
+                        errorStr,
+                        sControlProperties,
+                        ArrayLength(sControlProperties));
   } else {
     errorStr = NS_ConvertUTF8toUTF16(dbus_message_get_member(aMsg));
     errorStr.AppendLiteral(" Signal not handled!");
@@ -1570,6 +1618,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
   nsRefPtr<nsRunnable> task;
   if (signalInterface.EqualsLiteral(DBUS_SINK_IFACE)) {
     task = new SinkPropertyChangedHandler(signal);
+  } else if (signalInterface.EqualsLiteral(DBUS_CTL_IFACE) &&
+             signalName.EqualsLiteral("PropertyChanged")) {
+    task = new ControlPropertyChangedHandler(signal);
   } else {
     task = new DistributeBluetoothSignalTask(signal);
   }
@@ -2925,13 +2976,34 @@ BluetoothDBusService::IsScoConnected(BluetoothReplyRunnable* aRunnable)
                          hfp->IsScoConnected(), EmptyString());
 }
 
+static ControlPlayStatus
+PlayStatusStringToControlPlayStatus(const nsAString& aPlayStatus)
+{
+  ControlPlayStatus playStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
+  if (aPlayStatus.EqualsLiteral("STOPPED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_STOPPED;
+  } if (aPlayStatus.EqualsLiteral("PLAYING")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PLAYING;
+  } else if (aPlayStatus.EqualsLiteral("PAUSED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PAUSED;
+  } else if (aPlayStatus.EqualsLiteral("FWD_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_FWD_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("REV_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_REV_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("ERROR")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_ERROR;
+  }
+
+  return playStatus;
+}
+
 void
 BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                                    const nsAString& aArtist,
                                    const nsAString& aAlbum,
                                    uint32_t aMediaNumber,
                                    uint32_t aTotalMediaCount,
-                                   uint32_t aPlayingTime,
+                                   uint32_t aPosition,
                                    BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
@@ -2942,8 +3014,12 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   NS_ENSURE_TRUE_VOID(a2dp);
 
   if (!a2dp->IsConnected()) {
-    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_A2DP_IS_DISCONNECTED));
+    return; 
+  } else if (!a2dp->IsAvrcpConnected()) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_AVRCP_IS_DISCONNECTED));
     return;
   }
 
@@ -2957,21 +3033,21 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   LOG("[B] aAlbum: %s", NS_ConvertUTF16toUTF8(aAlbum).get());
   LOG("[B] aMediaNumber: %d", aMediaNumber);
   LOG("[B] aTotalMediaCount: %d", aTotalMediaCount);
-  LOG("[B] aPlayingTime: %d", aPlayingTime);
+  LOG("[B] aPosition: %d", aPosition);
   nsCString tempTitle = NS_ConvertUTF16toUTF8(aTitle);
   nsCString tempArtist = NS_ConvertUTF16toUTF8(aArtist);
   nsCString tempAlbum = NS_ConvertUTF16toUTF8(aAlbum);
-  nsCString tempMediaNumber, tempTotalMediaCount, tempPlayingTime;
+  nsCString tempMediaNumber, tempTotalMediaCount, tempPosition;
   tempMediaNumber.AppendInt(aMediaNumber);
   tempTotalMediaCount.AppendInt(aTotalMediaCount);
-  tempPlayingTime.AppendInt(aPlayingTime);
+  tempPosition.AppendInt(aPosition);
 
   const char* title = tempTitle.get();
   const char* album = tempAlbum.get();
   const char* artist = tempArtist.get();
   const char* mediaNumber = tempMediaNumber.get();
   const char* totalMediaCount = tempTotalMediaCount.get();
-  const char* playingTime = tempPlayingTime.get();
+  const char* position = tempPosition.get();
 
   nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
   LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
@@ -2980,7 +3056,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   LOG("[B] artist: %s", artist);
   LOG("[B] mediaNumber: %s", mediaNumber);
   LOG("[B] totalMediaCount: %s", totalMediaCount);
-  LOG("[B] playingTime: %s", playingTime);
+  LOG("[B] position: %s", position);
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
@@ -2994,11 +3070,27 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                                   DBUS_TYPE_STRING, &album,
                                   DBUS_TYPE_STRING, &mediaNumber,
                                   DBUS_TYPE_STRING, &totalMediaCount,
-                                  DBUS_TYPE_STRING, &playingTime,
+                                  DBUS_TYPE_STRING, &position,
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE_VOID(ret);
 
   runnable.forget();
+
+  uint32_t prevMediaNumber;
+  a2dp->GetMediaNumber(&prevMediaNumber);
+  nsAutoString prevTitle;
+  a2dp->GetTitle(prevTitle);
+
+  ControlEventId eventId = ControlEventId::EVENT_UNKNOWN;
+  uint64_t data;
+  if (aMediaNumber != prevMediaNumber || !aTitle.Equals(prevTitle)) {
+    eventId = ControlEventId::EVENT_TRACK_CHANGED;
+    data = aMediaNumber;
+    SendNotification(eventId, data);
+  }
+
+  a2dp->UpdateMetaData(aTitle, aArtist, aAlbum,
+                       aMediaNumber, aTotalMediaCount, aPosition);
 }
 
 void
@@ -3015,8 +3107,20 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   NS_ENSURE_TRUE_VOID(a2dp);
 
   if (!a2dp->IsConnected()) {
-    NS_NAMED_LITERAL_STRING(replyError, "A2DP/AVRCP is not connected.");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_A2DP_IS_DISCONNECTED));
+    return; 
+  } else if (!a2dp->IsAvrcpConnected()) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_AVRCP_IS_DISCONNECTED));
+    return;
+  }
+
+  ControlPlayStatus playStatus =
+    PlayStatusStringToControlPlayStatus(aPlayStatus);
+  if (playStatus ==  ControlPlayStatus::PLAYSTATUS_UNKNOWN) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING("Invalid play status"));
     return;
   }
 
@@ -3031,6 +3135,7 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   LOG("[B] position: %d", aPosition);
   LOG("[B] playStatus: %s", NS_ConvertUTF16toUTF8(aPlayStatus).get());
 
+  uint32_t tempPlayStatus = playStatus;
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
                                   GetVoidCallback,
@@ -3040,11 +3145,32 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
                                   "UpdatePlayStatus",
                                   DBUS_TYPE_UINT32, &aDuration,
                                   DBUS_TYPE_UINT32, &aPosition,
-                                  DBUS_TYPE_UINT32, &aPlayStatus,
+                                  DBUS_TYPE_UINT32, &tempPlayStatus,
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE_VOID(ret);
 
   runnable.forget();
+
+  uint32_t prevPosition;
+  a2dp->GetPosition(&prevPosition);
+  ControlPlayStatus prevPlayStauts;
+  a2dp->GetPlayStatus(&prevPlayStauts);
+
+  ControlEventId eventId = ControlEventId::EVENT_UNKNOWN;
+  uint64_t data;
+  if (aPosition != prevPosition) {
+    eventId = ControlEventId::EVENT_PLAYBACK_POS_CHANGED;
+    data = aPosition;
+  } else if (playStatus != prevPlayStauts) {
+    eventId = ControlEventId::EVENT_PLAYBACK_STATUS_CHANGED;
+    data = tempPlayStatus;
+  }
+
+  if (eventId != ControlEventId::EVENT_UNKNOWN) {
+    SendNotification(eventId, data);
+  }
+
+  a2dp->UpdatePlayStatus(aDuration, aPosition, playStatus);
 }
 
 static void
