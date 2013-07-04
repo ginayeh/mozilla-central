@@ -1423,6 +1423,7 @@ public:
   nsresult Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
+    LOG("[B] SendPlayStatusTask::Run()");
 
     BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
     NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
@@ -1432,6 +1433,7 @@ public:
     a2dp->GetDuration(&duration);
     a2dp->GetPosition(&position);
     a2dp->GetPlayStatus(&playStatus);
+    LOG("[B] duration: %d, position: %d, playstatus: %d", duration, position, playStatus);
 
     BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
@@ -1627,7 +1629,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         errorStr,
                         sSinkProperties,
                         ArrayLength(sSinkProperties));
-  } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE, "GetPlayStatus")) {
+  } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
     nsRefPtr<nsRunnable> task = new SendPlayStatusTask();
     NS_DispatchToMainThread(task);
     return DBUS_HANDLER_RESULT_HANDLED;
@@ -3105,6 +3107,27 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                        aMediaNumber, aTotalMediaCount, aPosition);
 }
 
+static ControlPlayStatus
+PlayStatusStringToControlPlayStatus(const nsAString& aPlayStatus)
+{
+  ControlPlayStatus playStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
+  if (aPlayStatus.EqualsLiteral("STOPPED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_STOPPED;
+  } if (aPlayStatus.EqualsLiteral("PLAYING")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PLAYING;
+  } else if (aPlayStatus.EqualsLiteral("PAUSED")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_PAUSED;
+  } else if (aPlayStatus.EqualsLiteral("FWD_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_FWD_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("REV_SEEK")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_REV_SEEK;
+  } else if (aPlayStatus.EqualsLiteral("ERROR")) {
+    playStatus = ControlPlayStatus::PLAYSTATUS_ERROR;
+  }
+
+  return playStatus;
+}
+
 void
 BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
                                      uint32_t aPosition,
@@ -3202,8 +3225,8 @@ BluetoothDBusService::UpdatePlayStatus(uint32_t aDuration,
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
-  MOZ_ASSERT(!a2dp->IsConnected());
-  MOZ_ASSERT(!a2dp->IsAvrcpConnected());
+  MOZ_ASSERT(a2dp->IsConnected());
+  MOZ_ASSERT(a2dp->IsAvrcpConnected());
 
   nsAutoString address;
   a2dp->GetAddress(address);
@@ -3240,8 +3263,8 @@ BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
 
   BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
-  MOZ_ASSERT(!a2dp->IsConnected());
-  MOZ_ASSERT(!a2dp->IsAvrcpConnected());
+  MOZ_ASSERT(a2dp->IsConnected());
+  MOZ_ASSERT(a2dp->IsAvrcpConnected());
 
   nsAutoString address;
   a2dp->GetAddress(address);

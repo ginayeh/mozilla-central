@@ -57,13 +57,8 @@ BluetoothA2dpManager::BluetoothA2dpManager()
   : mA2dpConnected(false)
   , mPlaying(false)
   , mSinkState(SinkState::SINK_DISCONNECTED)
-  , mAvrcpConnected(false)
-  , mDuration(0)
-  , mMediaNumber(0)
-  , mTotalMediaCount(0)
-  , mPosition(0)
-  , mPlayStatus(ControlPlayStatus::PLAYSTATUS_UNKNOWN)
 {
+  ResetAvrcp();
 }
 
 bool
@@ -89,6 +84,16 @@ BluetoothA2dpManager::~BluetoothA2dpManager()
   if (NS_FAILED(obs->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID))) {
     BT_WARNING("Failed to remove shutdown observer!");
   }
+}
+
+void
+BluetoothA2dpManager::ResetAvrcp()
+{
+  mDuration = 0;
+  mMediaNumber = 0;
+  mTotalMediaCount = 0;
+  mPosition = 0;
+  mPlayStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
 }
 
 static BluetoothA2dpManager::SinkState
@@ -330,6 +335,9 @@ void
 BluetoothA2dpManager::SetAvrcpConnected(bool aConnected)
 {
   mAvrcpConnected = aConnected;
+  if (!aConnected) {
+    ResetAvrcp();
+  }
 }
 
 bool

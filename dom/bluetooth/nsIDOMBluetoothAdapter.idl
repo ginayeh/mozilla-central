@@ -31,8 +31,6 @@ dictionary MusicMetaData
  * @duration:   current track length (ms)
  * @position:   playing time (ms)
  * @playStatus: STOPPED/PLAYING/PAUSED/FWD_SEEK/REV_SEEK/ERROR
-};
-
  */
 dictionary MusicPlayStatus
 {

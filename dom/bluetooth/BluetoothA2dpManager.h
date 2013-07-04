@@ -65,7 +65,7 @@ public:
 private:
   BluetoothA2dpManager();
   bool Init();
-  void Cleanup();
+  void ResetAvrcp();
 
   void HandleSinkStateChanged(SinkState aState);
   void HandleShutdown();
