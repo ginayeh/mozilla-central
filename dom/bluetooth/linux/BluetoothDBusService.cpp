@@ -2983,6 +2983,19 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
 
   runnable.forget();
 
+  uint32_t prevMediaNumber;
+  a2dp->GetMediaNumber(&prevMediaNumber);
+  nsAutoString prevTitle;
+  a2dp->GetTitle(prevTitle);
+
+  ControlEventId eventId = ControlEventId::EVENT_UNKNOWN;
+  uint64_t data;
+  if (aMediaNumber != prevMediaNumber || !aTitle.Equals(prevTitle)) {
+    eventId = ControlEventId::EVENT_TRACK_CHANGED;
+    data = aMediaNumber;
+    UpdateNotification(eventId, data);
+  }
+
   a2dp->UpdateMetaData(aTitle, aArtist, aAlbum,
                        aMediaNumber, aTotalMediaCount, aDuration);
 }
@@ -3066,6 +3079,25 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
 
   runnable.forget();
 
+  uint32_t prevPosition;
+  a2dp->GetPosition(&prevPosition);
+  ControlPlayStatus prevPlayStauts;
+  a2dp->GetPlayStatus(&prevPlayStauts);
+
+  ControlEventId eventId = ControlEventId::EVENT_UNKNOWN;
+  uint64_t data;
+  if (aPosition != prevPosition) {
+    eventId = ControlEventId::EVENT_PLAYBACK_POS_CHANGED;
+    data = aPosition;
+  } else if (playStatus != prevPlayStauts) {
+    eventId = ControlEventId::EVENT_PLAYBACK_STATUS_CHANGED;
+    data = tempPlayStatus;
+  }
+
+  if (eventId != ControlEventId::EVENT_UNKNOWN) {
+    UpdateNotification(eventId, data);
+  }
+
   a2dp->UpdatePlayStatus(aDuration, aPosition, playStatus);
 }
 
@@ -3111,3 +3143,32 @@ BluetoothDBusService::UpdatePlayStatus(uint32_t aDuration,
   NS_ENSURE_TRUE_VOID(ret);
 }
 
+void
+BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
+                                         uint64_t aData)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  NS_ENSURE_TRUE_VOID(this->IsReady());
+
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  MOZ_ASSERT(a2dp->IsConnected());
+  MOZ_ASSERT(a2dp->IsAvrcpConnected());
+
+  nsAutoString address;
+  a2dp->GetAddress(address);
+  nsString objectPath =
+    GetObjectPathFromAddress(sAdapterPath, address);
+
+  bool ret = dbus_func_args_async(mConnection,
+                                  -1,
+                                  ControlCallback,
+                                  nullptr,
+                                  NS_ConvertUTF16toUTF8(objectPath).get(),
+                                  DBUS_CTL_IFACE,
+                                  "UpdateNotification",
+                                  DBUS_TYPE_UINT16, &aEventId,
+                                  DBUS_TYPE_UINT64, &aData,
+                                  DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE_VOID(ret);
+}
