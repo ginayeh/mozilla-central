@@ -2950,6 +2950,9 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   NS_ENSURE_TRUE_VOID(ret);
 
   runnable.forget();
+
+  a2dp->UpdateMetaData(aTitle, aArtist, aAlbum,
+                       aMediaNumber, aTotalMediaCount, aDuration);
 }
 
 static ControlPlayStatus
@@ -3030,5 +3033,7 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   NS_ENSURE_TRUE_VOID(ret);
 
   runnable.forget();
+
+  a2dp->UpdatePlayStatus(aDuration, aPosition, playStatus);
 }
 
