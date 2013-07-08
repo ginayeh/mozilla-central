@@ -286,7 +286,6 @@ private:
   BluetoothSignal mSignal;
 };
 
-
 class SinkPropertyChangedHandler : public nsRunnable
 {
 public:
@@ -514,6 +513,11 @@ public:
       return NS_ERROR_FAILURE;
     }
 
+    BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
+    a2dp->ResetA2dp();
+    a2dp->ResetAvrcp();
+
     return NS_OK;
   }
 };
@@ -589,20 +593,14 @@ GetIntCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 
 #ifdef DEBUG
 static void
-CheckForSinkError(bool aConnect, DBusMessage* aMsg, void *aParam)
+CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
 {
-  LOG("[B] %s, aConnect: %d", __FUNCTION__, aConnect);
+  LOG("[B] %s", __FUNCTION__);
   BluetoothValue v;
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
   if (!v.get_bool()) {
-    if (aConnect) {
-      LOG("[B] Failed to connect sink");
-      BT_WARNING("Failed to connect sink.");
-      return;
-    }
-    LOG("[B] Failed to disconnect sink");
-    BT_WARNING("Failed to disconnect sink.");
+    BT_WARNING(NS_ConvertUTF16toUTF8(aError).get());
   }
 }
 #endif
@@ -612,7 +610,8 @@ SinkConnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
-  CheckForSinkError(true, aMsg, aParam);
+  NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect sink");
+  CheckForError(aMsg, aParam, errorStr);
 #endif
 }
 
@@ -621,7 +620,8 @@ SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
-  CheckForSinkError(false, aMsg, aParam);
+  NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect sink");
+  CheckForError(false, aMsg, errorStr);
 #endif
 }
 
@@ -1437,7 +1437,7 @@ public:
 
     BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-    
+
     bs->UpdatePlayStatus(duration, position, playStatus);
     return NS_OK;
   }
@@ -1980,7 +1980,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
   }
 
   nsString objectPath = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
-  bool ret = dbus_func_args_async(mConnection,                     
+  bool ret = dbus_func_args_async(mConnection,
                                   -1,
                                   callback,
                                   nullptr,
@@ -2652,7 +2652,7 @@ BluetoothDBusService::IsConnected(const uint16_t aProfileId)
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
     profile = BluetoothOppManager::Get();
   } else {
-    NS_WARNING("Unknown profile");
+    NS_WARNING(ERR_UNKNOWN_PROFILE);
     return false;
   }
 
@@ -3030,7 +3030,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   if (!a2dp->IsConnected()) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_A2DP_IS_DISCONNECTED));
-    return; 
+    return;
   } else if (!a2dp->IsAvrcpConnected()) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_AVRCP_IS_DISCONNECTED));
@@ -3152,7 +3152,7 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   if (!a2dp->IsConnected()) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_A2DP_IS_DISCONNECTED));
-    return; 
+    return;
   } else if (!a2dp->IsAvrcpConnected()) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_AVRCP_IS_DISCONNECTED));
@@ -3212,6 +3212,10 @@ static void
 ControlCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
+#ifdef DEBUG
+  NS_NAMED_LITERAL_STRING(errorStr, "Failed to update playstatus");
+  CheckForError(aMsg, aParam, errorStr);
+#endif
 }
 
 void

@@ -191,11 +191,14 @@ private:
                                   const char* aInterface,
                                   void (*aCB)(DBusMessage *, void *),
                                   BluetoothReplyRunnable* aRunnable);
+
   nsresult SendDiscoveryMessage(const char* aMessageName,
                                 BluetoothReplyRunnable* aRunnable);
+
   nsresult SendSetPropertyMessage(const char* aInterface,
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable);
+
   void UpdateNotification(ControlEventId aEventId, uint64_t aData);
 
   void DisconnectAllAcls(const nsAString& aAdapterPath);

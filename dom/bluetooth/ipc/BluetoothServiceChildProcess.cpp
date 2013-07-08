@@ -408,7 +408,6 @@ BluetoothServiceChildProcess::IsConnected(uint16_t aProfileId)
   MOZ_CRASH("This should never be called!");
 }
 
-
 nsresult
 BluetoothServiceChildProcess::SendSinkMessage(const nsAString& aDeviceAddresses,
                                               const nsAString& aMessage)
@@ -423,5 +422,4 @@ BluetoothServiceChildProcess::UpdatePlayStatus(uint32_t aDuration,
 {
   MOZ_CRASH("This should never be called!");
 }
-
 

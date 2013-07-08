@@ -30,6 +30,8 @@ public:
 
   static BluetoothA2dpManager* Get();
   ~BluetoothA2dpManager();
+  void ResetA2dp();
+  void ResetAvrcp();
 
   // Member functions inherited from parent class BluetoothProfileManagerBase
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
@@ -65,7 +67,6 @@ public:
 private:
   BluetoothA2dpManager();
   bool Init();
-  void ResetAvrcp();
 
   void HandleSinkStateChanged(SinkState aState);
   void HandleShutdown();

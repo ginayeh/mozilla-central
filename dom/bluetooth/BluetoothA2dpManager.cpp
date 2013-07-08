@@ -54,10 +54,8 @@ BluetoothA2dpManager::Observe(nsISupports* aSubject,
 }
 
 BluetoothA2dpManager::BluetoothA2dpManager()
-  : mA2dpConnected(false)
-  , mPlaying(false)
-  , mSinkState(SinkState::SINK_DISCONNECTED)
 {
+  ResetA2dp();
   ResetAvrcp();
 }
 
@@ -87,8 +85,17 @@ BluetoothA2dpManager::~BluetoothA2dpManager()
 }
 
 void
+BluetoothA2dpManager::ResetA2dp()
+{
+  mA2dpConnected = false;
+  mPlaying = false;
+  mSinkState = SinkState::SINK_DISCONNECTED;
+}
+
+void
 BluetoothA2dpManager::ResetAvrcp()
 {
+  mAvrcpConnected = false;
   mDuration = 0;
   mMediaNumber = 0;
   mTotalMediaCount = 0;
@@ -359,7 +366,7 @@ BluetoothA2dpManager::UpdateMetaData(const nsAString& aTitle,
   mAlbum.Assign(aAlbum);
   mMediaNumber = aMediaNumber;
   mTotalMediaCount = aTotalMediaCount;
-  mDuration = aDuration; 
+  mDuration = aDuration;
 }
 
 void
