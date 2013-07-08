@@ -3017,7 +3017,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                                    const nsAString& aAlbum,
                                    uint32_t aMediaNumber,
                                    uint32_t aTotalMediaCount,
-                                   uint32_t aPosition,
+                                   uint32_t aDuration,
                                    BluetoothReplyRunnable* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
@@ -3047,21 +3047,21 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   LOG("[B] aAlbum: %s", NS_ConvertUTF16toUTF8(aAlbum).get());
   LOG("[B] aMediaNumber: %d", aMediaNumber);
   LOG("[B] aTotalMediaCount: %d", aTotalMediaCount);
-  LOG("[B] aPosition: %d", aPosition);
+  LOG("[B] aDuration: %d", aDuration);
   nsCString tempTitle = NS_ConvertUTF16toUTF8(aTitle);
   nsCString tempArtist = NS_ConvertUTF16toUTF8(aArtist);
   nsCString tempAlbum = NS_ConvertUTF16toUTF8(aAlbum);
-  nsCString tempMediaNumber, tempTotalMediaCount, tempPosition;
+  nsCString tempMediaNumber, tempTotalMediaCount, tempDuration;
   tempMediaNumber.AppendInt(aMediaNumber);
   tempTotalMediaCount.AppendInt(aTotalMediaCount);
-  tempPosition.AppendInt(aPosition);
+  tempDuration.AppendInt(aDuration);
 
   const char* title = tempTitle.get();
   const char* album = tempAlbum.get();
   const char* artist = tempArtist.get();
   const char* mediaNumber = tempMediaNumber.get();
   const char* totalMediaCount = tempTotalMediaCount.get();
-  const char* position = tempPosition.get();
+  const char* duration = tempDuration.get();
 
   nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
   LOG("[B] objectPath: %s", NS_ConvertUTF16toUTF8(objectPath).get());
@@ -3070,7 +3070,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   LOG("[B] artist: %s", artist);
   LOG("[B] mediaNumber: %s", mediaNumber);
   LOG("[B] totalMediaCount: %s", totalMediaCount);
-  LOG("[B] position: %s", position);
+  LOG("[B] duration: %s", duration);
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
@@ -3084,7 +3084,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
                                   DBUS_TYPE_STRING, &album,
                                   DBUS_TYPE_STRING, &mediaNumber,
                                   DBUS_TYPE_STRING, &totalMediaCount,
-                                  DBUS_TYPE_STRING, &position,
+                                  DBUS_TYPE_STRING, &duration,
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE_VOID(ret);
 
@@ -3104,7 +3104,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   }
 
   a2dp->UpdateMetaData(aTitle, aArtist, aAlbum,
-                       aMediaNumber, aTotalMediaCount, aPosition);
+                       aMediaNumber, aTotalMediaCount, aDuration);
 }
 
 static ControlPlayStatus

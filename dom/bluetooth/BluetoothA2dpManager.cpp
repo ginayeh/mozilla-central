@@ -352,14 +352,14 @@ BluetoothA2dpManager::UpdateMetaData(const nsAString& aTitle,
                                      const nsAString& aAlbum,
                                      uint32_t aMediaNumber,
                                      uint32_t aTotalMediaCount,
-                                     uint32_t aPosition)
+                                     uint32_t aDuration)
 {
   mTitle.Assign(aTitle);
   mArtist.Assign(aArtist);
   mAlbum.Assign(aAlbum);
   mMediaNumber = aMediaNumber;
   mTotalMediaCount = aTotalMediaCount;
-  mPosition = aPosition; 
+  mDuration = aDuration; 
 }
 
 void

@@ -619,7 +619,7 @@ BluetoothRequestParent::DoRequest(const SendMetaDataRequest& aRequest)
                          aRequest.album(),
                          aRequest.mediaNumber(),
                          aRequest.totalMediaCount(),
-                         aRequest.position(),
+                         aRequest.duration(),
                          mReplyRunnable.get());
   return true;
 }

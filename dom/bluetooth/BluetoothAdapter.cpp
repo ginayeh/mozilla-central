@@ -945,13 +945,13 @@ BluetoothAdapter::SendMusicMetaData(const JS::Value& aOptions,
   LOG("[A] album: %s", NS_ConvertUTF16toUTF8(metadata.album).get());
   LOG("[A] mediaNumber: %d", metadata.mediaNumber);
   LOG("[A] totalMediaCount: %d", metadata.totalMediaCount);
-  LOG("[A] position: %d", metadata.position);
+  LOG("[A] duration: %d", metadata.duration);
   bs->SendMetaData(metadata.title,
                    metadata.artist,
                    metadata.album,
                    metadata.mediaNumber,
                    metadata.totalMediaCount,
-                   metadata.position,
+                   metadata.duration,
                    results);
 
   req.forget(aRequest);

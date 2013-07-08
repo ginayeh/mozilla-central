@@ -77,6 +77,7 @@ this.SystemMessagePermissionsTable = {
   "icc-stkcommand": {
     "settings": ["read", "write"]
   },
+  "media-button": { },
   "notification": {
     "desktop-notification": []
   },

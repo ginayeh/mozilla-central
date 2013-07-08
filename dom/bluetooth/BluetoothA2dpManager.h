@@ -52,7 +52,7 @@ public:
                       const nsAString& aAlbum,
                       uint32_t aMediaNumber,
                       uint32_t aTotalMediaCount,
-                      uint32_t aPosition);
+                      uint32_t aDuration);
   void UpdatePlayStatus(uint32_t aDuration,
                         uint32_t aPosition,
                         ControlPlayStatus aPlayStatus);

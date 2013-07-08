@@ -15,7 +15,7 @@
  * @album:           album name
  * @mediaNumber:     track number
  * @totalMediaCount: number of tracks in the album
- * @position:        playing time (ms)
+ * @duration:        playing time (ms)
  */
 dictionary MusicMetaData
 {
@@ -24,7 +24,7 @@ dictionary MusicMetaData
   DOMString  album;
   unsigned long  mediaNumber;
   unsigned long  totalMediaCount;
-  unsigned long  position;
+  unsigned long  duration;
 };
 
 /**

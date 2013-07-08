@@ -156,7 +156,7 @@ public:
                const nsAString& aAlbum,
                uint32_t aMediaNumber,
                uint32_t aTotalMediaCount,
-               uint32_t aPosition,
+               uint32_t aDuration,
                BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
