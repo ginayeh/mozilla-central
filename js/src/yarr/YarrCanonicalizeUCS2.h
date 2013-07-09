@@ -25,12 +25,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef YarrCanonicalizeUCS2_H
-#define YarrCanonicalizeUCS2_H
+#ifndef yarr_YarrCanonicalizeUCS2_h
+#define yarr_YarrCanonicalizeUCS2_h
 
 #include "mozilla/StandardInteger.h"
-#include "wtfbridge.h"
-#include "assembler/wtf/Assertions.h"
+
+#include "yarr/wtfbridge.h"
 
 namespace JSC { namespace Yarr {
 
@@ -138,4 +138,4 @@ inline bool areCanonicallyEquivalent(UChar a, UChar b)
 
 } } // JSC::Yarr
 
-#endif
+#endif /* yarr_YarrCanonicalizeUCS2_h */

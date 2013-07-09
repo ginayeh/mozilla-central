@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_utility_h__
-#define js_utility_h__
+#ifndef js_Utility_h
+#define js_Utility_h
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -41,7 +41,6 @@ namespace js {}
 
 #define JS_ASSERT(expr)           MOZ_ASSERT(expr)
 #define JS_ASSERT_IF(cond, expr)  MOZ_ASSERT_IF(cond, expr)
-#define JS_NOT_REACHED(reason)    MOZ_NOT_REACHED(reason)
 #define JS_ALWAYS_TRUE(expr)      MOZ_ALWAYS_TRUE(expr)
 #define JS_ALWAYS_FALSE(expr)     MOZ_ALWAYS_FALSE(expr)
 
@@ -170,7 +169,7 @@ static JS_INLINE void js_free(void* p)
 }
 #endif/* JS_USE_CUSTOM_ALLOCATOR */
 
-JS_BEGIN_EXTERN_C
+extern "C" {
 
 /*
  * Replace bit-scanning code sequences with CPU-specific instructions to
@@ -314,7 +313,7 @@ JS_STATIC_ASSERT(sizeof(unsigned long long) == sizeof(uint64_t));
 # error "NOT SUPPORTED"
 #endif
 
-JS_END_EXTERN_C
+} // extern "C"
 
 /*
  * Internal function.
@@ -814,11 +813,6 @@ inline bool IsPoisonedPtr(T *v)
 
 }
 
-/*
- * This is SpiderMonkey's equivalent to |nsMallocSizeOfFun|.
- */
-typedef size_t(*JSMallocSizeOfFun)(const void *p);
-
 /* sixgill annotation defines */
 #ifndef HAVE_STATIC_ANNOTATIONS
 # define HAVE_STATIC_ANNOTATIONS
@@ -860,4 +854,4 @@ typedef size_t(*JSMallocSizeOfFun)(const void *p);
 # define STATIC_SKIP_INFERENCE STATIC_INVARIANT(skip_inference())
 #endif /* HAVE_STATIC_ANNOTATIONS */
 
-#endif /* js_utility_h__ */
+#endif /* js_Utility_h */

@@ -487,7 +487,9 @@ typedef PRUint16 DTLSEpoch;
 
 typedef void (*DTLSTimerCb)(sslSocket *);
 
-#define MAX_MAC_CONTEXT_BYTES 400
+#define MAX_MAC_CONTEXT_BYTES 400  /* 400 is large enough for MD5, SHA-1, and
+                                    * SHA-256. For SHA-384 support, increase
+                                    * it to 712. */
 #define MAX_MAC_CONTEXT_LLONGS (MAX_MAC_CONTEXT_BYTES / 8)
 
 #define MAX_CIPHER_CONTEXT_BYTES 2080
@@ -766,6 +768,12 @@ typedef struct DTLSQueuedMessageStr {
     PRUint16 len;         /* The data length */
 } DTLSQueuedMessage;
 
+typedef enum {
+    handshake_hash_unknown = 0,
+    handshake_hash_combo = 1,  /* The MD5/SHA-1 combination */
+    handshake_hash_single = 2  /* A single hash */
+} SSL3HandshakeHashType;
+
 /*
 ** This is the "hs" member of the "ssl3" struct.
 ** This entire struct is protected by ssl3HandshakeLock
@@ -774,11 +782,31 @@ typedef struct SSL3HandshakeStateStr {
     SSL3Random            server_random;
     SSL3Random            client_random;
     SSL3WaitState         ws;
+
+    /* This group of members is used for handshake running hashes. */
+    SSL3HandshakeHashType hashType;
+    sslBuffer             messages;    /* Accumulated handshake messages */
+#ifndef NO_PKCS11_BYPASS
+    /* Bypass mode:
+     * SSL 3.0 - TLS 1.1 use both |md5_cx| and |sha_cx|. |md5_cx| is used for
+     * MD5 and |sha_cx| for SHA-1.
+     * TLS 1.2 and later use only |sha_cx|, for SHA-256. NOTE: When we support
+     * SHA-384, increase MAX_MAC_CONTEXT_BYTES to 712. */
     PRUint64              md5_cx[MAX_MAC_CONTEXT_LLONGS];
     PRUint64              sha_cx[MAX_MAC_CONTEXT_LLONGS];
-    PK11Context *         md5;            /* handshake running hashes */
+    const SECHashObject * sha_obj;
+    /* The function prototype of sha_obj->clone() does not match the prototype
+     * of the freebl <HASH>_Clone functions, so we need a dedicated function
+     * pointer for the <HASH>_Clone function. */
+    void (*sha_clone)(void *dest, void *src);
+#endif
+    /* PKCS #11 mode:
+     * SSL 3.0 - TLS 1.1 use both |md5| and |sha|. |md5| is used for MD5 and
+     * |sha| for SHA-1.
+     * TLS 1.2 and later use only |sha|, for SHA-256. */
+    PK11Context *         md5;
     PK11Context *         sha;
-    PK11Context *         tls12_handshake_hash;
+
 const ssl3KEADef *        kea_def;
     ssl3CipherSuite       cipher_suite;
 const ssl3CipherSuiteDef *suite_def;
@@ -796,7 +824,6 @@ const ssl3CipherSuiteDef *suite_def;
     PRBool                sendingSCSV; /* instead of empty RI */
     sslBuffer             msgState;    /* current state for handshake messages*/
                                        /* protected by recvBufLock */
-    sslBuffer             messages;    /* Accumulated handshake messages */
     PRUint16              finishedBytes; /* size of single finished below */
     union {
 	TLSFinished       tFinished[2]; /* client, then server */
@@ -841,6 +868,8 @@ const ssl3CipherSuiteDef *suite_def;
     PRUint32              rtTimeoutMs;     /* The length of the current timeout
 					    * used for backoff (in ms) */
     PRUint32              rtRetries;       /* The retry counter */
+    PRBool                canFalseStart;   /* Can/did we False Start */
+
 } SSL3HandshakeState;
 
 
@@ -1089,6 +1118,10 @@ struct sslSocketStr {
     unsigned long    clientAuthRequested;
     unsigned long    delayDisabled;       /* Nagle delay disabled */
     unsigned long    firstHsDone;         /* first handshake is complete. */
+    unsigned long    enoughFirstHsDone;   /* enough of the handshake is done
+					   * for callbacks to be able to
+					   * retrieve channel security
+					   * parameters from callback functions. */
     unsigned long    handshakeBegun;     
     unsigned long    lastWriteBlocked;   
     unsigned long    recvdCloseNotify;    /* received SSL EOF. */
@@ -1129,6 +1162,8 @@ const unsigned char *  preferredCipher;
     void                     *badCertArg;
     SSLHandshakeCallback      handshakeCallback;
     void                     *handshakeCallbackData;
+    SSLCanFalseStartCallback  canFalseStartCallback;
+    void                     *canFalseStartCallbackData;
     void                     *pkcs11PinArg;
     SSLNextProtoCallback      nextProtoCallback;
     void                     *nextProtoArg;
@@ -1331,7 +1366,6 @@ extern void      ssl3_SetAlwaysBlock(sslSocket *ss);
 
 extern SECStatus ssl_EnableNagleDelay(sslSocket *ss, PRBool enabled);
 
-extern PRBool    ssl3_CanFalseStart(sslSocket *ss);
 extern SECStatus
 ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
 		              PRBool             isServer,

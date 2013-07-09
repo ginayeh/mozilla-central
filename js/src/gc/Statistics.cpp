@@ -12,17 +12,11 @@
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
-#include "jscompartment.h"
-#include "jscrashformat.h"
 #include "jscrashreport.h"
 #include "jsprf.h"
 #include "jsutil.h"
 #include "prmjtime.h"
 #include "gc/Memory.h"
-
-#include "jscntxtinlines.h"
-#include "gc/Barrier-inl.h"
-#include "vm/Probes-inl.h"
 
 using namespace js;
 using namespace js::gcstats;
@@ -257,8 +251,7 @@ ExplainReason(JS::gcreason::Reason reason)
         GCREASONS(SWITCH_REASON)
 
         default:
-          JS_NOT_REACHED("bad GC reason");
-          return "?";
+          MOZ_ASSUME_UNREACHABLE("bad GC reason");
 #undef SWITCH_REASON
     }
 }

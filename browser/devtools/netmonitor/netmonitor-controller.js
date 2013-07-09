@@ -250,6 +250,7 @@ TargetEventsHandler.prototype = {
       case "will-navigate": {
         // Reset UI.
         NetMonitorView.RequestsMenu.reset();
+        NetMonitorView.Sidebar.reset();
         NetMonitorView.NetworkDetails.reset();
 
         // Reset global helpers cache.
@@ -553,9 +554,6 @@ NetMonitorController.NetworkEventsHandler = new NetworkEventsHandler();
  * Export some properties to the global scope for easier access.
  */
 Object.defineProperties(window, {
-  "create": {
-    get: function() ViewHelpers.create
-  },
   "gNetwork": {
     get: function() NetMonitorController.NetworkEventsHandler
   }

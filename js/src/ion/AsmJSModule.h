@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_asmjsmodule_h__
-#define jsion_asmjsmodule_h__
+#ifndef ion_AsmJSModule_h
+#define ion_AsmJSModule_h
 
 #ifdef JS_ION
 
@@ -13,14 +13,16 @@
 #include "ion/RegisterSets.h"
 
 #include "jsscript.h"
-#include "jstypedarrayinlines.h"
 
-#include "IonMacroAssembler.h"
+#if defined(JS_ION_PERF)
+# include "ion/PerfSpewer.h"
+#endif
+
+#include "ion/IonMacroAssembler.h"
 
 namespace js {
 
-// The basis of the asm.js type system is the EcmaScript-defined coercions
-// ToInt32 and ToNumber.
+// These EcmaScript-defined coercions form the basis of the asm.js type system.
 enum AsmJSCoercion
 {
     AsmJS_ToInt32,
@@ -72,7 +74,7 @@ class AsmJSModule
             AsmJSMathBuiltin mathBuiltin_;
             double constantValue_;
         } u;
-        HeapPtrPropertyName name_;
+        RelocatablePtr<PropertyName> name_;
 
         friend class AsmJSModule;
         Global(Which which) : which_(which) {}
@@ -204,8 +206,8 @@ class AsmJSModule
 
       private:
 
-        HeapPtrFunction fun_;
-        HeapPtrPropertyName maybeFieldName_;
+        RelocatablePtr<JSFunction> fun_;
+        RelocatablePtr<PropertyName> maybeFieldName_;
         ArgCoercionVector argCoercions_;
         ReturnType returnType_;
         bool hasCodePtr_;
@@ -281,16 +283,38 @@ class AsmJSModule
         }
     };
 
-#if defined(MOZ_VTUNE)
+#if defined(MOZ_VTUNE) or defined(JS_ION_PERF)
     // Function information to add to the VTune JIT profiler following linking.
     struct ProfiledFunction
     {
         JSAtom *name;
         unsigned startCodeOffset;
         unsigned endCodeOffset;
+        unsigned lineno;
+        unsigned columnIndex;
 
-        ProfiledFunction(JSAtom *name, unsigned start, unsigned end)
-          : name(name), startCodeOffset(start), endCodeOffset(end)
+        ProfiledFunction(JSAtom *name, unsigned start, unsigned end,
+                         unsigned line = 0U, unsigned column = 0U)
+          : name(name),
+            startCodeOffset(start),
+            endCodeOffset(end),
+            lineno(line),
+            columnIndex(column)
+        { }
+    };
+#endif
+
+#if defined(JS_ION_PERF)
+    struct ProfiledBlocksFunction : public ProfiledFunction
+    {
+        ion::PerfSpewer::BasicBlocksVector blocks;
+
+        ProfiledBlocksFunction(JSAtom *name, unsigned start, unsigned end, ion::PerfSpewer::BasicBlocksVector &blocksVector)
+          : ProfiledFunction(name, start, end), blocks(Move(blocksVector))
+        { }
+
+        ProfiledBlocksFunction(const ProfiledBlocksFunction &copy)
+          : ProfiledFunction(copy.name, copy.startCodeOffset, copy.endCodeOffset), blocks(Move(copy.blocks))
         { }
     };
 #endif
@@ -337,7 +361,7 @@ class AsmJSModule
     typedef Vector<ion::AsmJSBoundsCheck, 0, SystemAllocPolicy> BoundsCheckVector;
 #endif
     typedef Vector<ion::IonScriptCounts *, 0, SystemAllocPolicy> FunctionCountsVector;
-#if defined(MOZ_VTUNE)
+#if defined(MOZ_VTUNE) or defined(JS_ION_PERF)
     typedef Vector<ProfiledFunction, 0, SystemAllocPolicy> ProfiledFunctionVector;
 #endif
 
@@ -350,6 +374,10 @@ class AsmJSModule
 #endif
 #if defined(MOZ_VTUNE)
     ProfiledFunctionVector                profiledFunctions_;
+#endif
+#if defined(JS_ION_PERF)
+    ProfiledFunctionVector                perfProfiledFunctions_;
+    Vector<ProfiledBlocksFunction, 0, SystemAllocPolicy> perfProfiledBlocksFunctions_;
 #endif
 
     uint32_t                              numGlobalVars_;
@@ -499,6 +527,31 @@ class AsmJSModule
         return profiledFunctions_[i];
     }
 #endif
+#ifdef JS_ION_PERF
+    bool trackPerfProfiledFunction(JSAtom *name, unsigned startCodeOffset, unsigned endCodeOffset,
+                                   unsigned line, unsigned column)
+    {
+        ProfiledFunction func(name, startCodeOffset, endCodeOffset, line, column);
+        return perfProfiledFunctions_.append(func);
+    }
+    unsigned numPerfFunctions() const {
+        return perfProfiledFunctions_.length();
+    }
+    const ProfiledFunction &perfProfiledFunction(unsigned i) const {
+        return perfProfiledFunctions_[i];
+    }
+
+    bool trackPerfProfiledBlocks(JSAtom *name, unsigned startCodeOffset, unsigned endCodeOffset, ion::PerfSpewer::BasicBlocksVector &basicBlocks) {
+        ProfiledBlocksFunction func(name, startCodeOffset, endCodeOffset, basicBlocks);
+        return perfProfiledBlocksFunctions_.append(func);
+    }
+    unsigned numPerfBlocksFunctions() const {
+        return perfProfiledBlocksFunctions_.length();
+    }
+    const ProfiledBlocksFunction perfProfiledBlocksFunction(unsigned i) const {
+        return perfProfiledBlocksFunctions_[i];
+    }
+#endif
     bool hasArrayView() const {
         return hasArrayView_;
     }
@@ -599,12 +652,12 @@ class AsmJSModule
     }
 
     void setFunctionBytes(size_t functionBytes) {
-        JS_ASSERT(functionBytes % gc::PageSize == 0);
+        JS_ASSERT(functionBytes % AsmJSPageSize == 0);
         functionBytes_ = functionBytes;
     }
     size_t functionBytes() const {
         JS_ASSERT(functionBytes_);
-        JS_ASSERT(functionBytes_ % gc::PageSize == 0);
+        JS_ASSERT(functionBytes_ % AsmJSPageSize == 0);
         return functionBytes_;
     }
     bool containsPC(void *pc) const {
@@ -613,11 +666,7 @@ class AsmJSModule
     }
 
     bool addHeapAccesses(const ion::AsmJSHeapAccessVector &accesses) {
-        if (!heapAccesses_.reserve(heapAccesses_.length() + accesses.length()))
-            return false;
-        for (size_t i = 0; i < accesses.length(); i++)
-            heapAccesses_.infallibleAppend(accesses[i]);
-        return true;
+        return heapAccesses_.append(accesses);
     }
     unsigned numHeapAccesses() const {
         return heapAccesses_.length();
@@ -630,11 +679,7 @@ class AsmJSModule
     }
 #if defined(JS_CPU_ARM)
     bool addBoundsChecks(const ion::AsmJSBoundsCheckVector &checks) {
-        if (!boundsChecks_.reserve(boundsChecks_.length() + checks.length()))
-            return false;
-        for (size_t i = 0; i < checks.length(); i++)
-            boundsChecks_.infallibleAppend(checks[i]);
-        return true;
+        return boundsChecks_.append(checks);
     }
     void convertBoundsChecksToActualOffset(ion::MacroAssembler &masm) {
         for (unsigned i = 0; i < boundsChecks_.length(); i++)
@@ -665,7 +710,7 @@ class AsmJSModule
 
 
     void takeOwnership(JSC::ExecutablePool *pool, uint8_t *code, size_t codeBytes, size_t totalBytes) {
-        JS_ASSERT(uintptr_t(code) % gc::PageSize == 0);
+        JS_ASSERT(uintptr_t(code) % AsmJSPageSize == 0);
         codePool_ = pool;
         code_ = code;
         codeBytes_ = codeBytes;
@@ -673,7 +718,7 @@ class AsmJSModule
     }
     uint8_t *functionCode() const {
         JS_ASSERT(code_);
-        JS_ASSERT(uintptr_t(code_) % gc::PageSize == 0);
+        JS_ASSERT(uintptr_t(code_) % AsmJSPageSize == 0);
         return code_;
     }
 
@@ -750,5 +795,4 @@ SetAsmJSModuleObject(JSFunction *moduleFun, JSObject *moduleObj);
 
 #endif  // JS_ION
 
-#endif  // jsion_asmjsmodule_h__
-
+#endif /* ion_AsmJSModule_h */

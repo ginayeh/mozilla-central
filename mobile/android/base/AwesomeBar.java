@@ -119,8 +119,6 @@ public class AwesomeBar extends GeckoActivity
                         mText.setText(text);
                         mText.setSelection(mText.getText().length());
                         mText.requestFocus();
-                        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                        imm.showSoftInput(mText, InputMethodManager.SHOW_IMPLICIT);
                     }
                 });
             }
@@ -197,7 +195,7 @@ public class AwesomeBar extends GeckoActivity
         mText.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if (keyCode == KeyEvent.KEYCODE_ENTER || GamepadUtils.isActionKey(event)) {
+                if (keyCode == KeyEvent.KEYCODE_ENTER) {
                     if (event.getAction() != KeyEvent.ACTION_DOWN)
                         return true;
 
@@ -218,7 +216,8 @@ public class AwesomeBar extends GeckoActivity
                     return;
                 }
 
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                InputMethodManager imm = (InputMethodManager)
+                    getSystemService(Context.INPUT_METHOD_SERVICE);
                 try {
                     imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
                 } catch (NullPointerException e) {
@@ -260,21 +259,6 @@ public class AwesomeBar extends GeckoActivity
             bookmarksTab.setShowReadingList(true);
             mAwesomeTabs.setCurrentItemByTag(bookmarksTab.getTag());
         }
-    }
-
-    /*
-     * Only one factory can be set on the inflater; however, we want to use two
-     * factories (GeckoViewsFactory and the FragmentActivity factory).
-     * Overriding onCreateView() here allows us to dispatch view creation to
-     * both factories.
-     */
-    @Override
-    public View onCreateView(String name, Context context, AttributeSet attrs) {
-        View view = GeckoViewsFactory.getInstance().onCreateView(name, context, attrs);
-        if (view == null) {
-            view = super.onCreateView(name, context, attrs);
-        }
-        return view;
     }
 
     private boolean handleBackKey() {
@@ -464,13 +448,12 @@ public class AwesomeBar extends GeckoActivity
             keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
             keyCode == KeyEvent.KEYCODE_DEL ||
             keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
-            keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            GamepadUtils.isActionKey(event)) {
             return super.onKeyDown(keyCode, event);
         } else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
              mText.setText("");
              mText.requestFocus();
-             InputMethodManager imm = (InputMethodManager) mText.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-             imm.showSoftInput(mText, InputMethodManager.SHOW_IMPLICIT);
              return true;
         } else {
             int prevSelStart = mText.getSelectionStart();

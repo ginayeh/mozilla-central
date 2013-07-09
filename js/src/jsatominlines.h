@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsatominlines_h___
-#define jsatominlines_h___
+#ifndef jsatominlines_h
+#define jsatominlines_h
 
 #include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
@@ -41,24 +41,20 @@ AtomToId(JSAtom *atom)
     return JSID_FROM_BITS(size_t(atom));
 }
 
-template <AllowGC allowGC>
-inline JSAtom *
-ToAtom(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v)
+inline bool
+ValueToIdPure(const Value &v, jsid *id)
 {
-    if (!v.isString()) {
-        JSString *str = js::ToStringSlow<allowGC>(cx, v);
-        if (!str)
-            return NULL;
-        JS::Anchor<JSString *> anchor(str);
-        return AtomizeString<allowGC>(cx, str);
+    int32_t i;
+    if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
+        *id = INT_TO_JSID(i);
+        return true;
     }
 
-    JSString *str = v.toString();
-    if (str->isAtom())
-        return &str->asAtom();
+    if (!v.isString() || !v.toString()->isAtom())
+        return false;
 
-    JS::Anchor<JSString *> anchor(str);
-    return AtomizeString<allowGC>(cx, str);
+    *id = AtomToId(&v.toString()->asAtom());
+    return true;
 }
 
 template <AllowGC allowGC>
@@ -128,12 +124,21 @@ IndexToId(JSContext *cx, uint32_t index, MutableHandleId idp)
 }
 
 inline bool
-IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
+IndexToIdPure(uint32_t index, jsid *idp)
 {
     if (index <= JSID_INT_MAX) {
         *idp = INT_TO_JSID(index);
         return true;
     }
+
+    return false;
+}
+
+inline bool
+IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
+{
+    if (IndexToIdPure(index, idp))
+        return true;
 
     return IndexToIdSlow<NoGC>(cx, index, idp);
 }
@@ -201,4 +206,4 @@ ClassName(JSProtoKey key, JSContext *cx)
 
 } // namespace js
 
-#endif /* jsatominlines_h___ */
+#endif /* jsatominlines_h */

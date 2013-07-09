@@ -36,7 +36,7 @@ DefineStaticJSVals(JSContext* cx)
 int HandlerFamily;
 
 js::DOMProxyShadowsResult
-DOMProxyShadows(JSContext* cx, JSHandleObject proxy, JSHandleId id)
+DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
 {
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
   if (v.isObject()) {
@@ -89,12 +89,6 @@ DOMProxyHandler::GetAndClearExpandoObject(JSObject* obj)
     if (v.isUndefined()) {
       return nullptr;
     }
-
-    nsISupports* native = UnwrapDOMObject<nsISupports>(obj);
-    nsWrapperCache* cache;
-    CallQueryInterface(native, &cache);
-    cache->SetPreservingWrapper(false);
-    nsContentUtils::DropJSObjects(native);
     expandoAndGeneration->expando = UndefinedValue();
   }
 
@@ -132,7 +126,7 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
   nsWrapperCache* cache;
   CallQueryInterface(native, &cache);
   if (expandoAndGeneration) {
-    nsContentUtils::PreserveWrapper(native, cache);
+    cache->PreserveWrapper(native);
     expandoAndGeneration->expando.setObject(*expando);
 
     return expando;
@@ -150,9 +144,11 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
 }
 
 bool
-DOMProxyHandler::isExtensible(JSObject *proxy)
+DOMProxyHandler::isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible)
 {
-  return true; // always extensible per WebIDL
+  // always extensible per WebIDL
+  *extensible = true;
+  return true;
 }
 
 bool

@@ -411,7 +411,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Construct IonJSFrameLayout.
     masm.ma_push(r0); // actual arguments.
-    masm.ma_push(r1); // calleeToken.
+    masm.pushCalleeToken(r1, mode);
     masm.ma_push(r6); // frame descriptor.
 
     // Call the target function.
@@ -634,6 +634,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         break;
 
       case Type_Int32:
+      case Type_Pointer:
         outReg = r4;
         regs.take(outReg);
         masm.reserveStack(sizeof(int32_t));
@@ -694,8 +695,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         masm.branch32(Assembler::NotEqual, r0, Imm32(TP_SUCCESS), &failure);
         break;
       default:
-        JS_NOT_REACHED("unknown failure kind");
-        break;
+        MOZ_ASSUME_UNREACHABLE("unknown failure kind");
     }
 
     // Load the outparam and free any allocated stack.
@@ -710,6 +710,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         break;
 
       case Type_Int32:
+      case Type_Pointer:
         masm.load32(Address(sp, 0), ReturnReg);
         masm.freeStack(sizeof(int32_t));
         break;

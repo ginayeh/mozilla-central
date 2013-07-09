@@ -4,14 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_frame_iterator_h__
-#define jsion_frame_iterator_h__
+#ifndef ion_IonFrameIterator_h
+#define ion_IonFrameIterator_h
 
 #ifdef JS_ION
 
 #include "jstypes.h"
-#include "IonCode.h"
-#include "SnapshotReader.h"
+#include "ion/IonCode.h"
+#include "ion/SnapshotReader.h"
 
 class JSFunction;
 class JSScript;
@@ -335,5 +335,4 @@ typedef InlineFrameIteratorMaybeGC<NoGC> InlineFrameIteratorNoGC;
 
 #endif // JS_ION
 
-#endif // jsion_frames_iterator_h__
-
+#endif /* ion_IonFrameIterator_h */

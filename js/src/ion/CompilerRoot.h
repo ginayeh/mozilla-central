@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_ion_gc_h__
-#define jsion_ion_gc_h__
+#ifndef ion_CompilerRoot_h
+#define ion_CompilerRoot_h
 
 #ifdef JS_ION
 
@@ -27,7 +27,7 @@ class CompilerRoot : public CompilerRootNode
       : CompilerRootNode(NULL)
     {
         if (ptr) {
-            JS_ASSERT(!IsInsideNursery(GetIonContext()->compartment->rt, ptr));
+            JS_ASSERT(!UninlinedIsInsideNursery(GetIonContext()->compartment->rt, ptr));
             setRoot(ptr);
         }
     }
@@ -65,5 +65,4 @@ typedef CompilerRoot<Value> CompilerRootValue;
 
 #endif // JS_ION
 
-#endif // jsion_ion_gc_h__
-
+#endif /* ion_CompilerRoot_h */

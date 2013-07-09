@@ -28,8 +28,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef ARMAssembler_h
-#define ARMAssembler_h
+#ifndef assembler_assembler_ARMAssembler_h
+#define assembler_assembler_ARMAssembler_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -38,7 +38,7 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "AssemblerBufferWithConstantPool.h"
+#include "assembler/assembler/AssemblerBufferWithConstantPool.h"
 #include "assembler/wtf/Assertions.h"
 
 // TODO: We don't print the condition code in our spew lines. Doing this
@@ -1549,7 +1549,7 @@ namespace JSC {
                             dblToFloat ? SD(dest) : DD(dest),
                             dblToFloat ? DM(src) : SM(src), 0);
             } else {
-                JS_NOT_REACHED("Other conversions did not seem useful on 2011/08/04");
+                MOZ_ASSUME_UNREACHABLE("Other conversions did not seem useful on 2011/08/04");
             }
         }
 
@@ -1705,4 +1705,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_TRADITIONAL)
 
-#endif // ARMAssembler_h
+#endif /* assembler_assembler_ARMAssembler_h */

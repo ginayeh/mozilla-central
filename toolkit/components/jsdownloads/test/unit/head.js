@@ -31,6 +31,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "HttpServer",
                                   "resource://testing-common/httpd.js");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+                                  "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
@@ -73,6 +75,8 @@ const TEST_INTERRUPTIBLE_GZIP_URI = NetUtil.newURI(HTTP_BASE +
                                                    TEST_INTERRUPTIBLE_GZIP_PATH);
 
 const TEST_TARGET_FILE_NAME = "test-download.txt";
+const TEST_STORE_FILE_NAME = "test-downloads.json";
+
 const TEST_DATA_SHORT = "This test string is downloaded.";
 // Generate using gzipCompressString in TelemetryPing.js.
 const TEST_DATA_SHORT_GZIP_ENCODED_FIRST = [
@@ -89,6 +93,7 @@ const TEST_DATA_SHORT_GZIP_ENCODED =
  */
 function run_test()
 {
+  do_get_profile();
   run_next_test();
 }
 
@@ -182,6 +187,32 @@ function promiseSimpleDownload(aSourceURI) {
 }
 
 /**
+ * Returns a new public DownloadList object.
+ *
+ * @return {Promise}
+ * @resolves The newly created DownloadList object.
+ * @rejects JavaScript exception.
+ */
+function promiseNewDownloadList() {
+  // Force the creation of a new public download list.
+  Downloads._promisePublicDownloadList = null;
+  return Downloads.getPublicDownloadList();
+}
+
+/**
+ * Returns a new private DownloadList object.
+ *
+ * @return {Promise}
+ * @resolves The newly created DownloadList object.
+ * @rejects JavaScript exception.
+ */
+function promiseNewPrivateDownloadList() {
+  // Force the creation of a new public download list.
+  Downloads._privateDownloadList = null;
+  return Downloads.getPrivateDownloadList();
+}
+
+/**
  * Ensures that the given file contents are equal to the given string.
  *
  * @param aFile
@@ -209,6 +240,39 @@ function promiseVerifyContents(aFile, aExpectedContents)
     }
     deferred.resolve();
   });
+  return deferred.promise;
+}
+
+/**
+ * Adds entry for download.
+ *
+ * @param aSourceURI
+ *        The nsIURI for the download source, or null to use TEST_SOURCE_URI.
+ *
+ * @return {Promise}
+ * @rejects JavaScript exception.
+ */
+function promiseAddDownloadToHistory(aSourceURI) {
+  let deferred = Promise.defer();
+  PlacesUtils.asyncHistory.updatePlaces(
+    {
+      uri: aSourceURI || TEST_SOURCE_URI,
+      visits: [{
+        transitionType: Ci.nsINavHistoryService.TRANSITION_DOWNLOAD,
+        visitDate:  Date.now()
+      }]
+    },
+    {
+      handleError: function handleError(aResultCode, aPlaceInfo) {
+        let ex = new Components.Exception("Unexpected error in adding visits.",
+                                          aResultCode);
+        deferred.reject(ex);
+      },
+      handleResult: function () {},
+      handleCompletion: function handleCompletion() {
+        deferred.resolve();
+      }
+    });
   return deferred.promise;
 }
 
@@ -384,4 +448,9 @@ add_task(function test_common_initialize()
       bos.writeByteArray(TEST_DATA_SHORT_GZIP_ENCODED_SECOND,
                          TEST_DATA_SHORT_GZIP_ENCODED_SECOND.length);
     });
+
+  // Disable integration with the host application requiring profile access.
+  DownloadIntegration.dontLoad = true;
+  // Disable the parental controls checking.
+  DownloadIntegration.dontCheckParentalControls = true;
 });

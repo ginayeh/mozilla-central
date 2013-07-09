@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsgc_nursery_h___
-#define jsgc_nursery_h___
+#ifndef gc_Nursery_h
+#define gc_Nursery_h
 
 #ifdef JSGC_GENERATIONAL
 
@@ -92,6 +92,9 @@ class Nursery
      */
     template <typename T>
     JS_ALWAYS_INLINE bool getForwardedPointer(T **ref);
+
+    /* Forward a slots/elements pointer stored in an Ion frame. */
+    void forwardBufferPointer(HeapSlot **pSlotsElems);
 
   private:
     /*
@@ -208,6 +211,11 @@ class Nursery
     size_t moveElementsToTenured(JSObject *dst, JSObject *src, gc::AllocKind dstKind);
     size_t moveSlotsToTenured(JSObject *dst, JSObject *src, gc::AllocKind dstKind);
 
+    /* Handle relocation of slots/elements pointers stored in Ion frames. */
+    void setSlotsForwardingPointer(HeapSlot *oldSlots, HeapSlot *newSlots, uint32_t nslots);
+    void setElementsForwardingPointer(ObjectElements *oldHeader, ObjectElements *newHeader,
+                                      uint32_t nelems);
+
     /* Handle fallback marking. See the comment in MarkStoreBuffer. */
     void markFallback(gc::Cell *cell);
     void moveFallbackToTenured(gc::MinorCollectionTracer *trc);
@@ -239,4 +247,4 @@ class Nursery
 } /* namespace js */
 
 #endif /* JSGC_GENERATIONAL */
-#endif /* jsgc_nursery_h___ */
+#endif /* gc_Nursery_h */

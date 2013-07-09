@@ -53,6 +53,7 @@ typedef char realGLboolean;
 #include "mozilla/Preferences.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/GenericRefCounted.h"
 
 namespace android {
     class GraphicBuffer;
@@ -83,12 +84,13 @@ typedef uintptr_t SharedTextureHandle;
 
 class GLContext
     : public GLLibraryLoader
+    , public GenericAtomicRefCounted
 {
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
-
 protected:
     typedef class gfx::SharedSurface SharedSurface;
     typedef gfx::SharedSurfaceType SharedSurfaceType;
+    typedef gfxASurface::gfxImageFormat ImageFormat;
+    typedef gfx::SurfaceFormat SurfaceFormat;
 
 public:
     typedef struct gfx::SurfaceCaps SurfaceCaps;
@@ -250,7 +252,7 @@ public:
     virtual GLLibraryEGL* GetLibraryEGL() { return nullptr; }
 
     virtual void MakeCurrent_EGLSurface(void* surf) {
-        MOZ_NOT_REACHED("Must be called against a GLContextEGL.");
+        MOZ_CRASH("Must be called against a GLContextEGL.");
     }
 
     /**
@@ -489,7 +491,7 @@ public:
 
     typedef struct {
         GLenum mTarget;
-        ShaderProgramType mProgramType;
+        SurfaceFormat mTextureFormat;
         gfx3DMatrix mTextureTransform;
     } SharedHandleDetails;
 
@@ -805,7 +807,7 @@ public:
                                                        GLenum aTextureFormat,
                                                        bool aYInvert = false);
 
-    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader);
+    already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, SurfaceFormat aFormat);
 
     /**
      * Call ReadPixels into an existing gfxImageSurface.
@@ -877,15 +879,15 @@ public:
      *  surface. This testure may be overridden, clients should not rely on
      *  the contents of this texture after this call or even on this
      *  texture unit being active.
-     * \return Shader program needed to render this texture.
+     * \return Surface format of this texture.
      */
-    ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface,
-                                             const nsIntRegion& aDstRegion,
-                                             GLuint& aTexture,
-                                             bool aOverwrite = false,
-                                             const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false,
-                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
+    SurfaceFormat UploadSurfaceToTexture(gfxASurface *aSurface,
+                                         const nsIntRegion& aDstRegion,
+                                         GLuint& aTexture,
+                                         bool aOverwrite = false,
+                                         const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
+                                         bool aPixelBuffer = false,
+                                         GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
 
 
     void TexImage2D(GLenum target, GLint level, GLint internalformat,
@@ -1026,6 +1028,9 @@ public:
         OES_element_index_uint,
         OES_vertex_array_object,
         ARB_vertex_array_object,
+        APPLE_vertex_array_object,
+        ARB_draw_buffers,
+        EXT_draw_buffers,
         Extensions_Max
     };
 
@@ -1813,7 +1818,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fDrawBuffers(GLsizei n, GLenum* bufs) {
+    void fDrawBuffers(GLsizei n, const GLenum* bufs) {
         BEFORE_GL_CALL;
         mSymbols.fDrawBuffers(n, bufs);
         AFTER_GL_CALL;

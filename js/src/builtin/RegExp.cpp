@@ -4,11 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "builtin/RegExp.h"
+
 #include "jscntxt.h"
 
 #include "vm/StringBuffer.h"
-
-#include "builtin/RegExp.h"
 
 #include "jsobjinlines.h"
 
@@ -329,7 +329,7 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (!IsConstructing(args)) {
+    if (!args.isConstructing()) {
         /*
          * If first arg is regexp and no flags are given, just return the arg.
          * Otherwise, delegate to the standard constructor.
@@ -493,7 +493,7 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &RegExpObject::class_));
     if (!proto)
@@ -544,7 +544,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
         return RegExpRunStatus_Error;
 
     /* Step 4. */
-    Value lastIndex = reobj->getLastIndex();
+    RootedValue lastIndex(cx, reobj->getLastIndex());
     size_t length = input->length();
 
     /* Step 5. */

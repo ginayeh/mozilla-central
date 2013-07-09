@@ -4,30 +4,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_baseline_compiler_h__
-#define jsion_baseline_compiler_h__
+#ifndef ion_BaselineCompiler_h
+#define ion_BaselineCompiler_h
 
 #ifdef JS_ION
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "IonCode.h"
+#include "ion/IonCode.h"
 #include "jsinfer.h"
 
 #include "vm/Interpreter.h"
 
-#include "IonAllocPolicy.h"
-#include "BaselineJIT.h"
-#include "BaselineIC.h"
-#include "FixedList.h"
-#include "BytecodeAnalysis.h"
+#include "ion/IonAllocPolicy.h"
+#include "ion/BaselineJIT.h"
+#include "ion/BaselineIC.h"
+#include "ion/FixedList.h"
+#include "ion/BytecodeAnalysis.h"
 
 #if defined(JS_CPU_X86)
-# include "x86/BaselineCompiler-x86.h"
+# include "ion/x86/BaselineCompiler-x86.h"
 #elif defined(JS_CPU_X64)
-# include "x64/BaselineCompiler-x64.h"
+# include "ion/x64/BaselineCompiler-x64.h"
 #else
-# include "arm/BaselineCompiler-arm.h"
+# include "ion/arm/BaselineCompiler-arm.h"
 #endif
 
 namespace js {
@@ -154,6 +154,9 @@ namespace ion {
     _(JSOP_SETCALL)            \
     _(JSOP_THROW)              \
     _(JSOP_TRY)                \
+    _(JSOP_FINALLY)            \
+    _(JSOP_GOSUB)              \
+    _(JSOP_RETSUB)             \
     _(JSOP_ENTERBLOCK)         \
     _(JSOP_ENTERLET0)          \
     _(JSOP_ENTERLET1)          \
@@ -181,9 +184,9 @@ namespace ion {
 class BaselineCompiler : public BaselineCompilerSpecific
 {
     FixedList<Label>            labels_;
-    HeapLabel *                 return_;
+    NonAssertingLabel           return_;
 #ifdef JSGC_GENERATIONAL
-    HeapLabel *                 postBarrierSlot_;
+    NonAssertingLabel           postBarrierSlot_;
 #endif
 
     // Native code offset right before the scope chain is initialized.
@@ -269,5 +272,4 @@ class BaselineCompiler : public BaselineCompilerSpecific
 
 #endif // JS_ION
 
-#endif // jsion_baseline_compiler_h__
-
+#endif /* ion_BaselineCompiler_h */

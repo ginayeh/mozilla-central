@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_architecture_arm_h__
-#define jsion_architecture_arm_h__
+#ifndef ion_arm_Architecture_arm_h
+#define ion_arm_Architecture_arm_h
 
 #include <limits.h>
 // gcc appears to use __ARM_PCS_VFP to denote that the target is a hard-float target.
@@ -211,8 +211,9 @@ bool hasMOVWT();
 bool hasVFPv3();
 bool hasVFP();
 bool has16DP();
+bool hasIDIV();
 
 } // namespace ion
 } // namespace js
 
-#endif // jsion_architecture_arm_h__
+#endif /* ion_arm_Architecture_arm_h */

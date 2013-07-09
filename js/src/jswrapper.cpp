@@ -13,6 +13,8 @@
 #include "jsgc.h"
 #include "jsiter.h"
 
+#include "vm/ErrorObject.h"
+
 #include "jsobjinlines.h"
 
 #include "builtin/Iterator-inl.h"
@@ -138,7 +140,9 @@ ErrorCopier::~ErrorCopier()
     JSContext *cx = ac.ref().context();
     if (ac.ref().origin() != cx->compartment() && cx->isExceptionPending()) {
         RootedValue exc(cx, cx->getPendingException());
-        if (exc.isObject() && exc.toObject().isError() && exc.toObject().getPrivate()) {
+        if (exc.isObject() && exc.toObject().is<ErrorObject>() &&
+            exc.toObject().as<ErrorObject>().getExnPrivate())
+        {
             cx->clearPendingException();
             ac.destroy();
             Rooted<JSObject*> errObj(cx, &exc.toObject());
@@ -187,18 +191,12 @@ bool CrossCompartmentWrapper::finalizeInBackground(Value priv)
 #define NOTHING (true)
 
 bool
-CrossCompartmentWrapper::isExtensible(JSObject *wrapper)
+CrossCompartmentWrapper::isExtensible(JSContext *cx, HandleObject wrapper, bool *extensible)
 {
-    // The lack of a context to enter a compartment here is troublesome.  We
-    // don't know anything about the wrapped object (it might even be a
-    // proxy!), and embeddings' proxy handlers could theoretically trigger
-    // compartment mismatches here (because isExtensible wouldn't be called in
-    // the wrapped object's compartment.  But that's probably not very likely.
-    // (Famous last words.)
-    //
-    // Given that we're likely going to make this method take a context and
-    // maybe be fallible at some point, punt on the issue for now.
-    return wrappedObject(wrapper)->isExtensible();
+    PIERCE(cx, wrapper,
+           NOTHING,
+           Wrapper::isExtensible(cx, wrapper, extensible),
+           NOTHING);
 }
 
 bool
@@ -479,8 +477,8 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
     RootedObject wrapped(cx, wrappedObject(wrapper));
     {
         AutoCompartment call(cx, wrapped);
-        InvokeArgsGuard dstArgs;
-        if (!cx->stack.pushInvokeArgs(cx, srcArgs.length(), &dstArgs))
+        InvokeArgs dstArgs(cx);
+        if (!dstArgs.init(srcArgs.length()))
             return false;
 
         Value *src = srcArgs.base();
@@ -513,7 +511,6 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
             return false;
 
         srcArgs.rval().set(dstArgs.rval());
-        dstArgs.pop();
     }
     return cx->compartment()->wrap(cx, srcArgs.rval());
 }
@@ -602,11 +599,12 @@ SecurityWrapper<Base>::SecurityWrapper(unsigned flags)
 
 template <class Base>
 bool
-SecurityWrapper<Base>::isExtensible(JSObject *wrapper)
+SecurityWrapper<Base>::isExtensible(JSContext *cx, HandleObject wrapper, bool *extensible)
 {
     // Just like BaseProxyHandler, SecurityWrappers claim by default to always
     // be extensible, so as not to leak information about the state of the
     // underlying wrapped thing.
+    *extensible = true;
     return true;
 }
 
@@ -688,10 +686,11 @@ DeadObjectProxy::DeadObjectProxy()
 }
 
 bool
-DeadObjectProxy::isExtensible(JSObject *proxy)
+DeadObjectProxy::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
 {
     // This is kind of meaningless, but dead-object semantics aside,
     // [[Extensible]] always being true is consistent with other proxy types.
+    *extensible = true;
     return true;
 }
 

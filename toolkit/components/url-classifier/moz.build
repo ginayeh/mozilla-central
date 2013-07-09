@@ -41,3 +41,9 @@ EXTRA_PP_COMPONENTS += [
     'nsUrlClassifierLib.js',
     'nsUrlClassifierListManager.js',
 ]
+
+LIBRARY_NAME = 'urlclassifier_s'
+
+EXTRA_JS_MODULES += [
+    'SafeBrowsing.jsm',
+]

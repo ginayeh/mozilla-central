@@ -4,13 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsfriendapi_h___
-#define jsfriendapi_h___
+#ifndef jsfriendapi_h
+#define jsfriendapi_h
 
-#include "mozilla/GuardObjects.h"
+#include "mozilla/MemoryReporting.h"
 
 #include "jsclass.h"
-#include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jsprvtd.h"
 
@@ -55,7 +54,7 @@ extern JS_FRIEND_API(JSObject *)
 JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
 extern JS_FRIEND_API(uint32_t)
-JS_ObjectCountDynamicSlots(JSHandleObject obj);
+JS_ObjectCountDynamicSlots(JS::HandleObject obj);
 
 extern JS_FRIEND_API(size_t)
 JS_SetProtoCalled(JSContext *cx);
@@ -125,13 +124,20 @@ extern JS_FRIEND_API(JSObject *)
 JS_CloneObject(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent);
 
 extern JS_FRIEND_API(JSString *)
-JS_BasicObjectToString(JSContext *cx, JSHandleObject obj);
+JS_BasicObjectToString(JSContext *cx, JS::HandleObject obj);
 
 extern JS_FRIEND_API(JSBool)
-js_GetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+js_GetterOnlyPropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JSBool strict,
+                          JS::MutableHandleValue vp);
 
 JS_FRIEND_API(void)
 js_ReportOverRecursed(JSContext *maybecx);
+
+JS_FRIEND_API(bool)
+js_ObjectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
+
+JS_FRIEND_API(const char *)
+js_ObjectClassName(JSContext *cx, JS::HandleObject obj);
 
 #ifdef DEBUG
 
@@ -164,7 +170,7 @@ extern JS_FRIEND_API(JSBool)
 JS_WrapAutoIdVector(JSContext *cx, JS::AutoIdVector &props);
 
 extern JS_FRIEND_API(JSBool)
-JS_EnumerateState(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
+JS_EnumerateState(JSContext *cx, JS::HandleObject obj, JSIterateOp enum_op,
                   js::MutableHandleValue statep, js::MutableHandleId idp);
 
 struct JSFunctionSpecWithHelp {
@@ -232,7 +238,7 @@ class JS_FRIEND_API(AutoSwitchCompartment) {
   public:
     AutoSwitchCompartment(JSContext *cx, JSCompartment *newCompartment
                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    AutoSwitchCompartment(JSContext *cx, JSHandleObject target
+    AutoSwitchCompartment(JSContext *cx, JS::HandleObject target
                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~AutoSwitchCompartment();
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -309,7 +315,7 @@ IterateGrayObjects(JS::Zone *zone, GCThingCallback cellCallback, void *data);
 
 #ifdef JS_HAS_CTYPES
 extern JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
+SizeOfDataIfCDataObject(mozilla::MallocSizeOf mallocSizeOf, JSObject *obj);
 #endif
 
 extern JS_FRIEND_API(JSCompartment *)
@@ -381,7 +387,6 @@ struct Atom {
 
 } /* namespace shadow */
 
-extern JS_FRIEND_DATA(js::Class) FunctionClass;
 extern JS_FRIEND_DATA(js::Class) FunctionProxyClass;
 extern JS_FRIEND_DATA(js::Class) OuterWindowProxyClass;
 extern JS_FRIEND_DATA(js::Class) ObjectProxyClass;
@@ -408,6 +413,9 @@ inline bool
 IsOuterObject(JSObject *obj) {
     return !!GetObjectClass(obj)->ext.innerObject;
 }
+
+JS_FRIEND_API(bool)
+IsFunctionObject(JSObject *obj);
 
 JS_FRIEND_API(bool)
 IsScopeObject(JSObject *obj);
@@ -782,7 +790,7 @@ extern JS_FRIEND_API(AnalysisPurgeCallback)
 SetAnalysisPurgeCallback(JSRuntime *rt, AnalysisPurgeCallback callback);
 
 typedef JSBool
-(* DOMInstanceClassMatchesProto)(JSHandleObject protoObject, uint32_t protoID,
+(* DOMInstanceClassMatchesProto)(JS::HandleObject protoObject, uint32_t protoID,
                                  uint32_t depth);
 struct JSDOMCallbacks {
     DOMInstanceClassMatchesProto instanceClassMatchesProto;
@@ -895,6 +903,12 @@ struct ExpandoAndGeneration {
       generation(0)
   {}
 
+  void Unlink()
+  {
+      ++generation;
+      expando.setUndefined();
+  }
+
   JS::Heap<JS::Value> expando;
   uint32_t generation;
 };
@@ -906,7 +920,7 @@ typedef enum DOMProxyShadowsResult {
   DoesntShadowUnique
 } DOMProxyShadowsResult;
 typedef DOMProxyShadowsResult
-(* DOMProxyShadowsCheck)(JSContext* cx, JSHandleObject object, JSHandleId id);
+(* DOMProxyShadowsCheck)(JSContext* cx, JS::HandleObject object, JS::HandleId id);
 JS_FRIEND_API(void)
 SetDOMProxyInformation(void *domProxyHandlerFamily, uint32_t domProxyExpandoSlot,
                        DOMProxyShadowsCheck domProxyShadowsCheck);
@@ -1533,13 +1547,13 @@ struct JSJitMethodCallArgsTraits
  * available to general JSAPI users, but we are not currently ready to do so.
  */
 typedef bool
-(* JSJitGetterOp)(JSContext *cx, JSHandleObject thisObj,
+(* JSJitGetterOp)(JSContext *cx, JS::HandleObject thisObj,
                   void *specializedThis, JSJitGetterCallArgs args);
 typedef bool
-(* JSJitSetterOp)(JSContext *cx, JSHandleObject thisObj,
+(* JSJitSetterOp)(JSContext *cx, JS::HandleObject thisObj,
                   void *specializedThis, JSJitSetterCallArgs args);
 typedef bool
-(* JSJitMethodOp)(JSContext *cx, JSHandleObject thisObj,
+(* JSJitMethodOp)(JSContext *cx, JS::HandleObject thisObj,
                   void *specializedThis, const JSJitMethodCallArgs& args);
 
 struct JSJitInfo {
@@ -1568,7 +1582,7 @@ struct JSJitInfo {
 static JS_ALWAYS_INLINE const JSJitInfo *
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
 {
-    JS_ASSERT(js::GetObjectClass(&v.toObject()) == &js::FunctionClass);
+    JS_ASSERT(js::GetObjectClass(&v.toObject()) == js::FunctionClassPtr);
     return reinterpret_cast<js::shadow::Function *>(&v.toObject())->jitinfo;
 }
 
@@ -1720,8 +1734,8 @@ assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id);
 inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id) {};
 #endif
 
-typedef JSObject *
-(* ObjectMetadataCallback)(JSContext *cx);
+typedef bool
+(* ObjectMetadataCallback)(JSContext *cx, JSObject **pmetadata);
 
 /*
  * Specify a callback to invoke when creating each JS object in the current
@@ -1735,14 +1749,14 @@ SetObjectMetadataCallback(JSContext *cx, ObjectMetadataCallback callback);
 /* Manipulate the metadata associated with an object. */
 
 JS_FRIEND_API(bool)
-SetObjectMetadata(JSContext *cx, JSHandleObject obj, JSHandleObject metadata);
+SetObjectMetadata(JSContext *cx, JS::HandleObject obj, JS::HandleObject metadata);
 
 JS_FRIEND_API(JSObject *)
 GetObjectMetadata(JSObject *obj);
 
 /* ES5 8.12.8. */
 extern JS_FRIEND_API(JSBool)
-DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
+DefaultValue(JSContext *cx, JS::HandleObject obj, JSType hint, MutableHandleValue vp);
 
 
 } /* namespace js */
@@ -1754,4 +1768,12 @@ js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
 extern JS_FRIEND_API(JSBool)
 js_ReportIsNotFunction(JSContext *cx, const JS::Value& v);
 
-#endif /* jsfriendapi_h___ */
+#ifdef JSGC_GENERATIONAL
+extern JS_FRIEND_API(void)
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key);
+#else
+inline void
+JS_StorePostBarrierCallback(JSContext* cx, void (*callback)(JSTracer *trc, void *key), void *key) {}
+#endif /* JSGC_GENERATIONAL */
+
+#endif /* jsfriendapi_h */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef Shape_inl_h__
-#define Shape_inl_h__
+#ifndef vm_Shape_inl_h
+#define vm_Shape_inl_h
 
 #include "mozilla/PodOperations.h"
 
@@ -25,8 +25,6 @@
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
 #include "jsgcinlines.h"
-
-#include "vm/ScopeObject-inl.h"
 
 namespace js {
 
@@ -299,13 +297,14 @@ Shape::getUserId(JSContext *cx, MutableHandleId idp) const
 }
 
 inline bool
-Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, MutableHandleValue vp)
+Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
+           MutableHandleValue vp)
 {
     JS_ASSERT(!hasDefaultGetter());
 
     if (hasGetterValue()) {
         Value fval = getterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp.address());
+        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp);
     }
 
     Rooted<Shape *> self(cx, this);
@@ -317,13 +316,14 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, 
 }
 
 inline bool
-Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, MutableHandleValue vp)
+Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
+           MutableHandleValue vp)
 {
     JS_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
 
     if (attrs & JSPROP_SETTER) {
         Value fval = setterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp.address());
+        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp);
     }
 
     if (attrs & JSPROP_GETTER)
@@ -338,8 +338,8 @@ Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, 
      * |with (it) color='red';| ends up here.
      * Avoid exposing the With object to native setters.
      */
-    if (obj->isWith()) {
-        RootedObject nobj(cx, &obj->asWith().object());
+    if (obj->is<WithObject>()) {
+        RootedObject nobj(cx, &obj->as<WithObject>().object());
         return CallJSPropertyOpSetter(cx, self->setterOp(), nobj, id, strict, vp);
     }
 
@@ -429,11 +429,6 @@ Shape::writeBarrierPre(Shape *shape)
 }
 
 inline void
-Shape::writeBarrierPost(Shape *shape, void *addr)
-{
-}
-
-inline void
 Shape::readBarrier(Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
@@ -469,11 +464,6 @@ BaseShape::writeBarrierPre(BaseShape *base)
         JS_ASSERT(tmp == base);
     }
 #endif
-}
-
-inline void
-BaseShape::writeBarrierPost(BaseShape *shape, void *addr)
-{
 }
 
 inline void
@@ -543,4 +533,4 @@ GetShapeAttributes(HandleShape shape)
 
 } /* namespace js */
 
-#endif /* Shape_inl_h__ */
+#endif /* vm_Shape_inl_h */

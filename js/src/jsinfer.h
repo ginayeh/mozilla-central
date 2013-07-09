@@ -6,10 +6,10 @@
 
 /* Definitions related to javascript type inference. */
 
-#ifndef jsinfer_h___
-#define jsinfer_h___
+#ifndef jsinfer_h
+#define jsinfer_h
 
-#include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 
 #include "jsalloc.h"
 #include "jsfriendapi.h"
@@ -51,14 +51,14 @@ struct RootKind<TaggedProto>
     static ThingRootKind rootKind() { return THING_ROOT_OBJECT; }
 };
 
-template <> struct RootMethods<const TaggedProto>
+template <> struct GCMethods<const TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
     static bool poisoned(const TaggedProto &v) { return IsPoisonedPtr(v.raw()); }
 };
 
-template <> struct RootMethods<TaggedProto>
+template <> struct GCMethods<TaggedProto>
 {
     static TaggedProto initial() { return TaggedProto(); }
     static ThingRootKind kind() { return THING_ROOT_OBJECT; }
@@ -626,7 +626,7 @@ class StackTypeSet : public TypeSet
     /* Get the prototype shared by all objects in this set, or NULL. */
     JSObject *getCommonPrototype();
 
-    /* Get the typed array type of all objects in this set, or TypedArray::TYPE_MAX. */
+    /* Get the typed array type of all objects in this set, or TypedArrayObject::TYPE_MAX. */
     int getTypedArrayType();
 
     /* Whether all objects have JSCLASS_IS_DOMJSCLASS set. */
@@ -914,7 +914,7 @@ struct TypeNewScript
     Initializer *initializerList;
 
     static inline void writeBarrierPre(TypeNewScript *newScript);
-    static inline void writeBarrierPost(TypeNewScript *newScript, void *addr);
+    static void writeBarrierPost(TypeNewScript *newScript, void *addr) {}
 };
 
 /*
@@ -1088,7 +1088,7 @@ struct TypeObject : gc::Cell
     inline void clearProperties();
     inline void sweep(FreeOp *fop);
 
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf);
+    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
     /*
      * Type objects don't have explicit finalizers. Memory owned by a type
@@ -1100,7 +1100,7 @@ struct TypeObject : gc::Cell
     JS::Zone *zone() const { return tenuredZone(); }
 
     static inline void writeBarrierPre(TypeObject *type);
-    static inline void writeBarrierPost(TypeObject *type, void *addr);
+    static void writeBarrierPost(TypeObject *type, void *addr) {}
     static inline void readBarrier(TypeObject *type);
 
     static inline ThingRootKind rootKind() { return THING_ROOT_TYPE_OBJECT; }
@@ -1135,6 +1135,9 @@ typedef HashSet<ReadBarriered<TypeObject>, TypeObjectEntry, SystemAllocPolicy> T
 /* Whether to use a new type object when calling 'new' at script/pc. */
 bool
 UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc);
+
+bool
+UseNewTypeForClone(JSFunction *fun);
 
 /*
  * Whether Array.prototype, or an object on its proto chain, has an
@@ -1507,4 +1510,4 @@ MOZ_NORETURN void TypeFailure(JSContext *cx, const char *fmt, ...);
 } /* namespace types */
 } /* namespace js */
 
-#endif // jsinfer_h___
+#endif /* jsinfer_h */

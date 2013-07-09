@@ -66,17 +66,22 @@ class TerminalLoggingHandler(logging.Handler):
     def emit(self, record):
         msg = self.format(record)
 
-        if self.footer:
-            self.footer.clear()
+        self.acquire()
 
-        self.fh.write(msg)
-        self.fh.write('\n')
+        try:
+            if self.footer:
+                self.footer.clear()
 
-        if self.footer:
-            self.footer.draw()
+            self.fh.write(msg)
+            self.fh.write('\n')
 
-        # If we don't flush, the footer may not get drawn.
-        self.flush()
+            if self.footer:
+                self.footer.draw()
+
+            # If we don't flush, the footer may not get drawn.
+            self.fh.flush()
+        finally:
+            self.release()
 
 
 class BuildProgressFooter(object):
@@ -94,13 +99,8 @@ class BuildProgressFooter(object):
         self._monitor = monitor
 
     def _clear_lines(self, n):
-        for i in range(n):
-            self._fh.write(self._t.move_x(0))
-            self._fh.write(self._t.clear_eol())
-            self._fh.write(self._t.move_up())
-
-        self._fh.write(self._t.move_down())
-        self._fh.write(self._t.move_x(0))
+        self._fh.write(self._t.move(self._t.height - n, 0))
+        self._fh.write(self._t.clear_eos())
 
     def clear(self):
         """Removes the footer from the current terminal."""
@@ -203,12 +203,12 @@ class BuildOutputManager(LoggingMixin):
         self.t = terminal
         self.footer = BuildProgressFooter(terminal, monitor)
 
-        handler = TerminalLoggingHandler()
-        handler.setFormatter(log_manager.terminal_formatter)
-        handler.footer = self.footer
+        self.handler = TerminalLoggingHandler()
+        self.handler.setFormatter(log_manager.terminal_formatter)
+        self.handler.footer = self.footer
 
-        old = log_manager.replace_terminal_handler(handler)
-        handler.level = old.level
+        old = log_manager.replace_terminal_handler(self.handler)
+        self.handler.level = old.level
 
     def __enter__(self):
         return self
@@ -243,7 +243,14 @@ class BuildOutputManager(LoggingMixin):
         if relevant:
             self.log(logging.INFO, 'build_output', {'line': line}, '{line}')
         elif state_changed:
-            self.refresh()
+            have_handler = hasattr(self, 'handler')
+            if have_handler:
+                self.handler.acquire()
+            try:
+                self.refresh()
+            finally:
+                if have_handler:
+                    self.handler.release()
 
 
 @CommandProvider

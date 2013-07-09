@@ -38,8 +38,8 @@ public:
     , mScrollOffset(0, 0)
     , mScrollId(NULL_SCROLL_ID)
     , mScrollableRect(0, 0, 0, 0)
-    , mResolution(1, 1)
-    , mZoom(1, 1)
+    , mResolution(1)
+    , mZoom(1)
     , mDevPixelsPerCSSPixel(1)
     , mMayHaveTouchListeners(false)
     , mPresShellId(-1)
@@ -84,18 +84,39 @@ public:
     return mScrollId != NULL_SCROLL_ID;
   }
 
-  gfxSize LayersPixelsPerCSSPixel() const
+  CSSToLayerScale LayersPixelsPerCSSPixel() const
   {
     return mResolution * mDevPixelsPerCSSPixel;
   }
 
-  gfx::Point GetScrollOffsetInLayerPixels() const
+  LayerPoint GetScrollOffsetInLayerPixels() const
   {
-    return gfx::Point(
-      static_cast<gfx::Float>(
-        mScrollOffset.x * LayersPixelsPerCSSPixel().width),
-      static_cast<gfx::Float>(
-        mScrollOffset.y * LayersPixelsPerCSSPixel().height));
+    return mScrollOffset * LayersPixelsPerCSSPixel();
+  }
+
+  /**
+   * Return the scale factor needed to fit the viewport
+   * into its composition bounds.
+   */
+  CSSToScreenScale CalculateIntrinsicScale() const
+  {
+    return CSSToScreenScale(float(mCompositionBounds.width) / float(mViewport.width));
+  }
+
+  /**
+   * Return the resolution that content should be rendered at given
+   * the configuration in this metrics object: viewport dimensions,
+   * zoom factor, etc. (The mResolution member of this metrics is
+   * ignored.)
+   */
+  CSSToScreenScale CalculateResolution() const
+  {
+    return CalculateIntrinsicScale() * mZoom;
+  }
+
+  CSSRect CalculateCompositedRectInCssPixels() const
+  {
+    return CSSRect(gfx::RoundedIn(mCompositionBounds / CalculateResolution()));
   }
 
   // ---------------------------------------------------------------------------
@@ -138,7 +159,7 @@ public:
   //
   // To pre-render a margin of 100 CSS pixels around the window,
   // { x = -100, y = - 100,
-  //   width = window.innerWidth + 100, height = window.innerHeight + 100 }
+  //   width = window.innerWidth + 200, height = window.innerHeight + 200 }
   //
   // This is only valid on the root layer. Nested iframes do not have a
   // displayport set on them. See bug 775452.
@@ -172,8 +193,8 @@ public:
   //
   // It is required that the rect:
   // { x = mScrollOffset.x, y = mScrollOffset.y,
-  //   width = mCompositionBounds.x / mResolution.width,
-  //   height = mCompositionBounds.y / mResolution.height }
+  //   width = mCompositionBounds.x / mResolution.scale,
+  //   height = mCompositionBounds.y / mResolution.scale }
   // Be within |mScrollableRect|.
   //
   // This is valid for any layer, but is always relative to this frame and
@@ -209,28 +230,27 @@ public:
   // post-multiplied into the parent's transform. Since this only happens when
   // we walk the layer tree, the resulting transform isn't stored here. Thus the
   // resolution of parent layers is opaque to this metric.
-  gfxSize mResolution;
+  LayoutDeviceToLayerScale mResolution;
 
   // The resolution-independent "user zoom".  For example, if a page
   // configures the viewport to a zoom value of 2x, then this member
   // will always be 2.0 no matter what the viewport or composition
   // bounds.
   //
-  // In the steady state (no animations), and ignoring DPI, then the
-  // following is usually true
+  // In the steady state (no animations), the following is usually true
   //
   //  intrinsicScale = (mCompositionBounds / mViewport)
-  //  mResolution = mZoom * intrinsicScale
+  //  mResolution = mZoom * intrinsicScale / mDevPixelsPerCSSPixel
   //
   // When this is not true, we're probably asynchronously sampling a
   // zoom animation for content.
-  gfxSize mZoom;
+  ScreenToScreenScale mZoom;
 
   // The conversion factor between CSS pixels and device pixels for this frame.
   // This can vary based on a variety of things, such as reflowing-zoom. The
   // conversion factor for device pixels to layers pixels is just the
   // resolution.
-  float mDevPixelsPerCSSPixel;
+  CSSToLayoutDeviceScale mDevPixelsPerCSSPixel;
 
   // Whether or not this frame may have touch listeners.
   bool mMayHaveTouchListeners;

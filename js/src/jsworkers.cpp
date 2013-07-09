@@ -8,6 +8,8 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "prmjtime.h"
+
 #ifdef JS_PARALLEL_COMPILATION
 # include "ion/AsmJS.h"
 # include "ion/IonBuilder.h"
@@ -442,15 +444,13 @@ WorkerThread::threadLoop()
 bool
 js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 {
-    JS_NOT_REACHED("Off thread compilation not available in non-THREADSAFE builds");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("Off thread compilation not available in non-THREADSAFE builds");
 }
 
 bool
 js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 {
-    JS_NOT_REACHED("Off thread compilation not available in non-THREADSAFE builds");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("Off thread compilation not available in non-THREADSAFE builds");
 }
 
 void

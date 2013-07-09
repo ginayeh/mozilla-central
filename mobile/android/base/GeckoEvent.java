@@ -64,8 +64,9 @@ public class GeckoEvent {
         NATIVE_GESTURE_EVENT(31),
         IME_KEY_EVENT(32),
         CALL_OBSERVER(33),
-        LOW_MEMORY(34),
-        NETWORK_LINK_CHANGE(35);
+        REMOVE_OBSERVER(34),
+        LOW_MEMORY(35),
+        NETWORK_LINK_CHANGE(36);
 
         public final int value;
 
@@ -425,6 +426,13 @@ public class GeckoEvent {
                 mPointRadii[index] = new Point((int)size,(int)size);
                 mOrientations[index] = 0;
             }
+            if (!keepInViewCoordinates) {
+                // If we are converting to gecko CSS pixels, then we should adjust the
+                // radii as well
+                float zoom = GeckoAppShell.getLayerView().getViewportMetrics().zoomFactor;
+                mPointRadii[index].x /= zoom;
+                mPointRadii[index].y /= zoom;
+            }
             mPressures[index] = event.getPressure(eventIndex);
         } catch (Exception ex) {
             Log.e(LOGTAG, "Error creating motion point " + index, ex);
@@ -598,7 +606,7 @@ public class GeckoEvent {
     public static GeckoEvent createViewportEvent(ImmutableViewportMetrics metrics, DisplayPortMetrics displayPort) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.VIEWPORT);
         event.mCharacters = "Viewport:Change";
-        StringBuffer sb = new StringBuffer(256);
+        StringBuilder sb = new StringBuilder(256);
         sb.append("{ \"x\" : ").append(metrics.viewportRectLeft)
           .append(", \"y\" : ").append(metrics.viewportRectTop)
           .append(", \"zoom\" : ").append(metrics.zoomFactor)
@@ -666,6 +674,12 @@ public class GeckoEvent {
         event.mCharacters = observerKey;
         event.mCharactersExtra = topic;
         event.mData = data;
+        return event;
+    }
+
+    public static GeckoEvent createRemoveObserverEvent(String observerKey) {
+        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.REMOVE_OBSERVER);
+        event.mCharacters = observerKey;
         return event;
     }
 

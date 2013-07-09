@@ -18,8 +18,6 @@ endif
 LIBRARY_NAME	= gklayout
 MSVC_ENABLE_PGO := 1
 EXPORT_LIBRARY = 1
-IS_COMPONENT	= 1
-MODULE_NAME	= nsLayoutModule
 LIBXUL_LIBRARY	= 1
 FAIL_ON_WARNINGS = 1
 
@@ -101,6 +99,13 @@ SHARED_LIBRARY_LIBS += \
 	$(NULL)
 LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system/windows \
+	$(NULL)
+else ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/dom/system/mac/$(LIB_PREFIX)domsystemmac_s.$(LIB_SUFFIX) \
+	$(NULL)
+LOCAL_INCLUDES	+= \
+	-I$(topsrcdir)/dom/system/mac \
 	$(NULL)
 else ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
@@ -185,6 +190,10 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
+SHARED_LIBRARY_LIBS 	+= \
+	$(DEPTH)/content/media/mediasource/$(LIB_PREFIX)gkconmediasource_s.$(LIB_SUFFIX) \
+	$(NULL)
+
 ifdef MOZ_DASH
 SHARED_LIBRARY_LIBS += \
   $(DEPTH)/content/media/dash/$(LIB_PREFIX)gkcondash_s.$(LIB_SUFFIX) \
@@ -255,6 +264,11 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 ifdef MOZ_GSTREAMER
 EXTRA_DSO_LDOPTS += $(GSTREAMER_LIBS)
 endif
+endif
+
+ifdef MOZ_GAMEPAD
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/dom/gamepad/$(LIB_PREFIX)domgamepad_s.$(LIB_SUFFIX)
 endif
 
 include $(topsrcdir)/config/config.mk

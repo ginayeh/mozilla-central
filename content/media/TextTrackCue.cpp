@@ -19,7 +19,7 @@ NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_4(TextTrackCue,
                                         mGlobal,
                                         mTrack,
                                         mTrackElement,
-                                        mCueDiv)
+                                        mDisplayState)
 
 NS_IMPL_ADDREF_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
@@ -48,6 +48,7 @@ TextTrackCue::TextTrackCue(nsISupports* aGlobal,
   , mStartTime(aStartTime)
   , mEndTime(aEndTime)
   , mHead(nullptr)
+  , mReset(false)
 {
   SetDefaultCueSettings();
   MOZ_ASSERT(aGlobal);
@@ -66,6 +67,7 @@ TextTrackCue::TextTrackCue(nsISupports* aGlobal,
   , mEndTime(aEndTime)
   , mTrackElement(aTrackElement)
   , mHead(head)
+  , mReset(false)
 {
   // Use the webvtt library's reference counting.
   webvtt_ref_node(mHead);
@@ -85,11 +87,19 @@ TextTrackCue::~TextTrackCue()
 void
 TextTrackCue::CreateCueOverlay()
 {
-  mTrackElement->OwnerDoc()->CreateElem(NS_LITERAL_STRING("div"), nullptr,
-                                        kNameSpaceID_XHTML,
-                                        getter_AddRefs(mCueDiv));
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mGlobal));
+  if(!window) {
+    return;
+  }
+  nsIDocument* document = window->GetDoc();
+  if(!document) {
+    return;
+  }
+  document->CreateElem(NS_LITERAL_STRING("div"), nullptr,
+                       kNameSpaceID_XHTML,
+                       getter_AddRefs(mDisplayState));
   nsGenericHTMLElement* cueDiv =
-    static_cast<nsGenericHTMLElement*>(mCueDiv.get());
+    static_cast<nsGenericHTMLElement*>(mDisplayState.get());
   cueDiv->SetClassName(NS_LITERAL_STRING("caption-text"));
 }
 
@@ -101,7 +111,7 @@ TextTrackCue::RenderCue()
     return;
   }
 
-  if (!mCueDiv) {
+  if (!mDisplayState) {
     CreateCueOverlay();
   }
 
@@ -127,17 +137,25 @@ TextTrackCue::RenderCue()
 
   ErrorResult rv;
   nsContentUtils::SetNodeTextContent(overlay, EmptyString(), true);
-  nsContentUtils::SetNodeTextContent(mCueDiv, EmptyString(), true);
+  nsContentUtils::SetNodeTextContent(mDisplayState, EmptyString(), true);
 
-  mCueDiv->AppendChild(*frag, rv);
-  overlay->AppendChild(*mCueDiv, rv);
+  mDisplayState->AppendChild(*frag, rv);
+  overlay->AppendChild(*mDisplayState, rv);
 }
 
 already_AddRefed<DocumentFragment>
 TextTrackCue::GetCueAsHTML()
 {
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mGlobal));
+  if(!window) {
+    return nullptr;
+  }
+  nsIDocument* document = window->GetDoc();
+  if(!document){
+    return nullptr;
+  }
   nsRefPtr<DocumentFragment> frag =
-    mTrackElement->OwnerDoc()->CreateDocumentFragment();
+    document->CreateDocumentFragment();
 
   ConvertNodeTreeToDOMTree(frag);
 
@@ -183,7 +201,7 @@ TextTrackCue::ConvertNodeTreeToDOMTree(nsIContent* aParentContent)
   nsTArray<WebVTTNodeParentPair> nodeParentPairStack;
 
   // mHead should actually be the head of a node tree.
-  if (mHead->kind != WEBVTT_HEAD_NODE) {
+  if (!mHead || mHead->kind != WEBVTT_HEAD_NODE) {
     return;
   }
   // Seed the stack for traversal.
@@ -239,9 +257,17 @@ TextTrackCue::ConvertInternalNodeToContent(const webvtt_node* aWebVTTNode)
   }
 
   nsCOMPtr<nsIContent> cueTextContent;
-  mTrackElement->OwnerDoc()->CreateElem(nsDependentAtomString(atom), nullptr,
-                                        kNameSpaceID_XHTML,
-                                        getter_AddRefs(cueTextContent));
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mGlobal));
+  if(!window) {
+    return nullptr;
+  }
+  nsIDocument* document = window->GetDoc();
+  if(!document){
+    return nullptr;
+  }
+  document->CreateElem(nsDependentAtomString(atom), nullptr,
+                       kNameSpaceID_XHTML,
+                       getter_AddRefs(cueTextContent));
 
   if (aWebVTTNode->kind == WEBVTT_VOICE) {
     const char* text =
@@ -280,7 +306,15 @@ already_AddRefed<nsIContent>
 TextTrackCue::ConvertLeafNodeToContent(const webvtt_node* aWebVTTNode)
 {
   nsCOMPtr<nsIContent> cueTextContent;
-  nsNodeInfoManager* nimgr = mTrackElement->NodeInfo()->NodeInfoManager();
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mGlobal));
+  if(!window) {
+    return nullptr;
+  }
+  nsIDocument* document = window->GetDoc();
+  if(!document) {
+    return nullptr;
+  }
+  nsNodeInfoManager* nimgr = document->NodeInfoManager();
   switch (aWebVTTNode->kind) {
     case WEBVTT_TEXT:
     {

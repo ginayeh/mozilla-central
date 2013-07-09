@@ -20,6 +20,8 @@ class UbuntuBootstrapper(BaseBootstrapper):
             'autoconf2.13',
             'libasound2-dev',
             'libcurl4-openssl-dev',
+            'libgstreamer0.10-dev',
+            'libgstreamer-plugins-base0.10-dev',
             'libiw-dev',
             'libnotify-dev',
             'libxt-dev',
@@ -31,7 +33,7 @@ class UbuntuBootstrapper(BaseBootstrapper):
     def _update_package_manager(self):
         self.run_as_root(['apt-get', 'update'])
 
-    def upgrade_mercurial(self):
+    def upgrade_mercurial(self, current):
         self._ensure_package_manager_updated()
         self.apt_install('mercurial')
 

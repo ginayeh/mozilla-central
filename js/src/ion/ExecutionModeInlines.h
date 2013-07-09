@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_executionmodeinlines_h__
-#define jsion_executionmodeinlines_h__
+#ifndef ion_ExecutionModeInlines_h
+#define ion_ExecutionModeInlines_h
 
 #ifdef JS_ION
 
@@ -19,8 +19,7 @@ HasIonScript(JSScript *script, ExecutionMode cmode)
       case SequentialExecution: return script->hasIonScript();
       case ParallelExecution: return script->hasParallelIonScript();
     }
-    JS_NOT_REACHED("No such execution mode");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline IonScript *
@@ -30,8 +29,7 @@ GetIonScript(JSScript *script, ExecutionMode cmode)
       case SequentialExecution: return script->maybeIonScript();
       case ParallelExecution: return script->maybeParallelIonScript();
     }
-    JS_NOT_REACHED("No such execution mode");
-    return NULL;
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline void
@@ -41,7 +39,7 @@ SetIonScript(JSScript *script, ExecutionMode cmode, IonScript *ionScript)
       case SequentialExecution: script->setIonScript(ionScript); return;
       case ParallelExecution: script->setParallelIonScript(ionScript); return;
     }
-    JS_NOT_REACHED("No such execution mode");
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline size_t
@@ -51,7 +49,7 @@ OffsetOfIonInJSScript(ExecutionMode cmode)
       case SequentialExecution: return JSScript::offsetOfIonScript();
       case ParallelExecution: return JSScript::offsetOfParallelIonScript();
     }
-    JS_NOT_REACHED("No such execution mode");
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline bool
@@ -61,7 +59,7 @@ CanIonCompile(JSScript *script, ExecutionMode cmode)
       case SequentialExecution: return script->canIonCompile();
       case ParallelExecution: return script->canParallelIonCompile();
     }
-    JS_NOT_REACHED("No such execution mode");
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
     return false;
 }
 
@@ -78,8 +76,7 @@ CompilingOffThread(JSScript *script, ExecutionMode cmode)
       case SequentialExecution: return script->isIonCompilingOffThread();
       case ParallelExecution: return script->isParallelIonCompilingOffThread();
     }
-    JS_NOT_REACHED("No such execution mode");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline bool
@@ -89,8 +86,7 @@ CompilingOffThread(HandleScript script, ExecutionMode cmode)
       case SequentialExecution: return script->isIonCompilingOffThread();
       case ParallelExecution: return script->isParallelIonCompilingOffThread();
     }
-    JS_NOT_REACHED("No such execution mode");
-    return false;
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 static inline types::CompilerOutput::Kind
@@ -100,8 +96,7 @@ CompilerOutputKind(ExecutionMode cmode)
       case SequentialExecution: return types::CompilerOutput::Ion;
       case ParallelExecution: return types::CompilerOutput::ParallelIon;
     }
-    JS_NOT_REACHED("No such execution mode");
-    return types::CompilerOutput::Ion;
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
 
 } // namespace ion
@@ -109,4 +104,4 @@ CompilerOutputKind(ExecutionMode cmode)
 
 #endif  // JS_ION
 
-#endif  // jsion_executionmodeinlines_h__
+#endif /* ion_ExecutionModeInlines_h */

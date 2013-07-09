@@ -6,21 +6,15 @@
 
 /* Definitions for javascript analysis. */
 
-#ifndef jsanalyze_h___
-#define jsanalyze_h___
+#ifndef jsanalyze_h
+#define jsanalyze_h
 
 #include "mozilla/PodOperations.h"
-#include "mozilla/TypeTraits.h"
 
-#include "jsautooplen.h"
 #include "jscompartment.h"
 #include "jscntxt.h"
 #include "jsinfer.h"
 #include "jsscript.h"
-
-#include "ds/LifoAlloc.h"
-#include "js/TemplateLib.h"
-#include "vm/ScopeObject.h"
 
 class JSScript;
 
@@ -212,8 +206,7 @@ ReverseCompareOp(JSOp op)
       case JSOP_STRICTNE:
         return op;
       default:
-        JS_NOT_REACHED("unrecognized op");
-        return op;
+        MOZ_ASSUME_UNREACHABLE("unrecognized op");
     }
 }
 
@@ -238,8 +231,7 @@ NegateCompareOp(JSOp op)
       case JSOP_STRICTEQ:
         return JSOP_STRICTNE;
       default:
-        JS_NOT_REACHED("unrecognized op");
-        return op;
+        MOZ_ASSUME_UNREACHABLE("unrecognized op");
     }
 }
 
@@ -301,8 +293,7 @@ static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
         return ThisSlot();
 
       default:
-        JS_NOT_REACHED("Bad slot opcode");
-        return 0;
+        MOZ_ASSUME_UNREACHABLE("Bad slot opcode");
     }
 }
 
@@ -1102,4 +1093,4 @@ template <> struct IsPod<js::analyze::SSAUseChain>      : TrueType {};
 
 } /* namespace mozilla */
 
-#endif // jsanalyze_h___
+#endif /* jsanalyze_h */

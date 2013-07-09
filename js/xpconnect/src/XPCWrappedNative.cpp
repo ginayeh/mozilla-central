@@ -38,9 +38,7 @@ xpc_OkToHandOutWrapper(nsWrapperCache *cache)
     NS_ABORT_IF_FALSE(cache->GetWrapper(), "Must have wrapper");
     NS_ABORT_IF_FALSE(IS_WN_REFLECTOR(cache->GetWrapper()),
                       "Must have XPCWrappedNative wrapper");
-    return
-        !static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(cache->GetWrapper()))->
-            NeedsSOW();
+    return !XPCWrappedNative::Get(cache->GetWrapper())->NeedsSOW();
 }
 
 /***************************************************************************/
@@ -285,7 +283,7 @@ FinishCreate(XPCWrappedNativeScope* Scope,
 nsresult
 XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
                                 nsIPrincipal *principal, bool initStandardClasses,
-                                ZoneSpecifier zoneSpec,
+                                JS::CompartmentOptions& aOptions,
                                 XPCWrappedNative **wrappedGlobal)
 {
     AutoJSContext cx;
@@ -315,7 +313,7 @@ XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
     MOZ_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
     // Create the global.
-    RootedObject global(cx, xpc::CreateGlobalObject(cx, clasp, principal, zoneSpec));
+    RootedObject global(cx, xpc::CreateGlobalObject(cx, clasp, principal, aOptions));
     if (!global)
         return NS_ERROR_FAILURE;
     XPCWrappedNativeScope *scope = GetCompartmentPrivate(global)->scope;
@@ -533,7 +531,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
         if (cache) {
             RootedObject cached(cx, cache->GetWrapper());
             if (cached)
-                wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(cached));
+                wrapper = XPCWrappedNative::Get(cached);
         } else {
             // scoped lock
             XPCAutoLock lock(mapLock);
@@ -714,7 +712,7 @@ XPCWrappedNative::GetUsedOnly(nsISupports* Object,
     AutoJSContext cx;
     NS_ASSERTION(Object, "XPCWrappedNative::GetUsedOnly was called with a null Object");
 
-    XPCWrappedNative* wrapper;
+    nsRefPtr<XPCWrappedNative> wrapper;
     nsWrapperCache* cache = nullptr;
     CallQueryInterface(Object, &cache);
     if (cache) {
@@ -723,8 +721,7 @@ XPCWrappedNative::GetUsedOnly(nsISupports* Object,
             *resultWrapper = nullptr;
             return NS_OK;
         }
-        wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(flat));
-        NS_ADDREF(wrapper);
+        wrapper = XPCWrappedNative::Get(flat);
     } else {
         nsCOMPtr<nsISupports> identity = do_QueryInterface(Object);
 
@@ -742,18 +739,16 @@ XPCWrappedNative::GetUsedOnly(nsISupports* Object,
                 *resultWrapper = nullptr;
                 return NS_OK;
             }
-            NS_ADDREF(wrapper);
         }
     }
 
     nsresult rv;
     if (Interface && !wrapper->FindTearOff(Interface, false, &rv)) {
-        NS_RELEASE(wrapper);
         NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
         return rv;
     }
 
-    *resultWrapper = wrapper;
+    wrapper.forget(resultWrapper);
     return NS_OK;
 }
 
@@ -848,7 +843,7 @@ XPCWrappedNative::Destroy()
      * the first time because mWrapperWord isn't used afterwards.
      */
     if (XPCJSRuntime *rt = GetRuntime()) {
-        if (IsIncrementalBarrierNeeded(rt->GetJSRuntime()))
+        if (IsIncrementalBarrierNeeded(rt->Runtime()))
             IncrementalObjectBarrier(GetWrapperPreserveColor());
         mWrapperWord = WRAPPER_WORD_POISON;
     } else {
@@ -864,7 +859,7 @@ XPCWrappedNative::UpdateScriptableInfo(XPCNativeScriptableInfo *si)
     NS_ASSERTION(mScriptableInfo, "UpdateScriptableInfo expects an existing scriptable info");
 
     // Write barrier for incremental GC.
-    JSRuntime* rt = GetRuntime()->GetJSRuntime();
+    JSRuntime* rt = GetRuntime()->Runtime();
     if (IsIncrementalBarrierNeeded(rt))
         mScriptableInfo->Mark();
 
@@ -879,7 +874,7 @@ XPCWrappedNative::SetProto(XPCWrappedNativeProto* p)
     MOZ_ASSERT(HasProto());
 
     // Write barrier for incremental GC.
-    JSRuntime* rt = GetRuntime()->GetJSRuntime();
+    JSRuntime* rt = GetRuntime()->Runtime();
     GetProto()->WriteBarrierPre(rt);
 
     mMaybeProto = p;
@@ -1158,7 +1153,7 @@ XPCWrappedNative::FlatJSObjectFinalized()
         for (int i = XPC_WRAPPED_NATIVE_TEAROFFS_PER_CHUNK-1; i >= 0; i--, to++) {
             JSObject* jso = to->GetJSObjectPreserveColor();
             if (jso) {
-                NS_ASSERTION(JS_IsAboutToBeFinalized(&jso), "bad!");
+                MOZ_ASSERT(JS_IsAboutToBeFinalizedUnbarriered(&jso));
                 JS_SetPrivate(jso, nullptr);
                 to->JSObjectFinalized();
             }
@@ -1322,7 +1317,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
     if (cache) {
         flat = cache->GetWrapper();
         if (flat) {
-            wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(flat));
+            wrapper = XPCWrappedNative::Get(flat);
             NS_ASSERTION(wrapper->GetScope() == aOldScope,
                          "Incorrect scope passed");
         }
@@ -1464,9 +1459,9 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
                 MOZ_CRASH();
         }
 
-        JSObject *ww = wrapper->GetWrapper();
+        RootedObject ww(cx, wrapper->GetWrapper());
         if (ww) {
-            JSObject *newwrapper;
+            RootedObject newwrapper(cx);
             MOZ_ASSERT(wrapper->NeedsSOW(), "weird wrapper wrapper");
             newwrapper = xpc::WrapperFactory::WrapSOWObject(cx, newobj);
             if (!newwrapper)

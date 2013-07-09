@@ -7,17 +7,17 @@
 #include "jsmath.h"
 #include "jscntxt.h"
 
-#include "jstypedarrayinlines.h"
-
-#include "AsmJS.h"
-#include "AsmJSModule.h"
+#include "ion/AsmJS.h"
+#include "ion/AsmJSModule.h"
 #include "frontend/BytecodeCompiler.h"
 
-#include "Ion.h"
-
-#ifdef MOZ_VTUNE
-# include "jitprofiling.h"
+#ifdef JS_ION_PERF
+# include "ion/PerfSpewer.h"
 #endif
+
+#include "ion/Ion.h"
+
+#include "jsfuninlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -80,10 +80,10 @@ ValidateFFI(JSContext *cx, AsmJSModule::Global &global, HandleValue importVal,
     if (!GetProperty(cx, importVal, field, &v))
         return false;
 
-    if (!v.isObject() || !v.toObject().isFunction())
+    if (!v.isObject() || !v.toObject().is<JSFunction>())
         return LinkFail(cx, "FFI imports must be functions");
 
-    (*ffis)[global.ffiIndex()] = v.toObject().toFunction();
+    (*ffis)[global.ffiIndex()] = &v.toObject().as<JSFunction>();
     return true;
 }
 
@@ -243,7 +243,7 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     }
 
     for (unsigned i = 0; i < module.numExits(); i++)
-        module.exitIndexToGlobalDatum(i).fun = ffis[module.exit(i).ffiIndex()]->toFunction();
+        module.exitIndexToGlobalDatum(i).fun = &ffis[module.exit(i).ffiIndex()]->as<JSFunction>();
 
     module.setIsLinked(heap);
     return true;
@@ -287,7 +287,7 @@ extern JSBool
 js::CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs callArgs = CallArgsFromVp(argc, vp);
-    RootedFunction callee(cx, callArgs.callee().toFunction());
+    RootedFunction callee(cx, &callArgs.callee().as<JSFunction>());
 
     // An asm.js function stores, in its extended slots:
     //  - a pointer to the module from which it was returned
@@ -411,8 +411,8 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
 
     unsigned argc = args.length();
 
-    InvokeArgsGuard args2;
-    if (!cx->stack.pushInvokeArgs(cx, argc, &args2))
+    InvokeArgs args2(cx);
+    if (!args2.init(argc))
         return false;
 
     args2.setCallee(ObjectValue(*fun));
@@ -468,11 +468,76 @@ SendFunctionsToVTune(JSContext *cx, AsmJSModule &module)
 }
 #endif
 
+#ifdef JS_ION_PERF
+static bool
+SendFunctionsToPerf(JSContext *cx, AsmJSModule &module)
+{
+    if (!PerfFuncEnabled())
+        return true;
+
+    AsmJSPerfSpewer perfSpewer;
+
+    unsigned long base = (unsigned long) module.functionCode();
+
+    const AsmJSModule::PostLinkFailureInfo &info = module.postLinkFailureInfo();
+    const char *filename = const_cast<char *>(info.scriptSource_->filename());
+
+    for (unsigned i = 0; i < module.numPerfFunctions(); i++) {
+        const AsmJSModule::ProfiledFunction &func = module.perfProfiledFunction(i);
+
+        unsigned long start = base + (unsigned long) func.startCodeOffset;
+        unsigned long end   = base + (unsigned long) func.endCodeOffset;
+        JS_ASSERT(end >= start);
+
+        unsigned long size = (end - start);
+
+        JSAutoByteString bytes;
+        const char *method_name = js_AtomToPrintableString(cx, func.name, &bytes);
+        if (!method_name)
+            return false;
+
+        unsigned lineno = func.lineno;
+        unsigned columnIndex = func.columnIndex;
+
+        perfSpewer.writeFunctionMap(start, size, filename, lineno, columnIndex, method_name);
+    }
+
+    return true;
+}
+
+static bool
+SendBlocksToPerf(JSContext *cx, AsmJSModule &module)
+{
+    if (!PerfBlockEnabled())
+        return true;
+
+    AsmJSPerfSpewer spewer;
+    unsigned long funcBaseAddress = (unsigned long) module.functionCode();
+
+    const AsmJSModule::PostLinkFailureInfo &info = module.postLinkFailureInfo();
+    const char *filename = const_cast<char *>(info.scriptSource_->filename());
+
+    for (unsigned i = 0; i < module.numPerfBlocksFunctions(); i++) {
+        const AsmJSModule::ProfiledBlocksFunction &func = module.perfProfiledBlocksFunction(i);
+
+        unsigned long size = (unsigned long)func.endCodeOffset - (unsigned long)func.startCodeOffset;
+        JSAutoByteString bytes;
+        const char *method_name = js_AtomToPrintableString(cx, func.name, &bytes);
+        if (!method_name)
+            return false;
+
+        spewer.writeBlocksMap(funcBaseAddress, func.startCodeOffset, size, filename, method_name, func.blocks);
+    }
+
+    return true;
+}
+#endif
+
 JSBool
 js::LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedFunction fun(cx, args.callee().toFunction());
+    RootedFunction fun(cx, &args.callee().as<JSFunction>());
     RootedObject moduleObj(cx, &AsmJSModuleObject(fun));
     AsmJSModule &module = AsmJSModuleObjectToModule(moduleObj);
 
@@ -485,6 +550,13 @@ js::LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp)
 
 #if defined(MOZ_VTUNE)
     if (!SendFunctionsToVTune(cx, module))
+        return false;
+#endif
+
+#if defined(JS_ION_PERF)
+    if (!SendBlocksToPerf(cx, module))
+        return false;
+    if (!SendFunctionsToPerf(cx, module))
         return false;
 #endif
 

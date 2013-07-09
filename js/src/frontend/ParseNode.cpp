@@ -342,31 +342,6 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
     return handler->new_<BinaryNode>(kind, op, left, right);
 }
 
-inline void
-NameNode::initCommon(ParseContext<FullParseHandler> *pc)
-{
-    pn_expr = NULL;
-    pn_cookie.makeFree();
-    pn_dflags = (!pc->topStmt || pc->topStmt->type == STMT_BLOCK)
-                ? PND_BLOCKCHILD
-                : 0;
-    pn_blockid = pc->blockid();
-}
-
-// Note: the parse context passed into this may not equal the associated
-// parser's current context.
-NameNode *
-NameNode::create(ParseNodeKind kind, JSAtom *atom, FullParseHandler *handler,
-                 ParseContext<FullParseHandler> *pc)
-{
-    ParseNode *pn = ParseNode::create(kind, PN_NAME, handler);
-    if (pn) {
-        pn->pn_atom = atom;
-        ((NameNode *)pn)->initCommon(pc);
-    }
-    return (NameNode *)pn;
-}
-
 const char *
 Definition::kindString(Kind kind)
 {
@@ -406,16 +381,14 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
 
       case PN_CODE:
         if (pn->getKind() == PNK_MODULE) {
-            JS_NOT_REACHED("module nodes cannot be cloned");
-            return NULL;
-        } else {
-            NULLCHECK(pn->pn_funbox =
-                      newFunctionBox(opn->pn_funbox->function(), pc, opn->pn_funbox->strict));
-            NULLCHECK(pn->pn_body = cloneParseTree(opn->pn_body));
-            pn->pn_cookie = opn->pn_cookie;
-            pn->pn_dflags = opn->pn_dflags;
-            pn->pn_blockid = opn->pn_blockid;
+            MOZ_ASSUME_UNREACHABLE("module nodes cannot be cloned");
         }
+        NULLCHECK(pn->pn_funbox =
+                  newFunctionBox(opn->pn_funbox->function(), pc, opn->pn_funbox->strict));
+        NULLCHECK(pn->pn_body = cloneParseTree(opn->pn_body));
+        pn->pn_cookie = opn->pn_cookie;
+        pn->pn_dflags = opn->pn_dflags;
+        pn->pn_blockid = opn->pn_blockid;
         break;
 
       case PN_LIST:
@@ -776,7 +749,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(!object->isFunction());
+    JS_ASSERT(!object->is<JSFunction>());
 }
 
 ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
@@ -784,7 +757,7 @@ ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->isFunction());
+    JS_ASSERT(object->is<JSFunction>());
     JS_ASSERT(asFunctionBox()->function() == function);
 }
 

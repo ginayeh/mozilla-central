@@ -9,7 +9,6 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-LIBRARY_NAME    = mozcairo
 MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY = 1
 
@@ -187,6 +186,8 @@ CFLAGS += -Wno-conversion
 endif # GNU_CC
 
 DEFINES += -DPACKAGE_VERSION="\"moz\"" -DPACKAGE_BUGREPORT="\"http://bugzilla.mozilla.org/\""
+
+DEFINES += -DCAIRO_HAS_PTHREAD -D_GNU_SOURCE
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 DEFINES += -DCAIRO_WIN32_STATIC_BUILD

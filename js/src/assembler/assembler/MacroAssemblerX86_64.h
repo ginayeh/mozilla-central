@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacroAssemblerX86_64_h
-#define MacroAssemblerX86_64_h
+#ifndef assembler_assembler_MacroAssemblerX86_64_h
+#define assembler_assembler_MacroAssemblerX86_64_h
 
 #include "mozilla/DebugOnly.h"
 
@@ -36,7 +36,7 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_X86_64
 
-#include "MacroAssemblerX86Common.h"
+#include "assembler/assembler/MacroAssemblerX86Common.h"
 
 #define REPTACH_OFFSET_CALL_R11 3
 
@@ -601,4 +601,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif // MacroAssemblerX86_64_h
+#endif /* assembler_assembler_MacroAssemblerX86_64_h */

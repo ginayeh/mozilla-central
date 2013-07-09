@@ -220,7 +220,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -236,7 +237,8 @@ private:
   }
 
   static JSBool
-  GetConstant(JSContext* aCx, JSHandleObject aObj, JSHandleId idval, JSMutableHandleValue aVp)
+  GetConstant(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> idval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(idval));
     JS_ASSERT(JSID_TO_INT(idval) >= CAPTURING_PHASE &&
@@ -335,7 +337,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_EVENT_CLASS(Event::sClass, "Event")
+DECL_EVENT_CLASS(Event::sClass, "WorkerEvent")
 DECL_EVENT_CLASS(Event::sMainRuntimeClass, "WorkerEvent")
 
 #undef DECL_EVENT_CLASS
@@ -505,7 +507,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -580,7 +583,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_MESSAGEEVENT_CLASS(MessageEvent::sClass, "MessageEvent")
+DECL_MESSAGEEVENT_CLASS(MessageEvent::sClass, "WorkerMessageEvent")
 DECL_MESSAGEEVENT_CLASS(MessageEvent::sMainRuntimeClass, "WorkerMessageEvent")
 
 #undef DECL_MESSAGEEVENT_CLASS
@@ -712,7 +715,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -766,7 +770,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_ERROREVENT_CLASS(ErrorEvent::sClass, "ErrorEvent")
+DECL_ERROREVENT_CLASS(ErrorEvent::sClass, "WorkerErrorEvent")
 DECL_ERROREVENT_CLASS(ErrorEvent::sMainRuntimeClass, "WorkerErrorEvent")
 
 #undef DECL_ERROREVENT_CLASS
@@ -891,7 +895,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -911,7 +916,7 @@ private:
 };
 
 JSClass ProgressEvent::sClass = {
-  "ProgressEvent",
+  "WorkerProgressEvent",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize

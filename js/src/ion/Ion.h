@@ -4,15 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_ion_h__
-#define jsion_ion_h__
+#ifndef ion_Ion_h
+#define ion_Ion_h
 
 #ifdef JS_ION
 
+#include "mozilla/MemoryReporting.h"
+
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "IonCode.h"
-#include "CompileInfo.h"
+#include "ion/IonCode.h"
+#include "ion/CompileInfo.h"
 #include "jsinfer.h"
 
 #include "vm/Interpreter.h"
@@ -274,9 +276,9 @@ bool SetIonContext(IonContext *ctx);
 bool CanIonCompileScript(JSContext *cx, HandleScript script, bool osr);
 
 MethodStatus CanEnterAtBranch(JSContext *cx, JSScript *script,
-                              AbstractFramePtr fp, jsbytecode *pc, bool isConstructing);
-MethodStatus CanEnter(JSContext *cx, HandleScript script, AbstractFramePtr fp, bool isConstructing);
-MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, AbstractFramePtr fp,
+                              BaselineFrame *frame, jsbytecode *pc, bool isConstructing);
+MethodStatus CanEnter(JSContext *cx, RunState &state);
+MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFrame *frame,
                                         bool isConstructing);
 MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
 
@@ -302,7 +304,11 @@ IsErrorStatus(IonExecStatus status)
     return status == IonExec_Error || status == IonExec_Aborted;
 }
 
-IonExecStatus Cannon(JSContext *cx, StackFrame *fp);
+struct EnterJitData;
+
+bool SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoValueVector &vals);
+
+IonExecStatus Cannon(JSContext *cx, RunState &state);
 
 // Used to enter Ion from C++ natives like Array.map. Called from FastInvokeGuard.
 IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
@@ -345,7 +351,7 @@ void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
 uint32_t UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc);
 
 void PurgeCaches(JSScript *script, JS::Zone *zone);
-size_t SizeOfIonData(JSScript *script, JSMallocSizeOfFun mallocSizeOf);
+size_t SizeOfIonData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf);
 void DestroyIonScripts(FreeOp *fop, JSScript *script);
 void TraceIonScripts(JSTracer* trc, JSScript *script);
 
@@ -354,5 +360,4 @@ void TraceIonScripts(JSTracer* trc, JSScript *script);
 
 #endif // JS_ION
 
-#endif // jsion_ion_h__
-
+#endif /* ion_Ion_h */

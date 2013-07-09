@@ -23,6 +23,7 @@
 #include "xpcprivate.h"
 #include "XPCQuickStubs.h"
 #include "XrayWrapper.h"
+#include "nsPrintfCString.h"
 
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
@@ -194,6 +195,17 @@ ErrorResult::StealJSException(JSContext* cx,
   value.set(mJSException);
   JS_RemoveValueRoot(cx, &mJSException);
   mResult = NS_OK;
+}
+
+void
+ErrorResult::ReportNotEnoughArgsError(JSContext* cx,
+                                      const char* ifaceName,
+                                      const char* memberName)
+{
+  MOZ_ASSERT(ErrorCode() == NS_ERROR_XPC_NOT_ENOUGH_ARGS);
+
+  nsPrintfCString errorMessage("%s.%s", ifaceName, memberName);
+  ThrowErrorMessage(cx, dom::MSG_MISSING_ARGUMENTS, errorMessage.get());
 }
 
 namespace dom {
@@ -636,11 +648,13 @@ NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
 bool
 TryPreserveWrapper(JSObject* obj)
 {
+  MOZ_ASSERT(IsDOMObject(obj));
+
   if (nsISupports* native = UnwrapDOMObjectToISupports(obj)) {
     nsWrapperCache* cache = nullptr;
     CallQueryInterface(native, &cache);
     if (cache) {
-      nsContentUtils::PreserveWrapper(native, cache);
+      cache->PreserveWrapper(native);
     }
     return true;
   }
@@ -655,7 +669,7 @@ TryPreserveWrapper(JSObject* obj)
 // Can only be called with the immediate prototype of the instance object. Can
 // only be called on the prototype of an object known to be a DOM instance.
 JSBool
-InstanceClassHasProtoAtDepth(JSHandleObject protoObject, uint32_t protoID,
+InstanceClassHasProtoAtDepth(JS::Handle<JSObject*> protoObject, uint32_t protoID,
                              uint32_t depth)
 {
   const DOMClass* domClass = static_cast<DOMClass*>(
@@ -1592,8 +1606,8 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   if (ww != aObj) {
     MOZ_ASSERT(cache->HasSystemOnlyWrapper());
 
-    JSObject *newwrapper =
-      xpc::WrapperFactory::WrapSOWObject(aCx, newobj);
+    JS::RootedObject newwrapper(aCx,
+      xpc::WrapperFactory::WrapSOWObject(aCx, newobj));
     if (!newwrapper) {
       MOZ_CRASH();
     }
@@ -1755,7 +1769,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
 }
 
 JSBool
-InterfaceHasInstance(JSContext* cx, JSHandleObject obj, JSMutableHandleValue vp,
+InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JS::Value> vp,
                      JSBool* bp)
 {
   if (!vp.isObject()) {

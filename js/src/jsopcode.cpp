@@ -117,8 +117,7 @@ js_GetVariableBytecodeLength(jsbytecode *pc)
         return 1 + 3 * JUMP_OFFSET_LEN + ncases * JUMP_OFFSET_LEN;
       }
       default:
-        JS_NOT_REACHED("Unexpected op");
-        return 0;
+        MOZ_ASSUME_UNREACHABLE("Unexpected op");
     }
 }
 
@@ -129,7 +128,7 @@ NumBlockSlots(JSScript *script, jsbytecode *pc)
     JS_STATIC_ASSERT(JSOP_ENTERBLOCK_LENGTH == JSOP_ENTERLET0_LENGTH);
     JS_STATIC_ASSERT(JSOP_ENTERBLOCK_LENGTH == JSOP_ENTERLET1_LENGTH);
 
-    return script->getObject(GET_UINT32_INDEX(pc))->asStaticBlock().slotCount();
+    return script->getObject(GET_UINT32_INDEX(pc))->as<StaticBlockObject>().slotCount();
 }
 
 unsigned
@@ -250,18 +249,14 @@ PCCounts::countName(JSOp op, size_t which)
             return countElementNames[which - ACCESS_LIMIT];
         if (propertyOp(op))
             return countPropertyNames[which - ACCESS_LIMIT];
-        JS_NOT_REACHED("bad op");
-        return NULL;
+        MOZ_ASSUME_UNREACHABLE("bad op");
     }
 
     if (arithOp(op))
         return countArithNames[which - BASE_LIMIT];
 
-    JS_NOT_REACHED("bad op");
-    return NULL;
+    MOZ_ASSUME_UNREACHABLE("bad op");
 }
-
-#ifdef DEBUG
 
 #ifdef JS_ION
 void
@@ -287,6 +282,7 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 {
     JS_ASSERT(script->hasScriptCounts);
 
+#ifdef DEBUG
     jsbytecode *pc = script->code;
     while (pc < script->code + script->length) {
         JSOp op = JSOp(*pc);
@@ -315,6 +311,7 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
 
         pc = next;
     }
+#endif
 
 #ifdef JS_ION
     ion::IonScriptCounts *ionCounts = script->getIonCounts();
@@ -325,6 +322,8 @@ js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
     }
 #endif
 }
+
+#ifdef DEBUG
 
 /*
  * If pc != NULL, include a prefix indicating whether the PC is at the current line.
@@ -411,8 +410,9 @@ js_DumpPC(JSContext *cx)
     Sprinter sprinter(cx);
     if (!sprinter.init())
         return JS_FALSE;
-    RootedScript script(cx, cx->fp()->script());
-    JSBool ok = js_DisassembleAtPC(cx, script, true, cx->regs().pc, false, &sprinter);
+    ScriptFrameIter iter(cx);
+    RootedScript script(cx, iter.script());
+    JSBool ok = js_DisassembleAtPC(cx, script, true, iter.pc(), false, &sprinter);
     fprintf(stdout, "%s", sprinter.string());
     return ok;
 }
@@ -509,8 +509,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             return true;
         }
 
-        if (obj->isFunction()) {
-            JSString *str = JS_DecompileFunction(cx, obj->toFunction(), JS_DONT_PRETTY_PRINT);
+        if (obj->is<JSFunction>()) {
+            JSString *str = JS_DecompileFunction(cx, &obj->as<JSFunction>(), JS_DONT_PRETTY_PRINT);
             if (!str)
                 return false;
             return bytes->encodeLatin1(cx, str);
@@ -1105,7 +1105,7 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
             jssrcnote *sn = js_GetSrcNote(cx, script, p);
             if (!(sn && SN_TYPE(sn) == SRC_HIDDEN)) {
                 JS_ASSERT(blockChain);
-                blockChain = blockChain->asStaticBlock().enclosingBlock();
+                blockChain = blockChain->as<StaticBlockObject>().enclosingBlock();
                 JS_ASSERT_IF(blockChain, blockChain->is<BlockObject>());
             }
             break;
@@ -1341,7 +1341,8 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
         JSObject *obj = (op == JSOP_REGEXP)
                         ? script->getRegExp(GET_UINT32_INDEX(pc))
                         : script->getObject(GET_UINT32_INDEX(pc));
-        JSString *str = ValueToSource(cx, ObjectValue(*obj));
+        RootedValue objv(cx, ObjectValue(*obj));
+        JSString *str = ValueToSource(cx, objv);
         if (!str)
             return false;
         return write(str);
@@ -2122,7 +2123,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
 
     AppendJSONProperty(buf, "file", NO_COMMA);
     JSString *str = JS_NewStringCopyZ(cx, script->filename());
-    if (!str || !(str = ValueToSource(cx, StringValue(str))))
+    if (!str || !(str = StringToSource(cx, str)))
         return NULL;
     buf.append(str);
 
@@ -2133,7 +2134,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
         JSAtom *atom = script->function()->displayAtom();
         if (atom) {
             AppendJSONProperty(buf, "name");
-            if (!(str = ValueToSource(cx, StringValue(atom))))
+            if (!(str = StringToSource(cx, atom)))
                 return NULL;
             buf.append(str);
         }
@@ -2165,11 +2166,11 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
                 else if (PCCounts::propertyOp(op))
                     propertyTotals[j - PCCounts::ACCESS_LIMIT] += value;
                 else
-                    JS_NOT_REACHED("Bad opcode");
+                    MOZ_ASSUME_UNREACHABLE("Bad opcode");
             } else if (PCCounts::arithOp(op)) {
                 arithTotals[j - PCCounts::BASE_LIMIT] += value;
             } else {
-                JS_NOT_REACHED("Bad opcode");
+                MOZ_ASSUME_UNREACHABLE("Bad opcode");
             }
         }
     }
@@ -2220,7 +2221,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
     AppendJSONProperty(buf, "text", NO_COMMA);
 
     JSString *str = JS_DecompileScript(cx, script, NULL, 0);
-    if (!str || !(str = ValueToSource(cx, StringValue(str))))
+    if (!str || !(str = StringToSource(cx, str)))
         return false;
 
     buf.append(str);
@@ -2276,7 +2277,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
             AppendJSONProperty(buf, "text");
             JSString *str = JS_NewStringCopyZ(cx, text);
             js_free(text);
-            if (!str || !(str = ValueToSource(cx, StringValue(str))))
+            if (!str || !(str = StringToSource(cx, str)))
                 return false;
             buf.append(str);
         }
@@ -2337,7 +2338,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &sac, StringBuffer &buf)
 
                 AppendJSONProperty(buf, "code");
                 JSString *str = JS_NewStringCopyZ(cx, block.code());
-                if (!str || !(str = ValueToSource(cx, StringValue(str))))
+                if (!str || !(str = StringToSource(cx, str)))
                     return false;
                 buf.append(str);
 

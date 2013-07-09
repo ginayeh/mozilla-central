@@ -4,11 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "IonBuilder.h"
-#include "MIRGraph.h"
-#include "Ion.h"
-#include "IonAnalysis.h"
-#include "LIR.h"
+#include "jsanalyze.h"
+
+#include "ion/IonBuilder.h"
+#include "ion/MIRGraph.h"
+#include "ion/Ion.h"
+#include "ion/IonAnalysis.h"
+#include "ion/LIR.h"
 
 using namespace js;
 using namespace js::ion;
@@ -570,8 +572,7 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
         v = MagicValue(JS_OPTIMIZED_ARGUMENTS);
         break;
       default:
-        JS_NOT_REACHED("unexpected type");
-        return;
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
     MConstant *c = MConstant::New(v);
     // The instruction pass will insert the box
@@ -786,9 +787,9 @@ ion::BuildDominatorTree(MIRGraph &graph)
         MBasicBlock *block = worklist.popCopy();
         block->setDomIndex(index);
 
-        for (size_t i = 0; i < block->numImmediatelyDominatedBlocks(); i++) {
-            if (!worklist.append(block->getImmediatelyDominatedBlock(i)))
-                return false;
+        if (!worklist.append(block->immediatelyDominatedBlocksBegin(),
+                             block->immediatelyDominatedBlocksEnd())) {
+            return false;
         }
         index++;
     }
@@ -1358,9 +1359,9 @@ ion::EliminateRedundantChecks(MIRGraph &graph)
         MBasicBlock *block = worklist.popCopy();
 
         // Add all immediate dominators to the front of the worklist.
-        for (size_t i = 0; i < block->numImmediatelyDominatedBlocks(); i++) {
-            if (!worklist.append(block->getImmediatelyDominatedBlock(i)))
-                return false;
+        if (!worklist.append(block->immediatelyDominatedBlocksBegin(),
+                             block->immediatelyDominatedBlocksEnd())) {
+            return false;
         }
 
         for (MDefinitionIterator iter(block); iter; ) {

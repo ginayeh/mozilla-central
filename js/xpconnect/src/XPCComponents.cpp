@@ -2936,13 +2936,13 @@ CreateXMLHttpRequest(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-sandbox_enumerate(JSContext *cx, JSHandleObject obj)
+sandbox_enumerate(JSContext *cx, HandleObject obj)
 {
     return JS_EnumerateStandardClasses(cx, obj);
 }
 
 static JSBool
-sandbox_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
+sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
@@ -2960,7 +2960,7 @@ sandbox_finalize(JSFreeOp *fop, JSObject *obj)
 }
 
 static JSBool
-sandbox_convert(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp)
+sandbox_convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue vp)
 {
     if (type == JSTYPE_OBJECT) {
         vp.set(OBJECT_TO_JSVAL(obj));
@@ -3126,9 +3126,9 @@ bool BindPropertyOp(JSContext *cx, Op &op, PropertyDescriptor *desc, HandleId id
 }
 
 extern JSBool
-XPC_WN_Helper_GetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
+XPC_WN_Helper_GetProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp);
 extern JSBool
-XPC_WN_Helper_SetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
+XPC_WN_Helper_SetProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp);
 
 bool
 xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx,
@@ -3275,10 +3275,12 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
         MOZ_ASSERT(principal);
     }
 
-    JS::ZoneSpecifier zoneSpec = options.sameZoneAs
+    JS::CompartmentOptions compartmentOptions;
+    compartmentOptions.setZone(options.sameZoneAs
                                  ? JS::SameZoneAs(js::UncheckedUnwrap(options.sameZoneAs))
-                                 : JS::SystemZone;
-    RootedObject sandbox(cx, xpc::CreateGlobalObject(cx, &SandboxClass, principal, zoneSpec));
+                                 : JS::SystemZone);
+    RootedObject sandbox(cx, xpc::CreateGlobalObject(cx, &SandboxClass,
+                                                     principal, compartmentOptions));
     if (!sandbox)
         return NS_ERROR_FAILURE;
 
@@ -3334,15 +3336,14 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
         // Pass on ownership of sbp to |sandbox|.
         JS_SetPrivate(sandbox, sbp.forget().get());
 
-        {
-          JSAutoCompartment ac(cx, sandbox);
-          if (options.wantComponents &&
-              !nsXPCComponents::AttachComponentsObject(cx, GetObjectScope(sandbox)))
-              return NS_ERROR_XPC_UNEXPECTED;
+      bool allowComponents = nsContentUtils::IsSystemPrincipal(principal) ||
+                             nsContentUtils::IsExpandedPrincipal(principal);
+      if (options.wantComponents && allowComponents &&
+          !nsXPCComponents::AttachComponentsObject(cx, GetObjectScope(sandbox)))
+          return NS_ERROR_XPC_UNEXPECTED;
 
-          if (!XPCNativeWrapper::AttachNewConstructorObject(cx, sandbox))
-              return NS_ERROR_XPC_UNEXPECTED;
-        }
+      if (!XPCNativeWrapper::AttachNewConstructorObject(cx, sandbox))
+          return NS_ERROR_XPC_UNEXPECTED;
 
         if (!JS_DefineFunctions(cx, sandbox, SandboxFunctions))
             return NS_ERROR_XPC_UNEXPECTED;
@@ -3816,6 +3817,13 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString& source,
             return NS_ERROR_INVALID_ARG;
 
         jsVersion = JS_StringToVersion(bytes.ptr());
+        // Explicitly check for "latest", which we support for sandboxes but
+        // isn't in the set of web-exposed version strings.
+        if (jsVersion == JSVERSION_UNKNOWN &&
+            !strcmp(bytes.ptr(), "latest"))
+        {
+            jsVersion = JSVERSION_LATEST;
+        }
         if (jsVersion == JSVERSION_UNKNOWN)
             return NS_ERROR_INVALID_ARG;
     }
@@ -3900,12 +3908,11 @@ xpc_EvalInSandbox(JSContext *cx, HandleObject sandboxArg, const nsAString& sourc
         pusher.Push(sandcx);
         JSAutoCompartment ac(sandcx, sandbox);
 
-        if (jsVersion != JSVERSION_DEFAULT)
-            JS_SetVersion(sandcx, jsVersion);
-
         JS::CompileOptions options(sandcx);
         options.setPrincipals(nsJSPrincipals::get(prin))
                .setFileAndLine(filename, lineNo);
+        if (jsVersion != JSVERSION_DEFAULT)
+               options.setVersion(jsVersion);
         JS::RootedObject rootedSandbox(sandcx, sandbox);
         ok = JS::Evaluate(sandcx, rootedSandbox, options,
                           PromiseFlatString(source).get(), source.Length(),
@@ -3942,7 +3949,7 @@ xpc_EvalInSandbox(JSContext *cx, HandleObject sandboxArg, const nsAString& sourc
 
         // Set the exception on our caller's cx.
         JS_SetPendingException(cx, exn);
-        return NS_OK;
+        return NS_ERROR_FAILURE;
     }
 
     // Transitively apply Xray waivers if |sb| was waived.
@@ -4003,7 +4010,7 @@ nsXPCComponents_Utils::GetWeakReference(const JS::Value &object, JSContext *cx,
 NS_IMETHODIMP
 nsXPCComponents_Utils::ForceGC()
 {
-    JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+    JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->Runtime();
     JS::PrepareForFullGC(rt);
     JS::GCForReason(rt, JS::gcreason::COMPONENT_UTILS);
     return NS_OK;
@@ -4021,7 +4028,7 @@ nsXPCComponents_Utils::ForceCC()
 NS_IMETHODIMP
 nsXPCComponents_Utils::ForceShrinkingGC()
 {
-    JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+    JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->Runtime();
     JS::PrepareForFullGC(rt);
     JS::ShrinkingGC(rt, JS::gcreason::COMPONENT_UTILS);
     return NS_OK;
@@ -4035,7 +4042,7 @@ class PreciseGCRunnable : public nsRunnable
 
     NS_IMETHOD Run()
     {
-        JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+        JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->Runtime();
 
         JSContext *cx;
         JSContext *iter = nullptr;
@@ -4294,7 +4301,10 @@ nsXPCComponents_Utils::IsDeadWrapper(const jsval &obj, bool *out)
     if (JSVAL_IS_PRIMITIVE(obj))
         return NS_ERROR_INVALID_ARG;
 
-    *out = JS_IsDeadWrapper(JSVAL_TO_OBJECT(obj));
+    // Make sure to unwrap first. Once a proxy is nuked, it ceases to be a
+    // wrapper, meaning that, if passed to another compartment, we'll generate
+    // a CCW for it. Make sure that IsDeadWrapper sees through the confusion.
+    *out = JS_IsDeadWrapper(js::CheckedUnwrap(JSVAL_TO_OBJECT(obj)));
     return NS_OK;
 }
 
@@ -4827,8 +4837,8 @@ nsXPCComponents::SetProperty(nsIXPConnectWrappedNative *wrapper,
 }
 
 static JSBool
-ContentComponentsGetterOp(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                          JSMutableHandleValue vp)
+ContentComponentsGetterOp(JSContext *cx, HandleObject obj, HandleId id,
+                          MutableHandleValue vp)
 {
     // If chrome is accessing the Components object of content, allow.
     MOZ_ASSERT(nsContentUtils::GetCurrentJSContext() == cx);

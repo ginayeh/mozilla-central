@@ -4,16 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "vm/RegExpObject.h"
+
+#include "mozilla/MemoryReporting.h"
+
 #include "frontend/TokenStream.h"
+
 #include "vm/MatchPairs.h"
-#include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
-#include "vm/Xdr.h"
 
 #include "jsobjinlines.h"
 
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
+#include "vm/Xdr.h"
 
 using namespace js;
 using js::frontend::TokenStream;
@@ -96,7 +100,7 @@ RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> 
      * the clone -- if the |RegExpStatics| provides more flags we'll
      * need a different |RegExpShared|.
      */
-    RegExpStatics *res = proto->getParent()->asGlobal().getRegExpStatics();
+    RegExpStatics *res = proto->getParent()->as<GlobalObject>().getRegExpStatics();
     RegExpFlag origFlags = other->getFlags();
     RegExpFlag staticsFlags = res->getFlags();
     if ((origFlags & staticsFlags) != staticsFlags) {
@@ -400,8 +404,7 @@ RegExpShared::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
 {
     switch (error) {
       case JSC::Yarr::NoError:
-        JS_NOT_REACHED("Called reportYarrError with value for no error");
-        return;
+        MOZ_ASSUME_UNREACHABLE("Called reportYarrError with value for no error");
 #define COMPILE_EMSG(__code, __msg)                                                              \
       case JSC::Yarr::__code:                                                                    \
         if (ts)                                                                                  \
@@ -422,7 +425,7 @@ RegExpShared::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
       COMPILE_EMSG(EscapeUnterminated, JSMSG_TRAILING_SLASH);
 #undef COMPILE_EMSG
       default:
-        JS_NOT_REACHED("Unknown Yarr error code");
+        MOZ_ASSUME_UNREACHABLE("Unknown Yarr error code");
     }
 }
 
@@ -722,7 +725,7 @@ RegExpCompartment::get(JSContext *cx, HandleAtom atom, JSString *opt, RegExpGuar
 }
 
 size_t
-RegExpCompartment::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
+RegExpCompartment::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += map_.sizeOfExcludingThis(mallocSizeOf);

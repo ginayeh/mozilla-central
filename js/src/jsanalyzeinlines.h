@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsanalyzeinlines_h___
-#define jsanalyzeinlines_h___
+#ifndef jsanalyzeinlines_h
+#define jsanalyzeinlines_h
 
 #include "jsanalyze.h"
 
@@ -71,8 +71,7 @@ ScriptAnalysis::getValueTypes(const SSAValue &v)
         return &v.phiNode()->types;
       default:
         /* Cannot compute types for empty SSA values. */
-        JS_NOT_REACHED("Bad SSA value");
-        return NULL;
+        MOZ_ASSUME_UNREACHABLE("Bad SSA value");
     }
 }
 
@@ -117,4 +116,4 @@ CrossScriptSSA::getValueTypes(const CrossSSAValue &cv)
 } /* namespace analyze */
 } /* namespace js */
 
-#endif // jsanalyzeinlines_h___
+#endif /* jsanalyzeinlines_h */

@@ -31,7 +31,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleClient",
                                   "resource://gre/modules/devtools/WebConsoleClient.jsm");
 
 Components.utils.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
-var { makeInfallible } = DevToolsUtils;
+this.makeInfallible = DevToolsUtils.makeInfallible;
 
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 
@@ -320,7 +320,7 @@ DebuggerClient.Argument = function DCP(aPosition) {
 };
 
 DebuggerClient.Argument.prototype.getArgument = function DCP_getArgument(aParams) {
-  if (!this.position in aParams) {
+  if (!(this.position in aParams)) {
     throw new Error("Bad index into params: " + this.position);
   }
   return aParams[this.position];

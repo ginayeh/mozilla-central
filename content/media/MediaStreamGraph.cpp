@@ -893,8 +893,12 @@ MediaStreamGraphImpl::PrepareUpdatesToMainThreadState(bool aFinalUpdate)
 {
   mMonitor.AssertCurrentThreadOwns();
 
+  mStreamUpdates.SetCapacity(mStreamUpdates.Length() + mStreams.Length());
   for (uint32_t i = 0; i < mStreams.Length(); ++i) {
     MediaStream* stream = mStreams[i];
+    if (!stream->MainThreadNeedsUpdates()) {
+      continue;
+    }
     StreamUpdate* update = mStreamUpdates.AppendElement();
     update->mGraphUpdateIndex = stream->mGraphUpdateIndices.GetAt(mCurrentTime);
     update->mStream = stream;
@@ -904,13 +908,14 @@ MediaStreamGraphImpl::PrepareUpdatesToMainThreadState(bool aFinalUpdate)
       stream->mFinished &&
       StreamTimeToGraphTime(stream, stream->GetBufferEnd()) <= mCurrentTime;
   }
-  mUpdateRunnables.MoveElementsFrom(mPendingUpdateRunnables);
+  if (!mPendingUpdateRunnables.IsEmpty()) {
+    mUpdateRunnables.MoveElementsFrom(mPendingUpdateRunnables);
+  }
 
   // Don't send the message to the main thread if it's not going to have
   // any work to do.
   if (aFinalUpdate ||
       !mUpdateRunnables.IsEmpty() ||
-      !mCurrentTaskMessageQueue.IsEmpty() ||
       !mStreamUpdates.IsEmpty()) {
     EnsureStableStateEventPosted();
   }
@@ -1534,6 +1539,12 @@ MediaStream::FinishOnGraphThread()
   GraphImpl()->FinishStream(this);
 }
 
+int64_t
+MediaStream::GetProcessingGraphUpdateIndex()
+{
+  return GraphImpl()->GetProcessingGraphUpdateIndex();
+}
+
 StreamBuffer::Track*
 MediaStream::EnsureTrack(TrackID aTrackId, TrackRate aSampleRate)
 {
@@ -1832,8 +1843,7 @@ MediaStream::ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment)
     break;
   }
   default:
-    MOZ_NOT_REACHED("Unknown track type");
-    break;
+    MOZ_CRASH("Unknown track type");
   }
 }
 

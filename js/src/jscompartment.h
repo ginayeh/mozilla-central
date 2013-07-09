@@ -4,15 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartment_h___
-#define jscompartment_h___
+#ifndef jscompartment_h
+#define jscompartment_h
 
-#include "mozilla/Attributes.h"
-#include "mozilla/GuardObjects.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
-#include "jsfun.h"
 #include "jsgc.h"
 #include "jsobj.h"
 
@@ -117,12 +115,14 @@ struct TypeInferenceSizes;
 
 namespace js {
 class AutoDebugModeGC;
+class ArrayBufferObject;
 class DebugScopes;
 }
 
 struct JSCompartment
 {
     JS::Zone                     *zone_;
+    JS::CompartmentOptions       options_;
 
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
@@ -144,6 +144,8 @@ struct JSCompartment
 
     JS::Zone *zone() { return zone_; }
     const JS::Zone *zone() const { return zone_; }
+    JS::CompartmentOptions &options() { return options_; }
+    const JS::CompartmentOptions &options() const { return options_; }
 
     /*
      * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
@@ -194,10 +196,10 @@ struct JSCompartment
     js::RegExpCompartment        regExps;
 
   private:
-    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, JSMallocSizeOfFun mallocSizeOf);
+    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, mozilla::MallocSizeOf mallocSizeOf);
 
   public:
-    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
+    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *compartmentObject,
                              JS::TypeInferenceSizes *tiSizes,
                              size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
                              size_t *regexpCompartment, size_t *debuggeesSet,
@@ -248,7 +250,7 @@ struct JSCompartment
     JSObject                     *gcIncomingGrayPointers;
 
     /* Linked list of live array buffers with >1 view. */
-    JSObject                     *gcLiveArrayBuffers;
+    js::ArrayBufferObject        *gcLiveArrayBuffers;
 
     /* Linked list of live weakmaps in this compartment. */
     js::WeakMapBase              *gcWeakMapList;
@@ -259,7 +261,7 @@ struct JSCompartment
     unsigned                     debugModeBits;  // see debugMode() below
 
   public:
-    JSCompartment(JS::Zone *zone);
+    JSCompartment(JS::Zone *zone, const JS::CompartmentOptions &options);
     ~JSCompartment();
 
     bool init(JSContext *cx);
@@ -561,5 +563,4 @@ class AutoWrapperRooter : private AutoGCRooter {
 
 } /* namespace js */
 
-#endif /* jscompartment_h___ */
-
+#endif /* jscompartment_h */

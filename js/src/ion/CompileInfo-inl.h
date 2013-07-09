@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_compileinfo_inl_h__
-#define jsion_compileinfo_inl_h__
+#ifndef ion_CompileInfo_inl_h
+#define ion_CompileInfo_inl_h
 
-#include "CompileInfo.h"
+#include "ion/CompileInfo.h"
 #include "jsgcinlines.h"
 #include "jsscriptinlines.h"
 
@@ -84,4 +84,4 @@ CompileInfo::getNote(JSContext *cx, jsbytecode *pc) const
     return js_GetSrcNote(cx, script(), pc);
 }
 
-#endif // jsion_compileinfo_inl_h__
+#endif /* ion_CompileInfo_inl_h */

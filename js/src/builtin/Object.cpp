@@ -23,25 +23,6 @@ using js::frontend::IsIdentifier;
 using mozilla::ArrayLength;
 
 
-// Duplicated in jsobj.cpp
-static bool
-DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
-{
-    AutoIdVector ids(cx);
-    AutoPropDescArrayRooter descs(cx);
-    if (!ReadPropertyDescriptors(cx, props, true, &ids, &descs))
-        return false;
-
-    bool dummy;
-    for (size_t i = 0, len = ids.length(); i < len; i++) {
-        if (!DefineProperty(cx, obj, ids.handleAt(i), descs[i], true, &dummy))
-            return false;
-    }
-
-    return true;
-}
-
-
 JSBool
 js::obj_construct(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -530,14 +511,14 @@ obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
      * Implement [[Prototype]]-getting -- particularly across compartment
      * boundaries -- by calling a cached __proto__ getter function.
      */
-    InvokeArgsGuard nested;
-    if (!cx->stack.pushInvokeArgs(cx, 0, &nested))
+    InvokeArgs args2(cx);
+    if (!args2.init(0))
         return false;
-    nested.setCallee(cx->global()->protoGetter());
-    nested.setThis(args[0]);
-    if (!Invoke(cx, nested))
+    args2.setCallee(cx->global()->protoGetter());
+    args2.setThis(args[0]);
+    if (!Invoke(cx, args2))
         return false;
-    args.rval().set(nested.rval());
+    args.rval().set(args2.rval());
     return true;
 }
 
@@ -557,7 +538,12 @@ obj_watch_handler(JSContext *cx, JSObject *obj_, jsid id_, jsval old,
 
     JSObject *callable = (JSObject *)closure;
     Value argv[] = { IdToValue(id), old, *nvp };
-    return Invoke(cx, ObjectValue(*obj), ObjectOrNullValue(callable), ArrayLength(argv), argv, nvp);
+    RootedValue rv(cx);
+    if (!Invoke(cx, ObjectValue(*obj), ObjectOrNullValue(callable), ArrayLength(argv), argv, &rv))
+        return false;
+
+    *nvp = rv;
+    return true;
 }
 
 static JSBool
@@ -899,7 +885,10 @@ obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
     if (!GetFirstArgumentAsObject(cx, args, "Object.isExtensible", &obj))
         return false;
 
-    args.rval().setBoolean(obj->isExtensible());
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    args.rval().setBoolean(extensible);
     return true;
 }
 
@@ -912,7 +901,11 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     args.rval().setObject(*obj);
-    if (!obj->isExtensible())
+
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    if (!extensible)
         return true;
 
     return JSObject::preventExtensions(cx, obj);

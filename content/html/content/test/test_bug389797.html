@@ -33,7 +33,6 @@ function HTML_TAG(aTagName, aImplClass) {
   interfaces[aTagName] =
     [ "nsIDOMEventTarget",
       "nsIDOMElementCSSInlineStyle",
-      "nsIDOMNodeSelector",
       "nsITouchEventReceiver",
       "nsIInlineEventHandlers" ];
 
@@ -72,8 +71,7 @@ function HTML_TAG(aTagName, aImplClass) {
 
 const objectIfaces = [
     "imgINotificationObserver", "nsIRequestObserver", "nsIStreamListener",
-    "nsIFrameLoaderOwner", "nsIObjectLoadingContent", "nsIInterfaceRequestor",
-    "nsIChannelEventSink"
+    "nsIFrameLoaderOwner", "nsIObjectLoadingContent", "nsIChannelEventSink"
   ];
 
 var objectIfaces2 = [];

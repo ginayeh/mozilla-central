@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "IonFrames.h"
+#include "ion/IonFrames.h"
 
 #include "jsobj.h"
 #include "jsscript.h"
@@ -21,6 +21,8 @@
 #include "ion/Safepoints.h"
 #include "ion/SnapshotReader.h"
 #include "ion/VMFunctions.h"
+
+#include "jsfuninlines.h"
 
 #include "ion/IonFrameIterator-inl.h"
 #include "ion/IonFrames-inl.h"
@@ -296,7 +298,7 @@ IonFrameIterator::machineState() const
     // are unable to restore any FPUs registers from an OOL VM call.  This can
     // cause some trouble for f.arguments.
     MachineState machine;
-    for (GeneralRegisterIterator iter(reader.allSpills()); iter.more(); iter++)
+    for (GeneralRegisterBackwardIterator iter(reader.allSpills()); iter.more(); iter++)
         machine.setRegisterLocation(*iter, --spill);
 
     return machine;
@@ -392,7 +394,7 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             return;
 
           default:
-            JS_NOT_REACHED("Invalid trap status");
+            MOZ_ASSUME_UNREACHABLE("Invalid trap status");
         }
     }
 
@@ -407,6 +409,13 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
         if (pcOffset < tn->start)
             continue;
         if (pcOffset >= tn->start + tn->length)
+            continue;
+
+        // Skip if the try note's stack depth exceeds the frame's stack depth.
+        // See the big comment in TryNoteIter::settle for more info.
+        JS_ASSERT(frame.baselineFrame()->numValueSlots() >= script->nfixed);
+        size_t stackDepth = frame.baselineFrame()->numValueSlots() - script->nfixed;
+        if (tn->stackDepth > stackDepth)
             continue;
 
         // Unwind scope chain (pop block objects).
@@ -429,6 +438,17 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             }
             break;
 
+          case JSTRY_FINALLY:
+            if (cx->isExceptionPending()) {
+                rfe->kind = ResumeFromException::RESUME_FINALLY;
+                jsbytecode *finallyPC = script->main() + tn->start + tn->length;
+                rfe->target = script->baselineScript()->nativeCodeForPC(script, finallyPC);
+                rfe->exception = cx->getPendingException();
+                cx->clearPendingException();
+                return;
+            }
+            break;
+
           case JSTRY_ITER: {
             Value iterValue(* (Value *) rfe->stackPointer);
             RootedObject iterObject(cx, &iterValue.toObject());
@@ -443,7 +463,7 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             break;
 
           default:
-            JS_NOT_REACHED("Invalid try note");
+            MOZ_ASSUME_UNREACHABLE("Invalid try note");
         }
     }
 
@@ -614,7 +634,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
         return CalleeToToken(script);
       }
       default:
-        JS_NOT_REACHED("unknown callee token type");
+        MOZ_ASSUME_UNREACHABLE("unknown callee token type");
     }
 }
 
@@ -708,7 +728,7 @@ MarkIonJSFrame(JSTracer *trc, const IonFrameIterator &frame)
     uintptr_t *spill = frame.spillBase();
     GeneralRegisterSet gcRegs = safepoint.gcSpills();
     GeneralRegisterSet valueRegs = safepoint.valueSpills();
-    for (GeneralRegisterIterator iter(safepoint.allSpills()); iter.more(); iter++) {
+    for (GeneralRegisterBackwardIterator iter(safepoint.allSpills()); iter.more(); iter++) {
         --spill;
         if (gcRegs.has(*iter))
             gc::MarkGCThingRoot(trc, reinterpret_cast<void **>(spill), "ion-gc-spill");
@@ -730,6 +750,26 @@ MarkIonJSFrame(JSTracer *trc, const IonFrameIterator &frame)
             // GC moved the value, replace the stored payload.
             layout = JSVAL_TO_IMPL(v);
             WriteAllocation(frame, &payload, layout.s.payload.uintptr);
+        }
+    }
+#endif
+
+#ifdef JSGC_GENERATIONAL
+    if (trc->runtime->isHeapMinorCollecting()) {
+        // Minor GCs may move slots/elements allocated in the nursery. Update
+        // any slots/elements pointers stored in this frame.
+
+        GeneralRegisterSet slotsRegs = safepoint.slotsOrElementsSpills();
+        spill = frame.spillBase();
+        for (GeneralRegisterBackwardIterator iter(safepoint.allSpills()); iter.more(); iter++) {
+            --spill;
+            if (slotsRegs.has(*iter))
+                trc->runtime->gcNursery.forwardBufferPointer(reinterpret_cast<HeapSlot **>(spill));
+        }
+
+        while (safepoint.getSlotsOrElementsSlot(&slot)) {
+            HeapSlot **slots = reinterpret_cast<HeapSlot **>(layout->slotRef(slot));
+            trc->runtime->gcNursery.forwardBufferPointer(slots);
         }
     }
 #endif
@@ -764,8 +804,7 @@ JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
         if (exitFrame->isWrapperExit() && f->outParam == Type_Handle) {
             switch (f->outParamRootType) {
               case VMFunction::RootNone:
-                JS_NOT_REACHED("Handle outparam must have root type");
-                break;
+                MOZ_ASSUME_UNREACHABLE("Handle outparam must have root type");
               case VMFunction::RootObject:
               case VMFunction::RootString:
               case VMFunction::RootPropertyName:
@@ -907,8 +946,7 @@ MarkIonExitFrame(JSTracer *trc, const IonFrameIterator &frame)
     if (f->outParam == Type_Handle) {
         switch (f->outParamRootType) {
           case VMFunction::RootNone:
-            JS_NOT_REACHED("Handle outparam must have root type");
-            break;
+            MOZ_ASSUME_UNREACHABLE("Handle outparam must have root type");
           case VMFunction::RootObject:
             gc::MarkObjectRoot(trc, footer->outParam<JSObject *>(), "ion-vm-out");
             break;
@@ -947,8 +985,7 @@ MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
             MarkIonJSFrame(trc, frames);
             break;
           case IonFrame_Unwound_OptimizedJS:
-            JS_NOT_REACHED("invalid");
-            break;
+            MOZ_ASSUME_UNREACHABLE("invalid");
           case IonFrame_Rectifier:
           case IonFrame_Unwound_Rectifier:
             break;
@@ -958,8 +995,7 @@ MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
             // dead.
             break;
           default:
-            JS_NOT_REACHED("unexpected frame type");
-            break;
+            MOZ_ASSUME_UNREACHABLE("unexpected frame type");
         }
     }
 }
@@ -1101,8 +1137,7 @@ SnapshotIterator::FromTypedPayload(JSValueType type, uintptr_t payload)
       case JSVAL_TYPE_OBJECT:
         return ObjectValue(*reinterpret_cast<JSObject *>(payload));
       default:
-        JS_NOT_REACHED("unexpected type - needs payload");
-        return UndefinedValue();
+        MOZ_ASSUME_UNREACHABLE("unexpected type - needs payload");
     }
 }
 
@@ -1171,8 +1206,7 @@ SnapshotIterator::slotValue(const Slot &slot)
         return ionScript_->getConstant(slot.constantIndex());
 
       default:
-        JS_NOT_REACHED("huh?");
-        return UndefinedValue();
+        MOZ_ASSUME_UNREACHABLE("huh?");
     }
 }
 
@@ -1191,7 +1225,7 @@ IonFrameIterator::ionScript() const
       case CalleeToken_ParallelFunction:
         return script()->parallelIonScript();
       default:
-        JS_NOT_REACHED("unknown callee token type");
+        MOZ_ASSUME_UNREACHABLE("unknown callee token type");
     }
 }
 
@@ -1225,11 +1259,6 @@ InlineFrameIteratorMaybeGC<allowGC>::resetOn(const IonFrameIterator *iter)
 template void InlineFrameIteratorMaybeGC<NoGC>::resetOn(const IonFrameIterator *iter);
 template void InlineFrameIteratorMaybeGC<CanGC>::resetOn(const IonFrameIterator *iter);
 
-// Disable PGO.
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
-
 template <AllowGC allowGC>
 void
 InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
@@ -1255,6 +1284,10 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
         // Recover the number of actual arguments from the script.
         if (JSOp(*pc_) != JSOP_FUNAPPLY)
             numActualArgs_ = GET_ARGC(pc_);
+        if (JSOp(*pc_) == JSOP_FUNCALL) {
+            JS_ASSERT(GET_ARGC(pc_) > 0);
+            numActualArgs_ = GET_ARGC(pc_) - 1;
+        }
 
         JS_ASSERT(numActualArgs_ != 0xbadbad);
 
@@ -1271,12 +1304,12 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 
         si_.nextFrame();
 
-        callee_ = funval.toObject().toFunction();
+        callee_ = &funval.toObject().as<JSFunction>();
 
         // Inlined functions may be clones that still point to the lazy script
         // for the executed script, if they are clones. The actual script
         // exists though, just make sure the function points to it.
-        script_ = callee_->getExistingScript();
+        script_ = callee_->existingScript();
 
         pc_ = script_->code + si_.pcOffset();
     }
@@ -1285,11 +1318,6 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 }
 template void InlineFrameIteratorMaybeGC<NoGC>::findNextFrame();
 template void InlineFrameIteratorMaybeGC<CanGC>::findNextFrame();
-
-// Reenable default optimization flags.
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
 template <AllowGC allowGC>
 bool

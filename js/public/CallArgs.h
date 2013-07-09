@@ -26,8 +26,8 @@
  * methods' implementations, potentially under time pressure.
  */
 
-#ifndef js_CallArgs_h___
-#define js_CallArgs_h___
+#ifndef js_CallArgs_h
+#define js_CallArgs_h
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -97,6 +97,11 @@ extern JS_PUBLIC_DATA(const HandleValue) UndefinedHandleValue;
  */
 
 namespace detail {
+
+#ifdef DEBUG
+extern JS_PUBLIC_API(void)
+CheckIsValidConstructible(Value v);
+#endif
 
 enum UsedRval { IncludeUsedRval, NoUsedRval };
 
@@ -169,6 +174,14 @@ class MOZ_STACK_CLASS CallReceiverBase : public UsedRvalBase<
             return thisv();
 
         return JS_ComputeThis(cx, base());
+    }
+
+    bool isConstructing() const {
+#ifdef DEBUG
+        if (this->usedRval_)
+            CheckIsValidConstructible(calleev());
+#endif
+        return argv_[-1].isMagic();
     }
 
     /*
@@ -400,4 +413,4 @@ JS_THIS(JSContext *cx, JS::Value *vp)
  */
 #define JS_THIS_VALUE(cx,vp)    ((vp)[1])
 
-#endif /* js_CallArgs_h___ */
+#endif /* js_CallArgs_h */

@@ -189,7 +189,7 @@ function onRadioClick(aPartId)
   var id = radioGroup.selectedItem.id;
   var permission = id.split('#')[1];
   if (permission == UNKNOWN) {
-    permissionManager.remove(gPermURI, aPartId);
+    permissionManager.remove(gPermURI.host, aPartId);
   } else {
     permissionManager.add(gPermURI, aPartId, permission);
   }
@@ -299,7 +299,7 @@ function clearPluginPermissionTemplate() {
 }
 
 function initPluginsRow() {
-  var vulnerableLabel = document.getElementById("browserBundle").getString("vulnerableNoUpdatePluginWarning");
+  let vulnerableLabel = document.getElementById("browserBundle").getString("pluginActivateVulnerable.label");
   let pluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
 
   let permissionMap = Map();

@@ -28,7 +28,6 @@
 #include "nsContentListDeclarations.h"
 #include "nsMathUtils.h"
 #include "nsReadableUtils.h"
-#include "nsWrapperCache.h"
 
 class imgICache;
 class imgIContainer;
@@ -61,6 +60,7 @@ class nsIDOMWindow;
 class nsIDragSession;
 class nsIEditor;
 class nsIFragmentContentSink;
+class nsIFrame;
 class nsIImageLoadingContent;
 class nsIInterfaceRequestor;
 class nsIIOService;
@@ -94,7 +94,7 @@ class nsScriptObjectTracer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
-class nsIFrame;
+class nsWrapperCache;
 
 struct JSContext;
 struct JSPropertyDescriptor;
@@ -1261,38 +1261,8 @@ public:
 
 #ifdef DEBUG
   static bool AreJSObjectsHeld(void* aScriptObjectHolder); 
-
-  static void CheckCCWrapperTraversal(void* aScriptObjectHolder,
-                                      nsWrapperCache* aCache,
-                                      nsScriptObjectTracer* aTracer);
 #endif
 
-  static void PreserveWrapper(nsISupports* aScriptObjectHolder,
-                              nsWrapperCache* aCache)
-  {
-    if (!aCache->PreservingWrapper()) {
-      nsISupports *ccISupports;
-      aScriptObjectHolder->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                                          reinterpret_cast<void**>(&ccISupports));
-      MOZ_ASSERT(ccISupports);
-      nsXPCOMCycleCollectionParticipant* participant;
-      CallQueryInterface(ccISupports, &participant);
-      PreserveWrapper(ccISupports, aCache, participant);
-    }
-  }
-  static void PreserveWrapper(void* aScriptObjectHolder,
-                              nsWrapperCache* aCache,
-                              nsScriptObjectTracer* aTracer)
-  {
-    if (!aCache->PreservingWrapper()) {
-      HoldJSObjects(aScriptObjectHolder, aTracer);
-      aCache->SetPreservingWrapper(true);
-#ifdef DEBUG
-      // Make sure the cycle collector will be able to traverse to the wrapper.
-      CheckCCWrapperTraversal(aScriptObjectHolder, aCache, aTracer);
-#endif
-    }
-  }
   static void ReleaseWrapper(void* aScriptObjectHolder,
                              nsWrapperCache* aCache);
 
@@ -1339,6 +1309,11 @@ public:
    * Returns true if aPrincipal is the system principal.
    */
   static bool IsSystemPrincipal(nsIPrincipal* aPrincipal);
+
+  /**
+   * Returns true if aPrincipal is an nsExpandedPrincipal.
+   */
+  static bool IsExpandedPrincipal(nsIPrincipal* aPrincipal);
 
   /**
    * Gets the system principal from the security manager.
@@ -1548,15 +1523,6 @@ public:
   static nsViewportInfo GetViewportInfo(nsIDocument* aDocument,
                                         uint32_t aDisplayWidth,
                                         uint32_t aDisplayHeight);
-
-#ifdef MOZ_WIDGET_ANDROID
-  /**
-   * The device-pixel-to-CSS-px ratio used to adjust meta viewport values.
-   * XXX Not to be used --- use nsIWidget::GetDefaultScale instead. Will be
-   * removed when bug 803207 is fixed.
-   */
-  static double GetDevicePixelsPerMetaViewportPixel(nsIWidget* aWidget);
-#endif
 
   // Call EnterMicroTask when you're entering JS execution.
   // Usually the best way to do this is to use nsAutoMicroTask.

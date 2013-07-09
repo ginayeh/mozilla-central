@@ -7,40 +7,27 @@
 /*
  * JS lexical scanner.
  */
-#include <stdio.h>      /* first to avoid trouble on some systems */
-#include <errno.h>
-#include <limits.h>
-#include <math.h>
-#ifdef HAVE_MEMORY_H
-#include <memory.h>
-#endif
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include "frontend/TokenStream.h"
 
 #include "mozilla/PodOperations.h"
 
-#include "jstypes.h"
-#include "jsutil.h"
-#include "jsprf.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
 #include "jsexn.h"
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
 
 #include "frontend/BytecodeCompiler.h"
-#include "frontend/Parser.h"
-#include "frontend/TokenStream.h"
 #include "js/CharacterEncoding.h"
 #include "vm/Keywords.h"
-#include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
-
-#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -297,7 +284,6 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
     strictModeGetter(smg),
-    lastFunctionKeyword(keepAtoms),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)
@@ -587,15 +573,7 @@ void
 TokenStream::seek(const Position &pos, const TokenStream &other)
 {
     srcCoords.fill(other.srcCoords);
-    lastFunctionKeyword = other.lastFunctionKeyword;
     seek(pos);
-}
-
-void
-TokenStream::positionAfterLastFunctionKeyword(Position &pos)
-{
-    JS_ASSERT(lastFunctionKeyword.buf > userbuf.base());
-    PodAssign(&pos, &lastFunctionKeyword);
 }
 
 bool
@@ -1185,11 +1163,8 @@ TokenStream::getTokenInternal()
             tt = TOK_NAME;
             if (!checkForKeyword(chars, length, &tt, &tp->t_op))
                 goto error;
-            if (tt != TOK_NAME) {
-                if (tt == TOK_FUNCTION)
-                    tell(&lastFunctionKeyword);
+            if (tt != TOK_NAME)
                 goto out;
-            }
         }
 
         /*
@@ -1874,7 +1849,6 @@ TokenKindToString(TokenKind tt)
       case TOK_INSTANCEOF:      return "TOK_INSTANCEOF";
       case TOK_DEBUGGER:        return "TOK_DEBUGGER";
       case TOK_YIELD:           return "TOK_YIELD";
-      case TOK_LEXICALSCOPE:    return "TOK_LEXICALSCOPE";
       case TOK_LET:             return "TOK_LET";
       case TOK_RESERVED:        return "TOK_RESERVED";
       case TOK_STRICT_RESERVED: return "TOK_STRICT_RESERVED";

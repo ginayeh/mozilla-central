@@ -4,21 +4,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MIR.h"
+#include "ion/MIR.h"
 
 #include "mozilla/Casting.h"
 
-#include "BaselineInspector.h"
-#include "IonBuilder.h"
-#include "LICM.h" // For LinearSum
-#include "MIRGraph.h"
-#include "EdgeCaseAnalysis.h"
-#include "RangeAnalysis.h"
-#include "IonSpewer.h"
+#include "ion/BaselineInspector.h"
+#include "ion/IonBuilder.h"
+#include "ion/LICM.h" // For LinearSum
+#include "ion/MIRGraph.h"
+#include "ion/EdgeCaseAnalysis.h"
+#include "ion/RangeAnalysis.h"
+#include "ion/IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
+
 #include "jsatominlines.h"
-#include "jstypedarrayinlines.h"
+#include "jsinferinlines.h"
+
+#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::ion;
@@ -116,8 +119,7 @@ EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
         ret.setNumber(NumberMod(lhs.toNumber(), rhs.toNumber()));
         break;
       default:
-        JS_NOT_REACHED("NYI");
-        return NULL;
+        MOZ_ASSUME_UNREACHABLE("NYI");
     }
 
     if (ins->type() != MIRTypeFromValue(ret)) {
@@ -229,11 +231,9 @@ void
 MDefinition::printOpcode(FILE *fp)
 {
     PrintOpcodeName(fp, op());
-    fprintf(fp, " ");
     for (size_t j = 0; j < numOperands(); j++) {
+        fprintf(fp, " ");
         getOperand(j)->printName(fp);
-        if (j != numOperands() - 1)
-            fprintf(fp, " ");
     }
 }
 
@@ -413,8 +413,8 @@ MConstant::printOpcode(FILE *fp)
         fprintf(fp, "%f", value().toDouble());
         break;
       case MIRType_Object:
-        if (value().toObject().isFunction()) {
-            JSFunction *fun = value().toObject().toFunction();
+        if (value().toObject().is<JSFunction>()) {
+            JSFunction *fun = &value().toObject().as<JSFunction>();
             if (fun->displayAtom()) {
                 fputs("function ", fp);
                 FileEscapedString(fp, fun->displayAtom(), 0);
@@ -439,9 +439,23 @@ MConstant::printOpcode(FILE *fp)
         fprintf(fp, "magic");
         break;
       default:
-        JS_NOT_REACHED("unexpected type");
-        break;
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
+}
+
+void
+MControlInstruction::printOpcode(FILE *fp)
+{
+    MDefinition::printOpcode(fp);
+    for (size_t j = 0; j < numSuccessors(); j++)
+        fprintf(fp, " block%d", getSuccessor(j)->id());
+}
+
+void
+MCompare::printOpcode(FILE *fp)
+{
+    MDefinition::printOpcode(fp);
+    fprintf(fp, " %s", js_CodeName[jsop()]);
 }
 
 void
@@ -955,7 +969,7 @@ MUrsh::infer(BaselineInspector *inspector, jsbytecode *pc)
         return;
     }
 
-    if (inspector->expectedResultType(pc) == MIRType_Double) {
+    if (inspector->hasSeenDoubleResult(pc)) {
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;
@@ -1262,6 +1276,9 @@ MMul::updateForReplacement(MDefinition *ins_)
     MMul *ins = ins_->toMul();
     bool negativeZero = canBeNegativeZero() || ins->canBeNegativeZero();
     setCanBeNegativeZero(negativeZero);
+    // Remove the imul annotation when merging imul and normal multiplication.
+    if (mode_ == Integer && ins->mode() != Integer)
+        mode_ = Normal;
     return true;
 }
 
@@ -1309,7 +1326,7 @@ MBinaryArithInstruction::infer(BaselineInspector *inspector,
         return inferFallback(inspector, pc);
 
     // If the operation has ever overflowed, use a double specialization.
-    if (inspector->expectedResultType(pc) == MIRType_Double)
+    if (inspector->hasSeenDoubleResult(pc))
         setResultType(MIRType_Double);
 
     // If the operation will always overflow on its constant operands, use a
@@ -1470,8 +1487,7 @@ MCompare::inputType()
       case Compare_Value:
         return MIRType_Value;
       default:
-        JS_NOT_REACHED("No known conversion");
-        return MIRType_None;
+        MOZ_ASSUME_UNREACHABLE("No known conversion");
     }
 }
 
@@ -1921,8 +1937,7 @@ MCompare::tryFold(bool *result)
             *result = (op == JSOP_NE || op == JSOP_STRICTNE);
             return true;
           default:
-            JS_NOT_REACHED("Unexpected type");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -1943,11 +1958,9 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_Boolean:
             // Int32 specialization should handle this.
-            JS_NOT_REACHED("Wrong specialization");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
           default:
-            JS_NOT_REACHED("Unexpected type");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -1968,11 +1981,9 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_String:
             // Compare_String specialization should handle this.
-            JS_NOT_REACHED("Wrong specialization");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
           default:
-            JS_NOT_REACHED("Unexpected type");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -2024,8 +2035,7 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (comp != 0);
             break;
           default:
-            JS_NOT_REACHED("Unexpected op.");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
         }
 
         return true;
@@ -2057,8 +2067,7 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (lhsUint != rhsUint);
             break;
           default:
-            JS_NOT_REACHED("Unexpected op.");
-            return false;
+            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
         }
 
         return true;
@@ -2223,7 +2232,7 @@ InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
         if (choiceSet[i])
             continue;
 
-        JSFunction *target = targets[i]->toFunction();
+        JSFunction *target = &targets[i]->as<JSFunction>();
 
         // Eliminate all entries containing the vetoed function from the map.
         size_t j = 0;
@@ -2251,7 +2260,7 @@ InlinePropertyTable::trimToAndMaybePatchTargets(AutoObjectVector &targets,
         for (size_t j = 0; j < originals.length(); j++) {
             if (entries_[i]->func == originals[j]) {
                 if (entries_[i]->func != targets[j])
-                    entries_[i] = new Entry(entries_[i]->typeObj, targets[j]->toFunction());
+                    entries_[i] = new Entry(entries_[i]->typeObj, &targets[j]->as<JSFunction>());
                 foundFunc = true;
                 break;
             }
@@ -2301,25 +2310,25 @@ MInArray::needsNegativeIntCheck() const
 void *
 MLoadTypedArrayElementStatic::base() const
 {
-    return TypedArray::viewData(typedArray_);
+    return typedArray_->viewData();
 }
 
 size_t
 MLoadTypedArrayElementStatic::length() const
 {
-    return TypedArray::byteLength(typedArray_);
+    return typedArray_->byteLength();
 }
 
 void *
 MStoreTypedArrayElementStatic::base() const
 {
-    return TypedArray::viewData(typedArray_);
+    return typedArray_->viewData();
 }
 
 size_t
 MStoreTypedArrayElementStatic::length() const
 {
-    return TypedArray::byteLength(typedArray_);
+    return typedArray_->byteLength();
 }
 
 bool
@@ -2425,7 +2434,7 @@ ion::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id, int *arrayType
         return false;
 
     *arrayType = types->getTypedArrayType();
-    return *arrayType != TypedArray::TYPE_MAX;
+    return *arrayType != TypedArrayObject::TYPE_MAX;
 }
 
 bool

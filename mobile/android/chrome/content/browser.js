@@ -30,6 +30,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
 XPCOMUtils.defineLazyModuleGetter(this, "UserAgentOverrides",
                                   "resource://gre/modules/UserAgentOverrides.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerContent",
+                                  "resource://gre/modules/LoginManagerContent.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
@@ -178,11 +181,11 @@ function fuzzyEquals(a, b) {
 }
 
 /**
- * Convert a font size from CSS pixels (px) to twenteiths-of-a-point
+ * Convert a font size to CSS pixels (px) from twentieiths-of-a-point
  * (twips).
  */
-function convertFromPxToTwips(aSize) {
-  return (20.0 * 12.0 * (aSize/16.0));
+function convertFromTwipsToPx(aSize) {
+  return aSize/240 * 16.0;
 }
 
 #ifdef MOZ_CRASHREPORTER
@@ -610,6 +613,13 @@ var BrowserApp = {
     // initialize the form history and passwords databases on upgrades
     Services.obs.notifyObservers(null, "FormHistory:Init", "");
     Services.obs.notifyObservers(null, "Passwords:Init", "");
+
+    // Migrate user-set "plugins.click_to_play" pref. See bug 884694.
+    // Because the default value is true, a user-set pref means that the pref was set to false.
+    if (Services.prefs.prefHasUserValue("plugins.click_to_play")) {
+      Services.prefs.setIntPref("plugin.default.state", Ci.nsIPluginTag.STATE_ENABLED);
+      Services.prefs.clearUserPref("plugins.click_to_play");
+    }
   },
 
   shutdown: function shutdown() {
@@ -1075,11 +1085,13 @@ var BrowserApp = {
         continue;
       }
 
-      // Some preferences use integers or strings instead of booleans for
-      // indicating enabled/disabled. Since the Java UI uses the type to
-      // determine which ui elements to show, we need to normalize these
-      // preferences to be actual booleans.
+      // Some Gecko preferences use integers or strings to reference
+      // state instead of directly representing the value.
+      // Since the Java UI uses the type to determine which ui elements
+      // to show and how to handle them, we need to normalize these
+      // preferences to the correct type.
       switch (prefName) {
+        // (string) index for determining which multiple choice value to display.
         case "browser.chrome.titlebarMode":
         case "network.cookie.cookieBehavior":
         case "font.size.inflation.minTwips":
@@ -1304,11 +1316,18 @@ var BrowserApp = {
         browser.goForward();
         break;
 
-      case "Session:Reload":
+      case "Session:Reload": {
+        let allowMixedContent = false;
+        if (aData) {
+            let data = JSON.parse(aData);
+            allowMixedContent = data.allowMixedContent;
+        }
+
         // Try to use the session history to reload so that framesets are
         // handled properly. If the window has no session history, fall back
         // to using the web navigation's reload method.
-        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+        let flags = allowMixedContent ? Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT :
+                    Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
         let webNav = browser.webNavigation;
         try {
           let sh = webNav.sessionHistory;
@@ -1317,15 +1336,17 @@ var BrowserApp = {
         } catch (e) {}
         webNav.reload(flags);
         break;
+      }
 
       case "Session:Stop":
         browser.stop();
         break;
 
-      case "Session:ShowHistory":
+      case "Session:ShowHistory": {
         let data = JSON.parse(aData);
         this.showHistory(data.fromIndex, data.toIndex, data.selIndex);
         break;
+      }
 
       case "Tab:Load": {
         let data = JSON.parse(aData);
@@ -2563,6 +2584,8 @@ Tab.prototype = {
     this.browser.addEventListener("DOMTitleChanged", this, true);
     this.browser.addEventListener("DOMWindowClose", this, true);
     this.browser.addEventListener("DOMWillOpenModalDialog", this, true);
+    this.browser.addEventListener("DOMAutoComplete", this, true);
+    this.browser.addEventListener("blur", this, true);
     this.browser.addEventListener("scroll", this, true);
     this.browser.addEventListener("MozScrolledAreaChanged", this, true);
     // Note that the XBL binding is untrusted
@@ -2612,12 +2635,11 @@ Tab.prototype = {
   /**
    * Retrieves the font size in twips for a given element.
    */
-  getFontSizeInTwipsFor: function(aElement) {
+  getInflatedFontSizeFor: function(aElement) {
     // GetComputedStyle should always give us CSS pixels for a font size.
     let fontSizeStr = this.window.getComputedStyle(aElement)['fontSize'];
     let fontSize = fontSizeStr.slice(0, -2);
-    // This is in px, so we want to convert it to points then to twips.
-    return convertFromPxToTwips(fontSize);
+    return aElement.fontSizeInflation * fontSize;
   },
 
   /**
@@ -2626,14 +2648,12 @@ Tab.prototype = {
    * preference.
    */
   getZoomToMinFontSize: function(aElement) {
-    let currentZoom = this._zoom;
-    let minFontSize = Services.prefs.getIntPref("browser.zoom.reflowZoom.minFontSizeTwips");
-    let curFontSize = this.getFontSizeInTwipsFor(aElement);
-    if (!fuzzyEquals(curFontSize*(currentZoom), minFontSize)) {
-      return 1.0 + minFontSize / curFontSize;
-    }
-
-    return 1.0;
+    // We only use the font.size.inflation.minTwips preference because this is
+    // the only one that is controlled by the user-interface in the 'Settings'
+    // menu. Thus, if font.size.inflation.emPerLine is changed, this does not
+    // effect reflow-on-zoom.
+    let minFontSize = convertFromTwipsToPx(Services.prefs.getIntPref("font.size.inflation.minTwips"));
+    return minFontSize / this.getInflatedFontSizeFor(aElement);
   },
 
   performReflowOnZoom: function(aViewport) {
@@ -2712,6 +2732,8 @@ Tab.prototype = {
     this.browser.removeEventListener("DOMTitleChanged", this, true);
     this.browser.removeEventListener("DOMWindowClose", this, true);
     this.browser.removeEventListener("DOMWillOpenModalDialog", this, true);
+    this.browser.removeEventListener("DOMAutoComplete", this, true);
+    this.browser.removeEventListener("blur", this, true);
     this.browser.removeEventListener("scroll", this, true);
     this.browser.removeEventListener("MozScrolledAreaChanged", this, true);
     this.browser.removeEventListener("PluginBindingAttached", this, true);
@@ -2778,7 +2800,7 @@ Tab.prototype = {
     if (BrowserApp.selectedTab == this) {
       if (resolution != this._drawZoom) {
         this._drawZoom = resolution;
-        cwu.setResolution(resolution, resolution);
+        cwu.setResolution(resolution / window.devicePixelRatio, resolution / window.devicePixelRatio);
       }
     } else if (!fuzzyEquals(resolution, zoom)) {
       dump("Warning: setDisplayPort resolution did not match zoom for background tab! (" + resolution + " != " + zoom + ")");
@@ -3058,7 +3080,7 @@ Tab.prototype = {
       if (BrowserApp.selectedTab == this) {
         let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         this._drawZoom = aZoom;
-        cwu.setResolution(aZoom, aZoom);
+        cwu.setResolution(aZoom / window.devicePixelRatio, aZoom / window.devicePixelRatio);
       }
     }
   },
@@ -3204,6 +3226,8 @@ Tab.prototype = {
     switch (aEvent.type) {
       case "DOMContentLoaded": {
         let target = aEvent.originalTarget;
+
+        LoginManagerContent.onContentLoaded(aEvent);
 
         // ignore on frames and other documents
         if (target != this.browser.contentDocument)
@@ -3368,6 +3392,12 @@ Tab.prototype = {
         break;
       }
 
+      case "DOMAutoComplete":
+      case "blur": {
+        LoginManagerContent.onUsernameInput(aEvent);
+        break;
+      }
+
       case "scroll": {
         let win = this.browser.contentWindow;
         if (this.userScrollPos.x != win.scrollX || this.userScrollPos.y != win.scrollY) {
@@ -3484,8 +3514,12 @@ Tab.prototype = {
 
   onLocationChange: function(aWebProgress, aRequest, aLocationURI, aFlags) {
     let contentWin = aWebProgress.DOMWindow;
-    if (contentWin != contentWin.top)
-        return;
+
+    // Browser webapps may load content inside iframes that can not reach across the app/frame boundary
+    // i.e. even though the page is loaded in an iframe window.top != webapp
+    // Make cure this window is a top level tab before moving on.
+    if (BrowserApp.getBrowserForWindow(contentWin) == null)
+      return;
 
     this._hostChanged = true;
 
@@ -3641,7 +3675,7 @@ Tab.prototype = {
       aMetadata.minZoom = aMetadata.maxZoom = NaN;
     }
 
-    let scaleRatio = aMetadata.scaleRatio;
+    let scaleRatio = window.devicePixelRatio;
 
     if (aMetadata.defaultZoom > 0)
       aMetadata.defaultZoom *= scaleRatio;
@@ -3682,8 +3716,8 @@ Tab.prototype = {
 
     let metadata = this.metadata;
     if (metadata.autoSize) {
-      viewportW = screenW / metadata.scaleRatio;
-      viewportH = screenH / metadata.scaleRatio;
+      viewportW = screenW / window.devicePixelRatio;
+      viewportH = screenH / window.devicePixelRatio;
     } else {
       viewportW = metadata.width;
       viewportH = metadata.height;
@@ -3777,7 +3811,7 @@ Tab.prototype = {
     sendMessageToJava({
       type: "Tab:ViewportMetadata",
       allowZoom: metadata.allowZoom,
-      defaultZoom: metadata.defaultZoom || metadata.scaleRatio,
+      defaultZoom: metadata.defaultZoom || window.devicePixelRatio,
       minZoom: metadata.minZoom || 0,
       maxZoom: metadata.maxZoom || 0,
       isRTL: metadata.isRTL,
@@ -4200,8 +4234,8 @@ var BrowserEventHandler = {
     if (BrowserEventHandler.mReflozPref) {
       let zoomFactor = BrowserApp.selectedTab.getZoomToMinFontSize(aElement);
 
-      bRect.width = zoomFactor == 1.0 ? bRect.width : gScreenWidth / zoomFactor;
-      bRect.height = zoomFactor == 1.0 ? bRect.height : bRect.height / zoomFactor;
+      bRect.width = zoomFactor <= 1.0 ? bRect.width : gScreenWidth / zoomFactor;
+      bRect.height = zoomFactor <= 1.0 ? bRect.height : bRect.height / zoomFactor;
       if (zoomFactor == 1.0 || this._isRectZoomedIn(bRect, viewport)) {
         if (aCanZoomOut) {
           this._zoomOut();
@@ -5121,7 +5155,7 @@ let HealthReportStatusListener = {
         break;
       case "nsPref:changed":
         sendMessageToJava({ type: "Pref:Change", pref: aData, value: Services.prefs.getBoolPref(aData) });
-        break
+        break;
     }
   },
 
@@ -5147,19 +5181,11 @@ let HealthReportStatusListener = {
   ],
 
   /**
-   * Return true if either the add-on has opted out of AMO updates, and thus
-   * we shouldn't provide details to FHR, or it's an add-on type that we
-   * don't want to report details for.
+   * Return true if the add-on is not of a type for which we report full details.
    * These add-ons will still make it over to Java, but will be filtered out.
    */
   _shouldIgnore: function (aAddon) {
-    // TODO: check this pref. If it's false, the add-on has opted out of
-    // AMO updates, and should not be reported.
-    let optOutPref = "extensions." + aAddon.id + ".getAddons.cache.enabled";
-    if (this.FULL_DETAIL_TYPES.indexOf(aAddon.type) == -1) {
-      return true;
-    }
-    return false;
+    return this.FULL_DETAIL_TYPES.indexOf(aAddon.type) == -1;
   },
 
   _dateToDays: function (aDate) {
@@ -5213,11 +5239,15 @@ let HealthReportStatusListener = {
         if (aAddons) {
           for (let i = 0; i < aAddons.length; ++i) {
             let addon = aAddons[i];
-            let addonJSON = HealthReportStatusListener.jsonForAddon(addon);
-            if (HealthReportStatusListener._shouldIgnore(addon)) {
-              addonJSON.ignore = true;
+            try {
+              let addonJSON = HealthReportStatusListener.jsonForAddon(addon);
+              if (HealthReportStatusListener._shouldIgnore(addon)) {
+                addonJSON.ignore = true;
+              }
+              json[addon.id] = addonJSON;
+            } catch (e) {
+              // Just skip this add-on.
             }
-            json[addon.id] = addonJSON;
           }
         }
         sendMessageToJava({ type: "Addons:All", json: json });
@@ -5420,8 +5450,8 @@ var ViewportHandler = {
           break;
 
         let oldScreenWidth = gScreenWidth;
-        gScreenWidth = window.outerWidth;
-        gScreenHeight = window.outerHeight;
+        gScreenWidth = window.outerWidth * window.devicePixelRatio;
+        gScreenHeight = window.outerHeight * window.devicePixelRatio;
         let tabs = BrowserApp.tabs;
         for (let i = 0; i < tabs.length; i++)
           tabs[i].updateViewportSize(oldScreenWidth);
@@ -5521,23 +5551,6 @@ var ViewportHandler = {
     return Math.max(min, Math.min(max, num));
   },
 
-  // The device-pixel-to-CSS-px ratio used to adjust meta viewport values.
-  // This is higher on higher-dpi displays, so pages stay about the same physical size.
-  getScaleRatio: function getScaleRatio() {
-    let prefValue = Services.prefs.getIntPref("browser.viewport.scaleRatio");
-    if (prefValue > 0)
-      return prefValue / 100;
-
-    let dpi = this.displayDPI;
-    if (dpi < 200) // Includes desktop displays, and LDPI and MDPI Android devices
-      return 1;
-    else if (dpi < 300) // Includes Nokia N900, and HDPI Android devices
-      return 1.5;
-
-    // For very high-density displays like the iPhone 4, calculate an integer ratio.
-    return Math.floor(dpi / 150);
-  },
-
   get displayDPI() {
     let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     delete this.displayDPI;
@@ -5573,7 +5586,6 @@ var ViewportHandler = {
  *   autoSize (boolean): Resize the CSS viewport when the window resizes.
  *   allowZoom (boolean): Let the user zoom in or out.
  *   isSpecified (boolean): Whether the page viewport is specified or not.
- *   scaleRatio (float): The device-pixel-to-CSS-px ratio.
  */
 function ViewportMetadata(aMetadata = {}) {
   this.width = ("width" in aMetadata) ? aMetadata.width : 0;
@@ -5584,7 +5596,6 @@ function ViewportMetadata(aMetadata = {}) {
   this.autoSize = ("autoSize" in aMetadata) ? aMetadata.autoSize : false;
   this.allowZoom = ("allowZoom" in aMetadata) ? aMetadata.allowZoom : true;
   this.isSpecified = ("isSpecified" in aMetadata) ? aMetadata.isSpecified : false;
-  this.scaleRatio = ViewportHandler.getScaleRatio();
   this.isRTL = ("isRTL" in aMetadata) ? aMetadata.isRTL : false;
   Object.seal(this);
 }
@@ -5598,7 +5609,6 @@ ViewportMetadata.prototype = {
   autoSize: null,
   allowZoom: null,
   isSpecified: null,
-  scaleRatio: null,
   isRTL: null,
 };
 
@@ -6018,10 +6028,24 @@ var CharacterEncoding = {
 };
 
 var IdentityHandler = {
-  // Mode strings used to control CSS display
-  IDENTITY_MODE_IDENTIFIED       : "identified", // High-quality identity information
-  IDENTITY_MODE_DOMAIN_VERIFIED  : "verified",   // Minimal SSL CA-signed domain verification
-  IDENTITY_MODE_UNKNOWN          : "unknown",  // No trusted identity information
+  // No trusted identity information. No site identity icon is shown.
+  IDENTITY_MODE_UNKNOWN: "unknown",
+
+  // Minimal SSL CA-signed domain verification. Blue lock icon is shown.
+  IDENTITY_MODE_DOMAIN_VERIFIED: "verified",
+
+  // High-quality identity information. Green lock icon is shown.
+  IDENTITY_MODE_IDENTIFIED: "identified",
+
+  // The following mixed content modes are only used if "security.mixed_content.block_active_content"
+  // is enabled. Even though the mixed content state and identitity state are orthogonal,
+  // our Java frontend coalesces them into one indicator.
+
+  // Blocked active mixed content. Shield icon is shown, with a popup option to load content.
+  IDENTITY_MODE_MIXED_CONTENT_BLOCKED: "mixed_content_blocked",
+
+  // Loaded active mixed content. Yellow triangle icon is shown.
+  IDENTITY_MODE_MIXED_CONTENT_LOADED: "mixed_content_loaded",
 
   // Cache the most recent SSLStatus and Location seen in getIdentityStrings
   _lastStatus : null,
@@ -6061,6 +6085,14 @@ var IdentityHandler = {
   },
 
   getIdentityMode: function getIdentityMode(aState) {
+    if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT)
+      return this.IDENTITY_MODE_MIXED_CONTENT_BLOCKED;
+
+    // Only show an indicator for loaded mixed content if the pref to block it is enabled
+    if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) &&
+         Services.prefs.getBoolPref("security.mixed_content.block_active_content"))
+      return this.IDENTITY_MODE_MIXED_CONTENT_LOADED;
+
     if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
       return this.IDENTITY_MODE_IDENTIFIED;
 
@@ -6110,7 +6142,7 @@ var IdentityHandler = {
     result.verifier = Strings.browser.formatStringFromName("identity.identified.verifier", [iData.caOrg], 1);
 
     // If the cert is identified, then we can populate the results with credentials
-    if (mode == this.IDENTITY_MODE_IDENTIFIED) {
+    if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL) {
       result.owner = iData.subjectOrg;
 
       // Build an appropriate supplemental block out of whatever location data we have
@@ -6129,7 +6161,7 @@ var IdentityHandler = {
     }
     
     // Otherwise, we don't know the cert owner
-    result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown2");
+    result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown3");
 
     // Cache the override service the first time we need to check it
     if (!this._overrideService)
@@ -6507,28 +6539,17 @@ var WebappsUI = {
 
     if (!showPrompt || Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name + "\n" + aData.app.origin)) {
       // Get a profile for the app to be installed in. We'll download everything before creating the icons.
+      let origin = aData.app.origin;
       let profilePath = sendMessageToJava({
         type: "WebApps:PreInstall",
         name: manifest.name,
         manifestURL: aData.app.manifestURL,
-        origin: aData.app.origin
+        origin: origin
       });
-      let file = null;
       if (profilePath) {
-        file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+        let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
         file.initWithPath(profilePath);
-
-        // build any app specific default prefs
-        let prefs = [];
-        if (manifest.orientation) {
-          prefs.push({name:"app.orientation.default", value: manifest.orientation});
-        }
-
-        // write them into the app profile
-        let defaultPrefsFile = file.clone();
-        defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
-        this.writeDefaultPrefs(defaultPrefsFile, prefs);
-
+  
         let self = this;
         DOMApplicationRegistry.confirmInstall(aData, false, file, null,
           function (manifest) {
@@ -6548,10 +6569,12 @@ var WebappsUI = {
                   let source = Services.io.newURI(fullsizeIcon, "UTF8", null);
                   persist.saveURI(source, null, null, null, null, iconFile, null);
 
+                  // aData.app.origin may now point to the app: url that hosts this app
                   sendMessageToJava({
                     type: "WebApps:PostInstall",
                     name: manifest.name,
                     manifestURL: aData.app.manifestURL,
+                    originalOrigin: origin,
                     origin: aData.app.origin,
                     iconURL: fullsizeIcon
                   });
@@ -6568,6 +6591,7 @@ var WebappsUI = {
                 } catch(ex) {
                   console.log(ex);
                 }
+                self.writeDefaultPrefs(file, manifest);
               }
             );
           }
@@ -6578,7 +6602,20 @@ var WebappsUI = {
     }
   },
 
-  writeDefaultPrefs: function webapps_writeDefaultPrefs(aFile, aPrefs) {
+  writeDefaultPrefs: function webapps_writeDefaultPrefs(aProfile, aManifest) {
+      // build any app specific default prefs
+      let prefs = [];
+      if (aManifest.orientation) {
+        prefs.push({name:"app.orientation.default", value: aManifest.orientation.join(",") });
+      }
+
+      // write them into the app profile
+      let defaultPrefsFile = aProfile.clone();
+      defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
+      this._writeData(defaultPrefsFile, prefs);
+  },
+
+  _writeData: function(aFile, aPrefs) {
     if (aPrefs.length > 0) {
       let data = JSON.stringify(aPrefs);
 
@@ -7314,9 +7351,6 @@ var Distribution = {
   // File used to store campaign data
   _file: null,
 
-  // Path to distribution directory for distribution customizations
-  _path: null,
-
   init: function dc_init() {
     Services.obs.addObserver(this, "Distribution:Set", false);
     Services.obs.addObserver(this, "prefservice:after-app-defaults", false);
@@ -7338,8 +7372,6 @@ var Distribution = {
   observe: function dc_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "Distribution:Set":
-        this._path = aData;
-
         // Reload the default prefs so we can observe "prefservice:after-app-defaults"
         Services.prefs.QueryInterface(Ci.nsIObserver).observe(null, "reload-default-prefs", null);
         break;
@@ -7380,20 +7412,12 @@ var Distribution = {
   },
 
   getPrefs: function dc_getPrefs() {
-    let file;
-    if (this._path) {
-      file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
-      file.initWithPath(this._path);
-      // Store the path in a pref for DirectoryProvider to read.
-      Services.prefs.setCharPref("distribution.path", this._path);
-    } else {
-      // If a path isn't specified, look in the data directory:
-      // /data/data/org.mozilla.xxx/distribution
-      file = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
-      file.append("distribution");
-    }
-    file.append("preferences.json");
+    // Get the distribution directory, and bail if it doesn't exist.
+    let file = FileUtils.getDir("XREAppDist", [], false);
+    if (!file.exists())
+      return;
 
+    file.append("preferences.json");
     this.readJSON(file, this.applyPrefs);
   },
 

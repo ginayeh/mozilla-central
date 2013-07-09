@@ -14,7 +14,7 @@ logger.info('marionette-server.js loaded');
 let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
                .getService(Ci.mozIJSSubScriptLoader);
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
-loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
+loader.loadSubScript("chrome://marionette/content/marionette-common.js");
 Cu.import("chrome://marionette/content/marionette-elements.js");
 let utils = {};
 loader.loadSubScript("chrome://marionette/content/EventUtils.js", utils);
@@ -42,6 +42,8 @@ loader.loadSubScript("resource://gre/modules/devtools/DevToolsUtils.js");
 loader.loadSubScript("resource://gre/modules/devtools/server/transport.js");
 
 let bypassOffline = false;
+let qemu = "0";
+let device = null;
 
 try {
   XPCOMUtils.defineLazyGetter(this, "libcutils", function () {
@@ -49,11 +51,11 @@ try {
     return libcutils;
   });
   if (libcutils) {
-    let qemu = libcutils.property_get("ro.kernel.qemu");
+    qemu = libcutils.property_get("ro.kernel.qemu");
     logger.info("B2G emulator: " + (qemu == "1" ? "yes" : "no"));
-    let platform = libcutils.property_get("ro.product.device");
-    logger.info("Platform detected is " + platform);
-    bypassOffline = (qemu == "1" || platform == "panda");
+    device = libcutils.property_get("ro.product.device");
+    logger.info("Device detected is " + device);
+    bypassOffline = (qemu == "1" || device == "panda");
   }
 }
 catch(e) {}
@@ -577,6 +579,7 @@ MarionetteServerConnection.prototype = {
           'javascriptEnabled': true,
           'nativeEvents': false,
           'platform': Services.appinfo.OS,
+          'device': qemu == "1" ? "qemu" : (!device ? "desktop" : device),
           'rotatable': rotatable,
           'takesScreenshot': false,
           'version': Services.appinfo.version
@@ -734,7 +737,7 @@ MarionetteServerConnection.prototype = {
       script = data + script;
     }
 
-    let res = Cu.evalInSandbox(script, sandbox, "1.8");
+    let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file", 0);
 
     if (directInject && !async &&
         (res == undefined || res.passed == undefined)) {
@@ -762,6 +765,7 @@ MarionetteServerConnection.prototype = {
   execute: function MDA_execute(aRequest, directInject) {
     let timeout = aRequest.scriptTimeout ? aRequest.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
+    let script;
     this.logRequest("execute", aRequest);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
@@ -775,7 +779,9 @@ MarionetteServerConnection.prototype = {
                        args: aRequest.args,
                        newSandbox: aRequest.newSandbox,
                        timeout: timeout,
-                       specialPowers: aRequest.specialPowers
+                       specialPowers: aRequest.specialPowers,
+                       filename: aRequest.filename,
+                       line: aRequest.line
                      },
                      command_id);
       return;
@@ -798,7 +804,6 @@ MarionetteServerConnection.prototype = {
         return marionette.generate_results();
       };
 
-      let script;
       if (directInject) {
         script = aRequest.value;
       }
@@ -812,7 +817,12 @@ MarionetteServerConnection.prototype = {
                                   false, command_id, timeout);
     }
     catch (e) {
-      this.sendError(e.name + ': ' + e.message, 17, e.stack, command_id);
+      let error = createStackMessage(e,
+                                     "execute_script",
+                                     aRequest.filename,
+                                     aRequest.line,
+                                     script);
+      this.sendError(error[0], 17, error[1], command_id);
     }
   },
 
@@ -867,7 +877,9 @@ MarionetteServerConnection.prototype = {
                        newSandbox: aRequest.newSandbox,
                        async: aRequest.async,
                        timeout: timeout,
-                       specialPowers: aRequest.specialPowers
+                       specialPowers: aRequest.specialPowers,
+                       filename: aRequest.filename,
+                       line: aRequest.line,
                      },
                      command_id);
    }
@@ -891,6 +903,7 @@ MarionetteServerConnection.prototype = {
   executeWithCallback: function MDA_executeWithCallback(aRequest, directInject) {
     let timeout = aRequest.scriptTimeout ? aRequest.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
+    let script;
     this.logRequest("executeWithCallback", aRequest);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
@@ -906,7 +919,9 @@ MarionetteServerConnection.prototype = {
                        id: this.command_id,
                        newSandbox: aRequest.newSandbox,
                        timeout: timeout,
-                       specialPowers: aRequest.specialPowers
+                       specialPowers: aRequest.specialPowers,
+                       filename: aRequest.filename,
+                       line: aRequest.line
                      },
                      command_id);
       return;
@@ -921,7 +936,7 @@ MarionetteServerConnection.prototype = {
                                     timeout, this.testName);
     marionette.command_id = this.command_id;
 
-    function chromeAsyncReturnFunc(value, status) {
+    function chromeAsyncReturnFunc(value, status, stacktrace) {
       if (that._emu_cbs && Object.keys(that._emu_cbs).length) {
         value = "Emulator callback still pending when finish() called";
         status = 500;
@@ -943,7 +958,7 @@ MarionetteServerConnection.prototype = {
                             marionette.command_id);
         }
         else {
-          let error_msg = {message: value, status: status, stacktrace: null};
+          let error_msg = {message: value, status: status, stacktrace: stacktrace};
           that.sendToClient({from: that.actorID, error: error_msg},
                             marionette.command_id);
         }
@@ -979,7 +994,6 @@ MarionetteServerConnection.prototype = {
       _chromeSandbox.returnFunc = chromeAsyncReturnFunc;
       _chromeSandbox.finish = chromeAsyncFinish;
 
-      let script;
       if (directInject) {
         script = aRequest.value;
       }
@@ -993,7 +1007,12 @@ MarionetteServerConnection.prototype = {
       this.executeScriptInSandbox(_chromeSandbox, script, directInject,
                                   true, command_id, timeout);
     } catch (e) {
-      chromeAsyncReturnFunc(e.name + ": " + e.message, 17);
+      let error = createStackMessage(e,
+                                     "execute_async_script",
+                                     aRequest.filename,
+                                     aRequest.line,
+                                     script);
+      chromeAsyncReturnFunc(error[0], 17, error[1]);
     }
   },
 

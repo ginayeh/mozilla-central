@@ -218,7 +218,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(true);
     }
 
-    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::img)) {
+    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::img) &&
+        aNode->HasFlag(ADDED_TO_FORM)) {
       HTMLImageElement* imageElem = static_cast<HTMLImageElement*>(aNode);
       imageElem->ClearForm(true);
     }
@@ -531,6 +532,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           nsIXPConnect *xpc = nsContentUtils::XPConnect();
           if (xpc) {
             rv = xpc->ReparentWrappedNativeIfFound(cx, wrapper, aReparentScope, aNode);
+          } else {
+            rv = NS_ERROR_FAILURE;
           }
         }
         if (NS_FAILED(rv)) {

@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ArgumentsObject_h___
-#define ArgumentsObject_h___
+#ifndef vm_ArgumentsObject_h
+#define vm_ArgumentsObject_h
+
+#include "mozilla/MemoryReporting.h"
 
 #include "jsfun.h"
 
@@ -203,7 +205,7 @@ class ArgumentsObject : public JSObject
      * Measures things hanging off this ArgumentsObject that are counted by the
      * |miscSize| argument in JSObject::sizeOfExcludingThis().
      */
-    inline size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
+    inline size_t sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const;
 
     static void finalize(FreeOp *fop, JSObject *obj);
     static void trace(JSTracer *trc, JSObject *obj);
@@ -253,4 +255,4 @@ JSObject::is<js::ArgumentsObject>() const
     return is<js::NormalArgumentsObject>() || is<js::StrictArgumentsObject>();
 }
 
-#endif /* ArgumentsObject_h___ */
+#endif /* vm_ArgumentsObject_h */

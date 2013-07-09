@@ -4,15 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BaselineJIT.h"
-#include "BaselineIC.h"
-#include "BaselineHelpers.h"
-#include "BaselineCompiler.h"
-#include "FixedList.h"
-#include "IonLinker.h"
-#include "IonSpewer.h"
-#include "VMFunctions.h"
-#include "IonFrames-inl.h"
+#include "ion/BaselineJIT.h"
+#include "ion/BaselineIC.h"
+#include "ion/BaselineHelpers.h"
+#include "ion/BaselineCompiler.h"
+#include "ion/FixedList.h"
+#include "ion/IonLinker.h"
+#include "ion/IonSpewer.h"
+#include "ion/VMFunctions.h"
+#include "ion/IonFrames-inl.h"
 
 #include "jsopcodeinlines.h"
 
@@ -22,11 +22,7 @@ using namespace js;
 using namespace js::ion;
 
 BaselineCompiler::BaselineCompiler(JSContext *cx, HandleScript script)
-  : BaselineCompilerSpecific(cx, script),
-    return_(new HeapLabel())
-#ifdef JSGC_GENERATIONAL
-    , postBarrierSlot_(new HeapLabel())
-#endif
+  : BaselineCompilerSpecific(cx, script)
 {
 }
 
@@ -261,7 +257,7 @@ BaselineCompiler::emitPrologue()
 bool
 BaselineCompiler::emitEpilogue()
 {
-    masm.bind(return_);
+    masm.bind(&return_);
 
     // Pop SPS frame if necessary
     emitSPSPop();
@@ -283,7 +279,7 @@ BaselineCompiler::emitEpilogue()
 bool
 BaselineCompiler::emitOutOfLinePostBarrierSlot()
 {
-    masm.bind(postBarrierSlot_);
+    masm.bind(&postBarrierSlot_);
 
     Register objReg = R2.scratchReg();
     GeneralRegisterSet regs(GeneralRegisterSet::All());
@@ -346,7 +342,7 @@ BaselineCompiler::emitDebugPrologue()
     masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &done);
     {
         masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
-        masm.jump(return_);
+        masm.jump(&return_);
     }
     masm.bind(&done);
     return true;
@@ -429,6 +425,8 @@ static const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(Inte
 bool
 BaselineCompiler::emitInterruptCheck()
 {
+    frame.syncStack(0);
+
     Label done;
     void *interrupt = (void *)&cx->compartment()->rt->interrupt;
     masm.branch32(Assembler::Equal, AbsoluteAddress(interrupt), Imm32(0), &done);
@@ -1085,7 +1083,7 @@ BaselineCompiler::storeValue(const StackValue *source, const Address &dest,
         masm.storeValue(scratch, dest);
         break;
       default:
-        JS_NOT_REACHED("Invalid kind");
+        MOZ_ASSUME_UNREACHABLE("Invalid kind");
     }
 }
 
@@ -1822,7 +1820,7 @@ BaselineCompiler::emit_JSOP_SETALIASEDVAR()
     masm.branchPtr(Assembler::Below, objReg, ImmWord(nursery.heapEnd()), &skipBarrier);
 
     masm.bind(&isTenured);
-    masm.call(postBarrierSlot_);
+    masm.call(&postBarrierSlot_);
 
     masm.bind(&skipBarrier);
 #endif
@@ -2316,13 +2314,52 @@ BaselineCompiler::emit_JSOP_TRY()
     return true;
 }
 
+bool
+BaselineCompiler::emit_JSOP_FINALLY()
+{
+    // JSOP_FINALLY has a def count of 2, but these values are already on the
+    // stack (they're pushed by JSOP_GOSUB). Update the compiler's stack state.
+    frame.setStackDepth(frame.stackDepth() + 2);
+
+    // To match the interpreter, emit an interrupt check at the start of the
+    // finally block.
+    return emitInterruptCheck();
+}
+
+bool
+BaselineCompiler::emit_JSOP_GOSUB()
+{
+    // Push |false| so that RETSUB knows the value on top of the
+    // stack is not an exception but the offset to the op following
+    // this GOSUB.
+    frame.push(BooleanValue(false));
+
+    int32_t nextOffset = GetNextPc(pc) - script->code;
+    frame.push(Int32Value(nextOffset));
+
+    // Jump to the finally block.
+    frame.syncStack(0);
+    jsbytecode *target = pc + GET_JUMP_OFFSET(pc);
+    masm.jump(labelOf(target));
+    return true;
+}
+
+bool
+BaselineCompiler::emit_JSOP_RETSUB()
+{
+    frame.popRegsAndSync(2);
+
+    ICRetSub_Fallback::Compiler stubCompiler(cx);
+    return emitOpIC(stubCompiler.getStub(&stubSpace_));
+}
+
 typedef bool (*EnterBlockFn)(JSContext *, BaselineFrame *, Handle<StaticBlockObject *>);
 static const VMFunction EnterBlockInfo = FunctionInfo<EnterBlockFn>(ion::EnterBlock);
 
 bool
 BaselineCompiler::emitEnterBlock()
 {
-    StaticBlockObject &blockObj = script->getObject(pc)->asStaticBlock();
+    StaticBlockObject &blockObj = script->getObject(pc)->as<StaticBlockObject>();
 
     if (JSOp(*pc) == JSOP_ENTERBLOCK) {
         for (size_t i = 0; i < blockObj.slotCount(); i++)
@@ -2448,7 +2485,7 @@ BaselineCompiler::emit_JSOP_DEBUGGER()
     masm.branchTest32(Assembler::Zero, ReturnReg, ReturnReg, &done);
     {
         masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
-        masm.jump(return_);
+        masm.jump(&return_);
     }
     masm.bind(&done);
     return true;
@@ -2481,7 +2518,7 @@ BaselineCompiler::emitReturn()
     if (JSOp(*pc) != JSOP_STOP) {
         // JSOP_STOP is immediately followed by the return label, so we don't
         // need a jump.
-        masm.jump(return_);
+        masm.jump(&return_);
     }
 
     return true;
@@ -2702,11 +2739,6 @@ bool
 BaselineCompiler::emit_JSOP_REST()
 {
     frame.syncStack(0);
-
-    RootedTypeObject type(cx, types::TypeScript::InitObject(cx, script, pc, JSProto_Array));
-    if (!type)
-        return false;
-    masm.movePtr(ImmGCPtr(type), R0.scratchReg());
 
     ICRest_Fallback::Compiler stubCompiler(cx);
     if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))

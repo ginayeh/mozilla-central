@@ -29,11 +29,11 @@
 #include <cstdio>
 #include <dbus/dbus.h>
 
-#include "pratom.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsDebug.h"
 #include "nsDataHashtable.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/Hal.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "mozilla/ipc/DBusThread.h"
@@ -151,53 +151,12 @@ static const char* sBluetoothDBusSignals[] =
 static nsAutoPtr<RawDBusConnection> gThreadConnection;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sPairingReqTable;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sAuthorizeReqTable;
-static int32_t sIsPairing = 0;
+static Atomic<int32_t> sIsPairing;
 static nsString sAdapterPath;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 typedef bool (*FilterFunc)(const BluetoothValue&);
 typedef void (*SinkCallback)(DBusMessage*, void*);
-
-class RemoveDeviceTask : public nsRunnable {
-public:
-  RemoveDeviceTask(const nsACString& aDeviceObjectPath,
-                   BluetoothReplyRunnable* aRunnable)
-    : mDeviceObjectPath(aDeviceObjectPath)
-    , mRunnable(aRunnable)
-  {
-    MOZ_ASSERT(!aDeviceObjectPath.IsEmpty());
-    MOZ_ASSERT(aRunnable);
-  }
-
-  nsresult Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    const char* tempDeviceObjectPath = mDeviceObjectPath.get();
-
-    DBusMessage *reply =
-      dbus_func_args(gThreadConnection->GetConnection(),
-                     NS_ConvertUTF16toUTF8(sAdapterPath).get(),
-                     DBUS_ADAPTER_IFACE, "RemoveDevice",
-                     DBUS_TYPE_OBJECT_PATH, &tempDeviceObjectPath,
-                     DBUS_TYPE_INVALID);
-
-    nsAutoString errorStr;
-    if (reply) {
-      dbus_message_unref(reply);
-    } else {
-      errorStr.AssignLiteral("RemoveDevice failed");
-    }
-
-    DispatchBluetoothReply(mRunnable, BluetoothValue(true), errorStr);
-
-    return NS_OK;
-  }
-
-private:
-  nsCString mDeviceObjectPath;
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
-};
 
 static bool
 GetConnectedDevicesFilter(const BluetoothValue& aValue)
@@ -226,42 +185,6 @@ GetPairedDevicesFilter(const BluetoothValue& aValue)
 
   return false;
 }
-
-class SendDiscoveryTask : public nsRunnable
-{
-public:
-  SendDiscoveryTask(const char* aMessageName,
-                    BluetoothReplyRunnable* aRunnable)
-    : mMessageName(aMessageName)
-    , mRunnable(aRunnable)
-  {
-    MOZ_ASSERT(aMessageName);
-    MOZ_ASSERT(aRunnable);
-  }
-
-  nsresult Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    DBusMessage *reply =
-      dbus_func_args(gThreadConnection->GetConnection(),
-                     NS_ConvertUTF16toUTF8(sAdapterPath).get(),
-                     DBUS_ADAPTER_IFACE, mMessageName,
-                     DBUS_TYPE_INVALID);
-
-    if (reply) {
-      dbus_message_unref(reply);
-    }
-
-    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
-
-    return NS_OK;
-  }
-
-private:
-  const char* mMessageName;
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
-};
 
 class DistributeBluetoothSignalTask : public nsRunnable
 {
@@ -418,7 +341,7 @@ ExtractHandles(DBusMessage *aReply, nsTArray<uint32_t>& aOutHandles)
   }
 }
 
-// static 
+// static
 bool
 BluetoothDBusService::AddServiceRecords(const char* serviceName,
                                         unsigned long long uuidMsb,
@@ -533,7 +456,7 @@ GetObjectPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
   if (sIsPairing) {
     RunDBusCallback(aMsg, aBluetoothReplyRunnable,
                     UnpackObjectPathMessage);
-    PR_AtomicDecrement(&sIsPairing);
+    sIsPairing--;
   }
 }
 
@@ -1755,7 +1678,7 @@ BluetoothDBusService::StopInternal()
   sAuthorizeReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
   sAuthorizeReqTable.Clear();
 
-  PR_AtomicSet(&sIsPairing, 0);
+  sIsPairing = 0;
 
   StopDBus();
   return NS_OK;
@@ -1832,6 +1755,23 @@ BluetoothDBusService::GetDefaultAdapterPathInternal(
   return NS_OK;
 }
 
+static void
+OnSendDiscoveryMessageReply(DBusMessage *aReply, void *aData)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  nsAutoString errorStr;
+
+  if (!aReply) {
+    errorStr.AssignLiteral("SendDiscovery failed");
+  }
+
+  nsRefPtr<BluetoothReplyRunnable> runnable =
+    dont_AddRef<BluetoothReplyRunnable>(static_cast<BluetoothReplyRunnable*>(aData));
+
+  DispatchBluetoothReply(runnable.get(), BluetoothValue(true), errorStr);
+}
+
 nsresult
 BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
                                            BluetoothReplyRunnable* aRunnable)
@@ -1844,11 +1784,17 @@ BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
     return NS_OK;
   }
 
-  nsRefPtr<nsRunnable> task(new SendDiscoveryTask(aMessageName, aRunnable));
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch firmware loading task!");
-    return NS_ERROR_FAILURE;
-  }
+  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
+
+  bool success = dbus_func_args_async(mConnection, -1,
+                                      OnSendDiscoveryMessageReply,
+                                      static_cast<void*>(aRunnable),
+                                      NS_ConvertUTF16toUTF8(sAdapterPath).get(),
+                                      DBUS_ADAPTER_IFACE, aMessageName,
+                                      DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE(success, NS_ERROR_FAILURE);
+
+  runnable.forget();
 
   return NS_OK;
 }
@@ -2227,7 +2173,7 @@ BluetoothDBusService::CreatePairedDeviceInternal(
    *
    * Please see Bug 818696 for more information.
    */
-  PR_AtomicIncrement(&sIsPairing);
+  sIsPairing++;
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   // Then send CreatePairedDevice, it will register a temp device agent then
@@ -2252,27 +2198,50 @@ BluetoothDBusService::CreatePairedDeviceInternal(
   return NS_OK;
 }
 
+static void
+OnRemoveDeviceReply(DBusMessage *aReply, void *aData)
+{
+  nsAutoString errorStr;
+
+  if (!aReply) {
+    errorStr.AssignLiteral("RemoveDevice failed");
+  }
+
+  nsRefPtr<BluetoothReplyRunnable> runnable =
+    dont_AddRef<BluetoothReplyRunnable>(static_cast<BluetoothReplyRunnable*>(aData));
+
+  DispatchBluetoothReply(runnable.get(), BluetoothValue(true), errorStr);
+}
+
 nsresult
 BluetoothDBusService::RemoveDeviceInternal(const nsAString& aDeviceAddress,
                                            BluetoothReplyRunnable* aRunnable)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   if (!IsReady()) {
     NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
     return NS_OK;
   }
 
-  nsCString tempDeviceObjectPath =
+  nsCString deviceObjectPath =
     NS_ConvertUTF16toUTF8(GetObjectPathFromAddress(sAdapterPath,
                                                    aDeviceAddress));
+  const char* cstrDeviceObjectPath = deviceObjectPath.get();
 
-  nsRefPtr<nsRunnable> task(new RemoveDeviceTask(tempDeviceObjectPath,
-                                                 aRunnable));
+  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
 
-  if (NS_FAILED(mBluetoothCommandThread->Dispatch(task, NS_DISPATCH_NORMAL))) {
-    NS_WARNING("Cannot dispatch firmware loading task!");
-    return NS_ERROR_FAILURE;
-  }
+  bool success = dbus_func_args_async(mConnection, -1,
+                                      OnRemoveDeviceReply,
+                                      static_cast<void*>(runnable.get()),
+                                      NS_ConvertUTF16toUTF8(sAdapterPath).get(),
+                                      DBUS_ADAPTER_IFACE, "RemoveDevice",
+                                      DBUS_TYPE_OBJECT_PATH, &cstrDeviceObjectPath,
+                                      DBUS_TYPE_INVALID);
+  NS_ENSURE_TRUE(success, NS_ERROR_FAILURE);
+
+  runnable.forget();
 
   return NS_OK;
 }
@@ -2662,7 +2631,7 @@ public:
                                                            mServiceUuid,
                                                            channel,
                                                            mManager));
-    NS_DispatchToMainThread(r);    
+    NS_DispatchToMainThread(r);
     return NS_OK;
   }
 

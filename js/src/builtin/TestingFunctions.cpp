@@ -4,22 +4,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "builtin/TestingFunctions.h"
+
 #include "jsapi.h"
-#include "jsbool.h"
 #include "jscntxt.h"
-#include "jscompartment.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jswrapper.h"
 
-#include "builtin/TestingFunctions.h"
+#include "ion/AsmJS.h"
 #include "vm/ForkJoin.h"
+#include "vm/Interpreter.h"
 
-#include "jsobjinlines.h"
-
-#include "vm/Stack-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace JS;
@@ -247,7 +246,8 @@ static const struct ParamPair {
     {"maxMallocBytes",      JSGC_MAX_MALLOC_BYTES},
     {"gcBytes",             JSGC_BYTES},
     {"gcNumber",            JSGC_NUMBER},
-    {"sliceTimeBudget",     JSGC_SLICE_TIME_BUDGET}
+    {"sliceTimeBudget",     JSGC_SLICE_TIME_BUDGET},
+    {"markStackLimit",      JSGC_MARK_STACK_LIMIT}
 };
 
 static JSBool
@@ -491,7 +491,7 @@ GCState(JSContext *cx, unsigned argc, jsval *vp)
     else if (globalState == gc::SWEEP)
         state = "sweep";
     else
-        JS_NOT_REACHED("Unobserveable global GC state");
+        MOZ_ASSUME_UNREACHABLE("Unobserveable global GC state");
 
     JSString *str = JS_NewStringCopyZ(cx, state);
     if (!str)
@@ -885,13 +885,13 @@ static JSBool
 DisplayName(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (argc == 0 || !args[0].isObject() || !args[0].toObject().isFunction()) {
+    if (argc == 0 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
         RootedObject arg(cx, &args.callee());
         ReportUsageError(cx, arg, "Must have one function argument");
         return false;
     }
 
-    JSFunction *fun = args[0].toObject().toFunction();
+    JSFunction *fun = &args[0].toObject().as<JSFunction>();
     JSString *str = fun->displayAtom();
     vp->setString(str == NULL ? cx->runtime()->emptyString : str);
     return true;
@@ -909,18 +909,19 @@ js::testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp)
 
 static JSObject *objectMetadataFunction = NULL;
 
-static JSObject *
-ShellObjectMetadataCallback(JSContext *cx)
+static bool
+ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
 {
     Value thisv = UndefinedValue();
 
     RootedValue rval(cx);
-    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, rval.address())) {
-        cx->clearPendingException();
-        return NULL;
-    }
+    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, &rval))
+        return false;
 
-    return rval.isObject() ? &rval.toObject() : NULL;
+    if (rval.isObject())
+        *pmetadata = &rval.toObject();
+
+    return true;
 }
 
 static JSBool
@@ -930,7 +931,7 @@ SetObjectMetadataCallback(JSContext *cx, unsigned argc, jsval *vp)
 
     args.rval().setUndefined();
 
-    if (argc == 0 || !args[0].isObject() || !args[0].toObject().isFunction()) {
+    if (argc == 0 || !args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
         if (objectMetadataFunction)
             JS_RemoveObjectRoot(cx, &objectMetadataFunction);
         objectMetadataFunction = NULL;

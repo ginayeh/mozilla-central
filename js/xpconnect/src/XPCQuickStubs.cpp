@@ -179,8 +179,7 @@ GetMemberInfo(JSObject *obj, jsid memberId, const char **ifaceName)
     // an error message. Instead, only handle the simple case where we have the
     // reflector in hand.
     if (IS_WN_REFLECTOR(obj)) {
-        XPCWrappedNative *wrapper =
-            static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
+        XPCWrappedNative *wrapper = XPCWrappedNative::Get(obj);
         XPCWrappedNativeProto *proto = wrapper->GetProto();
         if (proto) {
             XPCNativeSet *set = proto->GetSet();
@@ -394,8 +393,8 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
 }
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,
-                             JSMutableHandleValue vp)
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, HandleObject obj, HandleId id, JSBool strict,
+                             MutableHandleValue vp)
 {
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
@@ -616,7 +615,7 @@ castNativeFromWrapper(JSContext *cx,
 
     if (IS_WN_REFLECTOR(obj)) {
         cur = obj;
-        wrapper = (XPCWrappedNative*)xpc_GetJSPrivate(obj);
+        wrapper = XPCWrappedNative::Get(obj);
         tearoff = nullptr;
     } else {
         *rv = getWrapper(cx, obj, &wrapper, &cur, &tearoff);

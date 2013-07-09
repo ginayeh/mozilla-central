@@ -23,6 +23,7 @@
 #include "nsIXPCScriptable.h"
 #include "nsIInterfaceInfo.h"
 #include "nsIInterfaceInfoManager.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsIXPCScriptable.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
@@ -84,6 +85,7 @@
 #endif
 
 using namespace mozilla;
+using namespace JS;
 
 class XPCShellDirProvider : public nsIDirectoryServiceProvider2
 {
@@ -145,7 +147,7 @@ JSPrincipals *gJSPrincipals = nullptr;
 nsAutoString *gWorkingDirectory = nullptr;
 
 static JSBool
-GetLocationProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
+GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
 #if !defined(XP_WIN) && !defined(XP_UNIX)
     //XXX: your platform should really implement this
@@ -489,10 +491,11 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
+    JSVersion origVersion = JS_GetVersion(cx);
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(origVersion));
     if (argc > 0 && JSVAL_IS_INT(JS_ARGV(cx, vp)[0]))
-        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])))));
-    else
-        JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_GetVersion(cx)));
+        JS_SetVersionForCompartment(js::GetContextCompartment(cx),
+                                    JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])));
     return true;
 }
 
@@ -677,19 +680,6 @@ SendCommand(JSContext* cx,
     return true;
 }
 
-static JSBool
-GetChildGlobalObject(JSContext* cx,
-                     unsigned,
-                     jsval* vp)
-{
-    JS::Rooted<JSObject*> global(cx);
-    if (XRE_GetChildGlobalObject(cx, global.address())) {
-        JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(global));
-        return true;
-    }
-    return false;
-}
-
 /*
  * JSContext option name to flag map. The option names are in alphabetical
  * order for better reporting.
@@ -819,6 +809,84 @@ Btoa(JSContext *cx, unsigned argc, jsval *vp)
   return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
+static JSBool
+Blob(JSContext *cx, unsigned argc, jsval *vp)
+{
+  JS::CallArgs args = CallArgsFromVp(argc, vp);
+
+  nsCOMPtr<nsISupports> native =
+    do_CreateInstance("@mozilla.org/dom/multipart-blob;1");
+  if (!native) {
+    JS_ReportError(cx, "Could not create native object!");
+    return false;
+  }
+
+  nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(native);
+  NS_ASSERTION(initializer, "what?");
+
+  nsresult rv = initializer->Initialize(nullptr, cx, nullptr, args);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not initialize native object!");
+    return false;
+  }
+
+  nsCOMPtr<nsIXPConnect> xpc = do_GetService(kXPConnectServiceContractID, &rv);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not get XPConnent service!");
+    return false;
+  }
+
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
+  rv = xpc->WrapNativeToJSVal(cx, global, native, nullptr,
+                              &NS_GET_IID(nsISupports), true,
+                              args.rval().address(), nullptr);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not wrap native object!");
+    return false;
+  }
+
+  return true;
+}
+
+static JSBool
+File(JSContext *cx, unsigned argc, jsval *vp)
+{
+  JS::CallArgs args = CallArgsFromVp(argc, vp);
+
+  nsCOMPtr<nsISupports> native =
+    do_CreateInstance("@mozilla.org/dom/multipart-file;1");
+  if (!native) {
+    JS_ReportError(cx, "Could not create native object!");
+    return false;
+  }
+
+  nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(native);
+  NS_ASSERTION(initializer, "what?");
+
+  nsresult rv = initializer->Initialize(nullptr, cx, nullptr, args);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not initialize native object!");
+    return false;
+  }
+
+  nsCOMPtr<nsIXPConnect> xpc = do_GetService(kXPConnectServiceContractID, &rv);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not get XPConnent service!");
+    return false;
+  }
+
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
+  rv = xpc->WrapNativeToJSVal(cx, global, native, nullptr,
+                              &NS_GET_IID(nsISupports), true,
+                              args.rval().address(), nullptr);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "Could not wrap native object!");
+    return false;
+  }
+
+  return true;
+}
+
 static const JSFunctionSpec glob_functions[] = {
     JS_FS("print",           Print,          0,0),
     JS_FS("readline",        ReadLine,       1,0),
@@ -838,9 +906,10 @@ static const JSFunctionSpec glob_functions[] = {
     JS_FS("dumpHeap",        DumpHeap,       5,0),
 #endif
     JS_FS("sendCommand",     SendCommand,    1,0),
-    JS_FS("getChildGlobalObject", GetChildGlobalObject, 0,0),
     JS_FS("atob",            Atob,           1,0),
     JS_FS("btoa",            Btoa,           1,0),
+    JS_FS("Blob",            Blob,           2,JSFUN_CONSTRUCTOR),
+    JS_FS("File",            File,           2,JSFUN_CONSTRUCTOR),
     JS_FS_END
 };
 
@@ -851,7 +920,7 @@ JSClass global_class = {
 };
 
 static JSBool
-env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp)
+env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_OS2 && !defined SOLARIS
@@ -905,7 +974,7 @@ env_setProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,
 }
 
 static JSBool
-env_enumerate(JSContext *cx, JSHandleObject obj)
+env_enumerate(JSContext *cx, HandleObject obj)
 {
     static JSBool reflected;
     char **evp, *name, *value;
@@ -937,7 +1006,7 @@ env_enumerate(JSContext *cx, JSHandleObject obj)
 }
 
 static JSBool
-env_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
+env_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             JS::MutableHandleObject objp)
 {
     JSString *idstr, *valstr;
@@ -1236,7 +1305,8 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
             if (++i == argc) {
                 return usage();
             }
-            JS_SetVersion(cx, JSVersion(atoi(argv[i])));
+            JS_SetVersionForCompartment(js::GetContextCompartment(cx),
+                                        JSVersion(atoi(argv[i])));
             break;
         case 'W':
             reportWarnings = false;
@@ -1400,7 +1470,6 @@ ContextCallback(JSContext *cx, unsigned contextOp)
 
     if (contextOp == JSCONTEXT_NEW) {
         JS_SetErrorReporter(cx, my_ErrorReporter);
-        JS_SetVersion(cx, JSVERSION_LATEST);
     }
     return true;
 }
@@ -1634,12 +1703,15 @@ main(int argc, char **argv, char **envp)
             return 1;
         }
 
+        JS::CompartmentOptions options;
+        options.setZone(JS::SystemZone)
+               .setVersion(JSVERSION_LATEST);
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx,
                                                   static_cast<nsIGlobalObject *>(backstagePass),
                                                   systemprincipal,
                                                   0,
-                                                  JS::SystemZone,
+                                                  options,
                                                   getter_AddRefs(holder));
         if (NS_FAILED(rv))
             return 1;

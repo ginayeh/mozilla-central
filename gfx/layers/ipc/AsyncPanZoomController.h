@@ -224,22 +224,6 @@ public:
     double aEstimatedPaintDuration);
 
   /**
-   * Return the scale factor needed to fit the viewport in |aMetrics|
-   * into its composition bounds.
-   */
-  static gfxSize CalculateIntrinsicScale(const FrameMetrics& aMetrics);
-
-  /**
-   * Return the resolution that content should be rendered at given
-   * the configuration in aFrameMetrics: viewport dimensions, zoom
-   * factor, etc.  (The mResolution member of aFrameMetrics is
-   * ignored.)
-   */
-  static CSSToScreenScale CalculateResolution(const FrameMetrics& aMetrics);
-
-  static CSSRect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
-
-  /**
    * Send an mozbrowserasyncscroll event.
    * *** The monitor must be held while calling this.
    */
@@ -250,6 +234,24 @@ public:
    * Does the work for ReceiveInputEvent().
    */
   nsEventStatus HandleInputEvent(const InputData& aEvent);
+
+  /**
+   * Sync panning and zooming animation using a fixed frame time.
+   * This will ensure that we animate the APZC correctly with other external
+   * animations to the same timestamp.
+   */
+  static void SetFrameTime(const TimeStamp& aMilliseconds);
+
+  /**
+   * Transform and intersect aPoint with the layer tree returning the appropriate
+   * AsyncPanZoomController for this point.
+   * aRelativePointOut Return the point transformed into the layer coordinates
+   * relative to the scroll origin for this layer.
+   */
+  static void GetAPZCAtPoint(const ContainerLayer& aLayerTree,
+                             const ScreenIntPoint& aPoint,
+                             AsyncPanZoomController** aApzcOut,
+                             LayerIntPoint* aRelativePointOut);
 
 protected:
   /**
@@ -456,7 +458,7 @@ protected:
    *
    * *** The monitor must be held while calling this.
    */
-  void SetZoomAndResolution(float aScale);
+  void SetZoomAndResolution(const ScreenToScreenScale& aZoom);
 
   /**
    * Timeout function for mozbrowserasyncscroll event. Because we throttle

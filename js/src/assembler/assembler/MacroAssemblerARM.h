@@ -29,15 +29,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacroAssemblerARM_h
-#define MacroAssemblerARM_h
+#ifndef assembler_assembler_MacroAssemblerARM_h
+#define assembler_assembler_MacroAssemblerARM_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "ARMAssembler.h"
-#include "AbstractMacroAssembler.h"
+#include "assembler/assembler/ARMAssembler.h"
+#include "assembler/assembler/AbstractMacroAssembler.h"
 
 namespace JSC {
 
@@ -1542,4 +1542,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_TRADITIONAL)
 
-#endif // MacroAssemblerARM_h
+#endif /* assembler_assembler_MacroAssemblerARM_h */

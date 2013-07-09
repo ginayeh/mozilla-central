@@ -61,7 +61,7 @@ Presenter.prototype = {
   /**
    * Text selection has changed. TODO.
    */
-  textSelectionChanged: function textSelectionChanged() {},
+  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd) {},
 
   /**
    * Selection has changed. TODO.
@@ -109,7 +109,9 @@ Presenter.prototype = {
  * Visual presenter. Draws a box around the virtual cursor's position.
  */
 
-this.VisualPresenter = function VisualPresenter() {};
+this.VisualPresenter = function VisualPresenter() {
+  this._displayedAccessibles = new WeakMap();
+};
 
 VisualPresenter.prototype = {
   __proto__: Presenter.prototype,
@@ -122,13 +124,14 @@ VisualPresenter.prototype = {
   BORDER_PADDING: 2,
 
   viewportChanged: function VisualPresenter_viewportChanged(aWindow) {
-    if (this._currentAccessible) {
-      let context = new PivotContext(this._currentAccessible);
+    let currentAcc = this._displayedAccessibles.get(aWindow);
+    if (Utils.isAliveAndVisible(currentAcc)) {
+      let bounds = Utils.getBounds(currentAcc);
       return {
         type: this.type,
         details: {
           method: 'showBounds',
-          bounds: context.bounds,
+          bounds: bounds,
           padding: this.BORDER_PADDING
         }
       };
@@ -138,7 +141,8 @@ VisualPresenter.prototype = {
   },
 
   pivotChanged: function VisualPresenter_pivotChanged(aContext, aReason) {
-    this._currentAccessible = aContext.accessible;
+    this._displayedAccessibles.set(aContext.accessible.document.window,
+                                   aContext.accessible);
 
     if (!aContext.accessible)
       return {type: this.type, details: {method: 'hideBounds'}};
@@ -155,7 +159,7 @@ VisualPresenter.prototype = {
         }
       };
     } catch (e) {
-      Logger.error('Failed to get bounds: ' + e);
+      Logger.logException(e, 'Failed to get bounds');
       return null;
     }
   },
@@ -205,8 +209,10 @@ AndroidPresenter.prototype = {
   ANDROID_VIEW_HOVER_ENTER: 0x80,
   ANDROID_VIEW_HOVER_EXIT: 0x100,
   ANDROID_VIEW_SCROLLED: 0x1000,
+  ANDROID_VIEW_TEXT_SELECTION_CHANGED: 0x2000,
   ANDROID_ANNOUNCEMENT: 0x4000,
   ANDROID_VIEW_ACCESSIBILITY_FOCUSED: 0x8000,
+  ANDROID_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY: 0x20000,
 
   pivotChanged: function AndroidPresenter_pivotChanged(aContext, aReason) {
     if (!aContext.accessible)
@@ -302,6 +308,37 @@ AndroidPresenter.prototype = {
     return {type: this.type, details: [eventDetails]};
   },
 
+  textSelectionChanged: function AndroidPresenter_textSelectionChanged(aText, aStart,
+                                                                       aEnd, aOldStart,
+                                                                       aOldEnd) {
+    let androidEvents = [];
+
+    if (Utils.AndroidSdkVersion >= 14) {
+      androidEvents.push({
+        eventType: this.ANDROID_VIEW_TEXT_SELECTION_CHANGED,
+        text: [aText],
+        fromIndex: aStart,
+        toIndex: aEnd,
+        itemCount: aText.length
+      });
+    }
+
+    if (Utils.AndroidSdkVersion >= 16) {
+      let [from, to] = aOldStart < aStart ? [aOldStart, aStart] : [aStart, aOldStart];
+      androidEvents.push({
+        eventType: this.ANDROID_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
+        text: [aText],
+        fromIndex: from,
+        toIndex: to
+      });
+    }
+
+    return {
+      type: this.type,
+      details: androidEvents
+    };
+  },
+
   viewportChanged: function AndroidPresenter_viewportChanged(aWindow) {
     if (Utils.AndroidSdkVersion < 14)
       return null;
@@ -362,6 +399,19 @@ SpeechPresenter.prototype = {
           {method: 'speak',
             data: UtteranceGenerator.genForContext(aContext).join(' '),
             options: {enqueue: true}}
+        ]
+      }
+    };
+  },
+
+  actionInvoked: function SpeechPresenter_actionInvoked(aObject, aActionName) {
+    return {
+      type: this.type,
+      details: {
+        actions: [
+          {method: 'speak',
+           data: UtteranceGenerator.genForAction(aObject, aActionName).join(' '),
+           options: {enqueue: false}}
         ]
       }
     };
@@ -442,6 +492,11 @@ this.Presentation = {
                                     aModifiedText) {
     return [p.textChanged(aIsInserted, aStartOffset, aLength,
                           aText, aModifiedText)
+              for each (p in this.presenters)];
+  },
+
+  textSelectionChanged: function textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd) {
+    return [p.textSelectionChanged(aText, aStart, aEnd, aOldStart, aOldEnd)
               for each (p in this.presenters)];
   },
 

@@ -13,6 +13,11 @@ DEFINES=['-Dfans', '-Dtans']
 EXTRA_COMPONENTS=['fans.js', 'tans.js']
 EXTRA_PP_COMPONENTS=['fans.pp.js', 'tans.pp.js']
 
+GTEST_C_SOURCES = ['test1.c', 'test2.c']
+GTEST_CMM_SOURCES = ['test1.mm', 'test2.mm']
+GTEST_CPP_SOURCES = ['test1.cpp', 'test2.cpp']
+
+HOST_CPPSRCS += ['fans.cpp', 'tans.cpp']
 HOST_CSRCS += ['fans.c', 'tans.c']
 
 HOST_LIBRARY_NAME = 'host_fans'
@@ -21,6 +26,8 @@ LIBRARY_NAME = 'lib_name'
 LIBS += ['fans.lib', 'tans.lib']
 
 SDK_LIBRARY += ['fans.sdk', 'tans.sdk']
+
+SHARED_LIBRARY_LIBS += ['fans.sll', 'tans.sll']
 
 SIMPLE_PROGRAMS += ['fans.x', 'tans.x']
 

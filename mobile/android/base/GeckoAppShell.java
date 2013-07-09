@@ -37,6 +37,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
@@ -69,6 +70,7 @@ import android.view.ContextThemeWrapper;
 import android.view.HapticFeedbackConstants;
 import android.view.Surface;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.MimeTypeMap;
@@ -133,6 +135,7 @@ public class GeckoAppShell
     static private final boolean LOGGING = false;
 
     static private int sDensityDpi = 0;
+    static private int sScreenDepth = 0;
 
     private static final EventDispatcher sEventDispatcher = new EventDispatcher();
 
@@ -174,7 +177,9 @@ public class GeckoAppShell
     public static void callObserver(String observerKey, String topic, String data) {
         sendEventToGecko(GeckoEvent.createCallObserverEvent(observerKey, topic, data));
     }
-    public static native void removeObserver(String observerKey);
+    public static void removeObserver(String observerKey) {
+        sendEventToGecko(GeckoEvent.createRemoveObserverEvent(observerKey));
+    }
     public static native Message getNextMessageFromQueue(MessageQueue queue);
     public static native void onSurfaceTextureFrameAvailable(Object surfaceTexture, int id);
 
@@ -192,6 +197,14 @@ public class GeckoAppShell
                 try {
                     Log.e(LOGTAG, ">>> REPORTING UNCAUGHT EXCEPTION FROM THREAD "
                                   + thread.getId() + " (\"" + thread.getName() + "\")", e);
+
+                    Thread mainThread = ThreadUtils.getUiThread();
+                    if (mainThread != null && thread != mainThread) {
+                        Log.e(LOGTAG, "Main thread stack:");
+                        for (StackTraceElement ste : mainThread.getStackTrace()) {
+                            Log.e(LOGTAG, ste.toString());
+                        }
+                    }
 
                     if (e instanceof OutOfMemoryError) {
                         SharedPreferences prefs =
@@ -385,7 +398,7 @@ public class GeckoAppShell
             sWaitingForEventAck = true;
             while (true) {
                 try {
-                    sEventAckLock.wait(100);
+                    sEventAckLock.wait(1000);
                 } catch (InterruptedException ie) {
                 }
                 if (!sWaitingForEventAck) {
@@ -394,11 +407,6 @@ public class GeckoAppShell
                 }
                 long waited = SystemClock.uptimeMillis() - time;
                 Log.d(LOGTAG, "Gecko event sync taking too long: " + waited + "ms");
-                if (isUiThread && waited >= 4000) {
-                    Log.w(LOGTAG, "Gecko event sync took too long, aborting!", new Exception());
-                    sWaitingForEventAck = false;
-                    break;
-                }
             }
         }
     }
@@ -627,26 +635,26 @@ public class GeckoAppShell
         gRestartScheduled = true;
     }
 
-    public static File preInstallWebApp(String aTitle, String aURI, String aUniqueURI) {
-        int index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, (String) null);
+    public static File preInstallWebApp(String aTitle, String aURI, String aOrigin) {
+        int index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aOrigin, aTitle, (String) null);
         GeckoProfile profile = GeckoProfile.get(getContext(), "webapp" + index);
         return profile.getDir();
     }
 
-    public static void postInstallWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
+    public static void postInstallWebApp(String aTitle, String aURI, String aOrigin, String aIconURL, String aOriginalOrigin) {
     	WebAppAllocator allocator = WebAppAllocator.getInstance(getContext());
-		int index = allocator.getIndexForApp(aUniqueURI);
+		int index = allocator.getIndexForApp(aOriginalOrigin);
     	assert index != -1 && aIconURL != null;
-    	allocator.updateAppAllocation(aUniqueURI, index, BitmapUtils.getBitmapFromDataURI(aIconURL));
-    	createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
+    	allocator.updateAppAllocation(aOrigin, index, BitmapUtils.getBitmapFromDataURI(aIconURL));
+    	createShortcut(aTitle, aURI, aOrigin, aIconURL, "webapp");
     }
 
-    public static Intent getWebAppIntent(String aURI, String aUniqueURI, String aTitle, Bitmap aIcon) {
+    public static Intent getWebAppIntent(String aURI, String aOrigin, String aTitle, Bitmap aIcon) {
         int index;
         if (aIcon != null && !TextUtils.isEmpty(aTitle))
-            index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, aIcon);
+            index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aOrigin, aTitle, aIcon);
         else
-            index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aUniqueURI);
+            index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aOrigin);
 
         if (index == -1)
             return null;
@@ -814,11 +822,6 @@ public class GeckoAppShell
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
-        if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-            Rect iconBounds = new Rect(0, 0, size, size);
-            canvas.drawBitmap(aSource, null, iconBounds, null);
-            return bitmap;
-        }
 
         // draw a base color
         Paint paint = new Paint();
@@ -826,6 +829,11 @@ public class GeckoAppShell
             // If we aren't drawing a favicon, just use an orange color.
             paint.setColor(Color.HSVToColor(DEFAULT_LAUNCHER_ICON_HSV));
             canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+        } else if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP) || aSource.getWidth() >= insetSize || aSource.getHeight() >= insetSize) {
+            // otherwise, if this is a webapp or if the icons is lare enough, just draw it
+            Rect iconBounds = new Rect(0, 0, size, size);
+            canvas.drawBitmap(aSource, null, iconBounds, null);
+            return bitmap;
         } else {
             // otherwise use the dominant color from the icon + a layer of transparent white to lighten it somewhat
             int color = BitmapUtils.getDominantColor(aSource);
@@ -846,13 +854,6 @@ public class GeckoAppShell
         // by default, we scale the icon to this size
         int sWidth = insetSize / 2;
         int sHeight = sWidth;
-
-        if (aSource.getWidth() > insetSize || aSource.getHeight() > insetSize) {
-            // however, if the icon is larger than our minimum, we allow it to be drawn slightly larger
-            // (but not necessarily at its full resolution)
-            sWidth = Math.min(size / 3, aSource.getWidth() / 2);
-            sHeight = Math.min(size / 3, aSource.getHeight() / 2);
-        }
 
         int halfSize = size / 2;
         canvas.drawBitmap(aSource,
@@ -1319,6 +1320,66 @@ public class GeckoAppShell
         }
 
         return sDensityDpi;
+    }
+
+    private static boolean isHighMemoryDevice() {
+        BufferedReader br = null;
+        FileReader fr = null;
+        try {
+            fr = new FileReader("/proc/meminfo");
+            if (fr == null)
+                return false;
+            br = new BufferedReader(fr);
+            String line = br.readLine();
+            while (line != null && !line.startsWith("MemTotal")) {
+                line = br.readLine();
+            }
+            String[] tokens = line.split("\\s+");
+            if (tokens.length >= 2 && Long.parseLong(tokens[1]) >= 786432 /* 768MB in kb*/) {
+                return true;
+            }
+        } catch (Exception ex) {
+        } finally {
+            try {
+                if (fr != null)
+                    fr.close();
+            } catch (IOException ioe) {}
+        }
+        return false;
+    }
+
+    /**
+     * Returns the colour depth of the default screen. This will either be
+     * 24 or 16.
+     */
+    public static synchronized int getScreenDepth() {
+        if (sScreenDepth == 0) {
+            sScreenDepth = 16;
+            if (getGeckoInterface() != null) {
+                switch (getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat()) {
+                    case PixelFormat.RGBA_8888 :
+                    case PixelFormat.RGBX_8888 :
+                    case PixelFormat.RGB_888 :
+                    {
+                        if (isHighMemoryDevice()) {
+                            sScreenDepth = 24;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        return sScreenDepth;
+    }
+
+    public static synchronized void setScreenDepthOverride(int aScreenDepth) {
+        if (sScreenDepth != 0) {
+            Log.e(LOGTAG, "Tried to override screen depth after it's already been set");
+            return;
+        }
+
+        sScreenDepth = aScreenDepth;
     }
 
     public static void setFullScreen(boolean fullscreen) {
@@ -1959,6 +2020,7 @@ public class GeckoAppShell
     public interface AppStateListener {
         public void onPause();
         public void onResume();
+        public void onConfigurationChanged();
     }
 
     public interface GeckoInterface {
@@ -1976,7 +2038,7 @@ public class GeckoAppShell
         public void disableCameraView();
         public void addAppStateListener(AppStateListener listener);
         public void removeAppStateListener(AppStateListener listener);
-        public SurfaceView getCameraView();
+        public View getCameraView();
         public void notifyWakeLockChanged(String topic, String state);
         public FormAssistPopup getFormAssistPopup();
         public boolean areTabsShown();
@@ -2065,12 +2127,18 @@ public class GeckoAppShell
             }
 
             try {
-                if (getGeckoInterface() != null)
-                    sCamera.setPreviewDisplay(getGeckoInterface().getCameraView().getHolder());
+                if (getGeckoInterface() != null) {
+                    View cameraView = getGeckoInterface().getCameraView();
+                    if (cameraView instanceof SurfaceView) {
+                        sCamera.setPreviewDisplay(((SurfaceView)cameraView).getHolder());
+                    } else if (cameraView instanceof TextureView) {
+                        sCamera.setPreviewTexture(((TextureView)cameraView).getSurfaceTexture());
+                    }
+                }
             } catch(IOException e) {
-                Log.w(LOGTAG, "Error setPreviewDisplay:", e);
+                Log.w(LOGTAG, "Error setPreviewXXX:", e);
             } catch(RuntimeException e) {
-                Log.w(LOGTAG, "Error setPreviewDisplay:", e);
+                Log.w(LOGTAG, "Error setPreviewXXX:", e);
             }
 
             sCamera.setParameters(params);

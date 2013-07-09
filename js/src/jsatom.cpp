@@ -7,27 +7,26 @@
 /*
  * JS atom table.
  */
-#include "jsatom.h"
-
-#include <stdlib.h>
-#include <string.h>
+#include "jsatominlines.h"
 
 #include "mozilla/RangedPtr.h"
 #include "mozilla/Util.h"
 
+#include <string.h>
+
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jslock.h"
 #include "jsstr.h"
 #include "jstypes.h"
-#include "jsversion.h"
 
 #include "gc/Marking.h"
 #include "vm/Xdr.h"
 
-#include "jsatominlines.h"
 #include "jscompartmentinlines.h"
 
+#ifdef JSGC_GENERATIONAL
+#include "vm/Shape-inl.h"
+#endif
 #include "vm/String-inl.h"
 
 using namespace js;
@@ -66,6 +65,7 @@ const char js_break_str[]           = "break";
 const char js_case_str[]            = "case";
 const char js_catch_str[]           = "catch";
 const char js_class_str[]           = "class";
+const char js_close_str[]           = "close";
 const char js_const_str[]           = "const";
 const char js_continue_str[]        = "continue";
 const char js_debugger_str[]        = "debugger";
@@ -90,6 +90,7 @@ const char js_package_str[]         = "package";
 const char js_private_str[]         = "private";
 const char js_protected_str[]       = "protected";
 const char js_public_str[]          = "public";
+const char js_send_str[]            = "send";
 const char js_setter_str[]          = "setter";
 const char js_static_str[]          = "static";
 const char js_super_str[]           = "super";
@@ -101,10 +102,6 @@ const char js_void_str[]            = "void";
 const char js_while_str[]           = "while";
 const char js_with_str[]            = "with";
 const char js_yield_str[]           = "yield";
-#if JS_HAS_GENERATORS
-const char js_close_str[]           = "close";
-const char js_send_str[]            = "send";
-#endif
 
 /*
  * For a browser build from 2007-08-09 after the browser starts up there are
@@ -434,6 +431,32 @@ js::IndexToIdSlow<CanGC>(JSContext *cx, uint32_t index, MutableHandleId idp);
 
 template bool
 js::IndexToIdSlow<NoGC>(JSContext *cx, uint32_t index, FakeMutableHandle<jsid> idp);
+
+template <AllowGC allowGC>
+JSAtom *
+js::ToAtom(JSContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v)
+{
+    if (!v.isString()) {
+        JSString *str = js::ToStringSlow<allowGC>(cx, v);
+        if (!str)
+            return NULL;
+        JS::Anchor<JSString *> anchor(str);
+        return AtomizeString<allowGC>(cx, str);
+    }
+
+    JSString *str = v.toString();
+    if (str->isAtom())
+        return &str->asAtom();
+
+    JS::Anchor<JSString *> anchor(str);
+    return AtomizeString<allowGC>(cx, str);
+}
+
+template JSAtom *
+js::ToAtom<CanGC>(JSContext *cx, HandleValue v);
+
+template JSAtom *
+js::ToAtom<NoGC>(JSContext *cx, Value v);
 
 template<XDRMode mode>
 bool

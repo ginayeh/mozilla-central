@@ -4,16 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_range_analysis_h__
-#define jsion_range_analysis_h__
+#ifndef ion_RangeAnalysis_h
+#define ion_RangeAnalysis_h
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
 
-#include "wtf/Platform.h"
-#include "MIR.h"
-#include "CompileInfo.h"
-#include "IonAnalysis.h"
+#include "ion/MIR.h"
+#include "ion/CompileInfo.h"
+#include "ion/IonAnalysis.h"
 
 namespace js {
 namespace ion {
@@ -216,8 +215,18 @@ class Range : public TempObject {
     static Range * sub(const Range *lhs, const Range *rhs);
     static Range * mul(const Range *lhs, const Range *rhs);
     static Range * and_(const Range *lhs, const Range *rhs);
-    static Range * shl(const Range *lhs, int32_t c);
-    static Range * shr(const Range *lhs, int32_t c);
+    static Range * or_(const Range *lhs, const Range *rhs);
+    static Range * xor_(const Range *lhs, const Range *rhs);
+    static Range * not_(const Range *op);
+    static Range * lsh(const Range *lhs, int32_t c);
+    static Range * rsh(const Range *lhs, int32_t c);
+    static Range * ursh(const Range *lhs, int32_t c);
+    static Range * lsh(const Range *lhs, const Range *rhs);
+    static Range * rsh(const Range *lhs, const Range *rhs);
+    static Range * ursh(const Range *lhs, const Range *rhs);
+    static Range * abs(const Range *op);
+    static Range * min(const Range *lhs, const Range *rhs);
+    static Range * max(const Range *lhs, const Range *rhs);
 
     static bool negativeZeroMul(const Range *lhs, const Range *rhs);
 
@@ -369,5 +378,4 @@ class Range : public TempObject {
 } // namespace ion
 } // namespace js
 
-#endif // jsion_range_analysis_h__
-
+#endif /* ion_RangeAnalysis_h */

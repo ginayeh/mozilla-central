@@ -45,13 +45,13 @@ ContentMightReflowOnOrientationChange(const nsIntRect& rect)
 template<Op OP>
 static void
 WalkTheTree(Layer* aLayer,
-            Layer* aParent,
             bool& aReady,
             const TargetConfig& aTargetConfig)
 {
   if (RefLayer* ref = aLayer->AsRefLayer()) {
     if (const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(ref->GetReferentId())) {
       if (Layer* referent = state->mRoot) {
+        ContainerLayer *referentAsContainer = referent->AsContainerLayer();
         if (!ref->GetVisibleRegion().IsEmpty()) {
           ScreenOrientation chromeOrientation = aTargetConfig.orientation();
           ScreenOrientation contentOrientation = state->mTargetConfig.orientation();
@@ -63,19 +63,23 @@ WalkTheTree(Layer* aLayer,
 
         if (OP == Resolve) {
           ref->ConnectReferentLayer(referent);
-          if (AsyncPanZoomController* apzc = state->mController) {
-            referent->SetAsyncPanZoomController(apzc);
+          if (referentAsContainer) {
+            if (AsyncPanZoomController* apzc = state->mController) {
+              referentAsContainer->SetAsyncPanZoomController(apzc);
+            }
           }
         } else {
           ref->DetachReferentLayer(referent);
-          referent->SetAsyncPanZoomController(nullptr);
+          if (referentAsContainer) {
+            referentAsContainer->SetAsyncPanZoomController(nullptr);
+          }
         }
       }
     }
   }
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    WalkTheTree<OP>(child, aLayer, aReady, aTargetConfig);
+    WalkTheTree<OP>(child, aReady, aTargetConfig);
   }
 }
 
@@ -83,7 +87,6 @@ void
 AsyncCompositionManager::ResolveRefLayers()
 {
   WalkTheTree<Resolve>(mLayerManager->GetRoot(),
-                       nullptr,
                        mReadyForCompose,
                        mTargetConfig);
 }
@@ -92,7 +95,6 @@ void
 AsyncCompositionManager::DetachRefLayers()
 {
   WalkTheTree<Detach>(mLayerManager->GetRoot(),
-                      nullptr,
                       mReadyForCompose,
                       mTargetConfig);
 }
@@ -338,7 +340,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     return appliedTransform;
   }
 
-  if (AsyncPanZoomController* controller = aLayer->GetAsyncPanZoomController()) {
+  if (AsyncPanZoomController* controller = container->GetAsyncPanZoomController()) {
     LayerComposite* layerComposite = aLayer->AsLayerComposite();
 
     ViewTransform treeTransform;
@@ -351,12 +353,18 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
 
     const gfx3DMatrix& rootTransform = mLayerManager->GetRoot()->GetTransform();
     const FrameMetrics& metrics = container->GetFrameMetrics();
+    // XXX We use rootTransform instead of metrics.mResolution here because on
+    // Fennec the resolution is set on the root layer rather than the scrollable layer.
+    // The SyncFrameMetrics call and the paintScale variable are used on Fennec only
+    // so it doesn't affect any other platforms. See bug 732971.
+    CSSToLayerScale paintScale = metrics.mDevPixelsPerCSSPixel
+      / LayerToLayoutDeviceScale(rootTransform.GetXScale(), rootTransform.GetYScale());
     CSSRect displayPort(metrics.mCriticalDisplayPort.IsEmpty() ?
                         metrics.mDisplayPort : metrics.mCriticalDisplayPort);
     gfx::Margin fixedLayerMargins(0, 0, 0, 0);
     ScreenPoint offset(0, 0);
     SyncFrameMetrics(scrollOffset, treeTransform.mScale.scale, metrics.mScrollableRect,
-                     mLayersUpdated, displayPort, 1 / rootTransform.GetXScale(),
+                     mLayersUpdated, displayPort, paintScale,
                      mIsFirstPaint, fixedLayerMargins, offset);
 
     mIsFirstPaint = false;
@@ -392,7 +400,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
 }
 
 void
-AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatrix& aRootTransform)
+AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const LayoutDeviceToLayerScale& aResolution)
 {
   LayerComposite* layerComposite = aLayer->AsLayerComposite();
   ContainerLayer* container = aLayer->AsContainerLayer();
@@ -404,15 +412,14 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
 
   gfx3DMatrix treeTransform;
 
-  CSSToLayerScale geckoZoom = LayerToCSSScale(aRootTransform.GetXScale(),
-                                              aRootTransform.GetYScale()).Inverse();
+  CSSToLayerScale geckoZoom = metrics.mDevPixelsPerCSSPixel * aResolution;
 
   LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.mScrollOffset * geckoZoom);
 
   if (mIsFirstPaint) {
     mContentRect = metrics.mScrollableRect;
     SetFirstPaintViewport(scrollOffsetLayerPixels,
-                          geckoZoom.scale,
+                          geckoZoom,
                           mContentRect);
     mIsFirstPaint = false;
   } else if (!metrics.mScrollableRect.IsEqualEdges(mContentRect)) {
@@ -432,10 +439,16 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
 
   gfx::Margin fixedLayerMargins(0, 0, 0, 0);
   ScreenPoint offset(0, 0);
-  ScreenPoint userScroll(0, 0);
-  CSSToScreenScale userZoom;
-  SyncViewportInfo(displayPort, geckoZoom.scale, mLayersUpdated,
-                   userScroll, userZoom.scale, userZoom.scale, fixedLayerMargins,
+
+  // Ideally we would initialize userZoom to AsyncPanZoomController::CalculateResolution(metrics)
+  // but this causes a reftest-ipc test to fail (see bug 883646 comment 27). The reason for this
+  // appears to be that metrics.mZoom is poorly initialized in some scenarios. In these scenarios,
+  // however, we can assume there is no async zooming in progress and so the following statement
+  // works fine.
+  CSSToScreenScale userZoom(metrics.mDevPixelsPerCSSPixel.scale * metrics.mResolution.scale);
+  ScreenPoint userScroll = metrics.mScrollOffset * userZoom;
+  SyncViewportInfo(displayPort, geckoZoom, mLayersUpdated,
+                   userScroll, userZoom, fixedLayerMargins,
                    offset);
   mLayersUpdated = false;
 
@@ -456,7 +469,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   }
 
   LayerPoint translation = (userScroll / zoomAdjust) - geckoScroll;
-  treeTransform = gfx3DMatrix(ViewTransform(-translation, userZoom));
+  treeTransform = gfx3DMatrix(ViewTransform(-translation, userZoom / metrics.mDevPixelsPerCSSPixel));
 
   // Translate fixed position layers so that they stay in the correct position
   // when userScroll and geckoScroll differ.
@@ -510,8 +523,6 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
   // transforms.
   bool wantNextFrame = SampleAnimations(root, aCurrentFrame);
 
-  const gfx3DMatrix& rootTransform = root->GetTransform();
-
   // FIXME/bug 775437: unify this interface with the ~native-fennec
   // derived code
   //
@@ -533,7 +544,18 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
 
     for (uint32_t i = 0; i < scrollableLayers.Length(); i++) {
       if (scrollableLayers[i]) {
-        TransformScrollableLayer(scrollableLayers[i], rootTransform);
+#ifdef MOZ_WIDGET_ANDROID
+        // XXX We use rootTransform instead of the resolution on the individual layer's
+        // FrameMetrics on Fennec because the resolution is set on the root layer rather
+        // than the scrollable layer. See bug 732971. On non-Fennec we do the right thing.
+        const gfx3DMatrix& rootTransform = root->GetTransform();
+        LayoutDeviceToLayerScale resolution(1.0 / rootTransform.GetXScale(),
+                                            1.0 / rootTransform.GetYScale());
+#else
+        LayoutDeviceToLayerScale resolution =
+            scrollableLayers[i]->AsContainerLayer()->GetFrameMetrics().mResolution;
+#endif
+        TransformScrollableLayer(scrollableLayers[i], resolution);
       }
     }
   }
@@ -543,7 +565,7 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
 
 void
 AsyncCompositionManager::SetFirstPaintViewport(const LayerIntPoint& aOffset,
-                                               float aZoom,
+                                               const CSSToLayerScale& aZoom,
                                                const CSSRect& aCssPageRect)
 {
 #ifdef MOZ_WIDGET_ANDROID
@@ -561,10 +583,10 @@ AsyncCompositionManager::SetPageRect(const CSSRect& aCssPageRect)
 
 void
 AsyncCompositionManager::SyncViewportInfo(const LayerIntRect& aDisplayPort,
-                                          float aDisplayResolution,
+                                          const CSSToLayerScale& aDisplayResolution,
                                           bool aLayersUpdated,
                                           ScreenPoint& aScrollOffset,
-                                          float& aScaleX, float& aScaleY,
+                                          CSSToScreenScale& aScale,
                                           gfx::Margin& aFixedLayerMargins,
                                           ScreenPoint& aOffset)
 {
@@ -573,7 +595,7 @@ AsyncCompositionManager::SyncViewportInfo(const LayerIntRect& aDisplayPort,
                                             aDisplayResolution,
                                             aLayersUpdated,
                                             aScrollOffset,
-                                            aScaleX, aScaleY,
+                                            aScale,
                                             aFixedLayerMargins,
                                             aOffset);
 #endif
@@ -585,7 +607,7 @@ AsyncCompositionManager::SyncFrameMetrics(const ScreenPoint& aScrollOffset,
                                           const CSSRect& aCssPageRect,
                                           bool aLayersUpdated,
                                           const CSSRect& aDisplayPort,
-                                          float aDisplayResolution,
+                                          const CSSToLayerScale& aDisplayResolution,
                                           bool aIsFirstPaint,
                                           gfx::Margin& aFixedLayerMargins,
                                           ScreenPoint& aOffset)

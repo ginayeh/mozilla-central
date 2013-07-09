@@ -11,6 +11,7 @@
 #include "nsContentUtils.h"
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "nsPrincipal.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 
 #include "mozilla/dom/BindingUtils.h"
@@ -319,20 +320,20 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
     // XXX might not want to do this at xpconnect shutdown time???
     mComponents = nullptr;
 
-    JSRuntime *rt = XPCJSRuntime::Get()->GetJSRuntime();
+    JSRuntime *rt = XPCJSRuntime::Get()->Runtime();
     mXBLScope.finalize(rt);
     mGlobalJSObject.finalize(rt);
 }
 
-static JSDHashOperator
-WrappedNativeJSGCThingTracer(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeJSGCThingTracer(PLDHashTable *table, PLDHashEntryHdr *hdr,
                              uint32_t number, void *arg)
 {
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
     if (wrapper->HasExternalReference() && !wrapper->IsWrapperExpired())
         wrapper->TraceSelf((JSTracer *)arg);
 
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // static
@@ -354,8 +355,8 @@ XPCWrappedNativeScope::TraceWrappedNativesInAllScopes(JSTracer* trc, XPCJSRuntim
     }
 }
 
-static JSDHashOperator
-WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeSuspecter(PLDHashTable *table, PLDHashEntryHdr *hdr,
                        uint32_t number, void *arg)
 {
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
@@ -366,7 +367,7 @@ WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
         XPCJSRuntime::SuspectWrappedNative(wrapper, *cb);
     }
 
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 static void
@@ -447,22 +448,22 @@ XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC()
     KillDyingScopes();
 }
 
-static JSDHashOperator
-WrappedNativeMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeMarker(PLDHashTable *table, PLDHashEntryHdr *hdr,
                     uint32_t number_t, void *arg)
 {
     ((Native2WrappedNativeMap::Entry*)hdr)->value->Mark();
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // We need to explicitly mark all the protos too because some protos may be
 // alive in the hashtable but not currently in use by any wrapper
-static JSDHashOperator
-WrappedNativeProtoMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeProtoMarker(PLDHashTable *table, PLDHashEntryHdr *hdr,
                          uint32_t number, void *arg)
 {
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->Mark();
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // static
@@ -479,20 +480,20 @@ XPCWrappedNativeScope::MarkAllWrappedNativesAndProtos()
 }
 
 #ifdef DEBUG
-static JSDHashOperator
-ASSERT_WrappedNativeSetNotMarked(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+ASSERT_WrappedNativeSetNotMarked(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                  uint32_t number, void *arg)
 {
     ((Native2WrappedNativeMap::Entry*)hdr)->value->ASSERT_SetsNotMarked();
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
-static JSDHashOperator
-ASSERT_WrappedNativeProtoSetNotMarked(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+ASSERT_WrappedNativeProtoSetNotMarked(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                       uint32_t number, void *arg)
 {
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->ASSERT_SetNotMarked();
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // static
@@ -507,12 +508,12 @@ XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked()
 }
 #endif
 
-static JSDHashOperator
-WrappedNativeTearoffSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeTearoffSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                             uint32_t number, void *arg)
 {
     ((Native2WrappedNativeMap::Entry*)hdr)->value->SweepTearOffs();
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // static
@@ -548,8 +549,8 @@ struct ShutdownData
     int protoCount;
 };
 
-static JSDHashOperator
-WrappedNativeShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeShutdownEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                 uint32_t number, void *arg)
 {
     ShutdownData* data = (ShutdownData*) arg;
@@ -559,18 +560,18 @@ WrappedNativeShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
         wrapper->SystemIsBeingShutDown();
         data->wrapperCount++;
     }
-    return JS_DHASH_REMOVE;
+    return PL_DHASH_REMOVE;
 }
 
-static JSDHashOperator
-WrappedNativeProtoShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeProtoShutdownEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                      uint32_t number, void *arg)
 {
     ShutdownData* data = (ShutdownData*) arg;
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->
         SystemIsBeingShutDown();
     data->protoCount++;
-    return JS_DHASH_REMOVE;
+    return PL_DHASH_REMOVE;
 }
 
 //static
@@ -636,14 +637,14 @@ XPCWrappedNativeScope::SystemIsBeingShutDown()
 
 /***************************************************************************/
 
-static JSDHashOperator
-WNProtoSecPolicyClearer(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WNProtoSecPolicyClearer(PLDHashTable *table, PLDHashEntryHdr *hdr,
                         uint32_t number, void *arg)
 {
     XPCWrappedNativeProto* proto =
         ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value;
     *(proto->GetSecurityInfoAddr()) = nullptr;
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 
 // static
@@ -663,8 +664,8 @@ XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies()
     return NS_OK;
 }
 
-static JSDHashOperator
-WNProtoRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WNProtoRemover(PLDHashTable *table, PLDHashEntryHdr *hdr,
                uint32_t number, void *arg)
 {
     XPCWrappedNativeProtoMap* detachedMap = (XPCWrappedNativeProtoMap*)arg;
@@ -674,7 +675,7 @@ WNProtoRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
     detachedMap->Add(proto);
 
-    return JS_DHASH_REMOVE;
+    return PL_DHASH_REMOVE;
 }
 
 void
@@ -714,19 +715,19 @@ XPCWrappedNativeScope::DebugDumpAllScopes(int16_t depth)
 }
 
 #ifdef DEBUG
-static JSDHashOperator
-WrappedNativeMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeMapDumpEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                uint32_t number, void *arg)
 {
     ((Native2WrappedNativeMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
-static JSDHashOperator
-WrappedNativeProtoMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
+static PLDHashOperator
+WrappedNativeProtoMapDumpEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                     uint32_t number, void *arg)
 {
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
-    return JS_DHASH_NEXT;
+    return PL_DHASH_NEXT;
 }
 #endif
 
@@ -775,7 +776,7 @@ XPCWrappedNativeScope::DebugDump(int16_t depth)
 }
 
 size_t
-XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(MallocSizeOf mallocSizeOf)
 {
     XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
     XPCAutoLock lock(rt->GetMapLock());
@@ -788,7 +789,7 @@ XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(nsMallocSizeOfFun mallocSize
 }
 
 size_t
-XPCWrappedNativeScope::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
+XPCWrappedNativeScope::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);

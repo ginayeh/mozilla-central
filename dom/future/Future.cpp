@@ -108,6 +108,17 @@ Future::PrefEnabled()
   return Preferences::GetBool("dom.future.enabled", false);
 }
 
+static void
+EnterCompartment(Maybe<JSAutoCompartment>& aAc, JSContext* aCx,
+                 const Optional<JS::Handle<JS::Value> >& aValue)
+{
+  // FIXME Bug 878849
+  if (aValue.WasPassed() && aValue.Value().isObject()) {
+    JS::Rooted<JSObject*> rooted(aCx, &aValue.Value().toObject());
+    aAc.construct(aCx, rooted);
+  }
+}
+
 /* static */ already_AddRefed<Future>
 Future::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
                     FutureInit& aInit, ErrorResult& aRv)
@@ -129,6 +140,9 @@ Future::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
   if (aRv.IsJSException()) {
     Optional<JS::Handle<JS::Value> > value(aCx);
     aRv.StealJSException(aCx, &value.Value());
+
+    Maybe<JSAutoCompartment> ac;
+    EnterCompartment(ac, aCx, value);
     future->mResolver->Reject(aCx, value);
   }
 
@@ -252,8 +266,8 @@ Future::RunTask()
   mResolveCallbacks.Clear();
   mRejectCallbacks.Clear();
 
-  Optional<JS::Handle<JS::Value> > value(nsContentUtils::GetSafeJSContext(),
-                                         mResult);
+  JSAutoRequest ar(nsContentUtils::GetSafeJSContext());
+  Optional<JS::Handle<JS::Value> > value(nsContentUtils::GetSafeJSContext(), mResult);
 
   for (uint32_t i = 0; i < callbacks.Length(); ++i) {
     callbacks[i]->Call(value);

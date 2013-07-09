@@ -4,20 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_baseline_frameinfo_h__
-#define jsion_baseline_frameinfo_h__
+#ifndef ion_BaselineFrameInfo_h
+#define ion_BaselineFrameInfo_h
 
 #ifdef JS_ION
 
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "BaselineJIT.h"
-#include "BaselineFrame.h"
-#include "BaselineRegisters.h"
-#include "BytecodeAnalysis.h"
-#include "IonMacroAssembler.h"
-#include "FixedList.h"
+#include "ion/BaselineJIT.h"
+#include "ion/BaselineFrame.h"
+#include "ion/BaselineRegisters.h"
+#include "ion/BytecodeAnalysis.h"
+#include "ion/IonMacroAssembler.h"
+#include "ion/FixedList.h"
 
 namespace js {
 namespace ion {
@@ -333,5 +333,4 @@ class FrameInfo
 
 #endif // JS_ION
 
-#endif // jsion_baseline_frameinfo_h__
-
+#endif /* ion_BaselineFrameInfo_h */

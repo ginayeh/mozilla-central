@@ -11,6 +11,7 @@
 #include "jsdbgapi.h"
 
 #include <string.h>
+
 #include "jsprvtd.h"
 #include "jstypes.h"
 #include "jsapi.h"
@@ -22,9 +23,9 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jswatchpoint.h"
-#include "jswrapper.h"
 
 #include "frontend/SourceNotes.h"
+#include "ion/AsmJS.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
 #include "vm/Shape.h"
@@ -75,7 +76,7 @@ IsTopFrameConstructing(JSContext *cx, AbstractFramePtr frame)
 JSTrapStatus
 js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
+    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->interpreterFrame());
 
     if (!frame.script()->selfHosted) {
         if (frame.isFramePushedByExecute()) {
@@ -104,7 +105,7 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
         frame.setReturnValue(rval);
         break;
       default:
-        JS_NOT_REACHED("bad Debugger::onEnterFrame JSTrapStatus value");
+        MOZ_ASSUME_UNREACHABLE("bad Debugger::onEnterFrame JSTrapStatus value");
     }
     return status;
 }
@@ -112,7 +113,8 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
 bool
 js::ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, bool okArg)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
+    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->interpreterFrame());
+
     JSBool ok = okArg;
 
     // We don't add hook data for self-hosted scripts, so we don't need to check for them, here.
@@ -165,7 +167,7 @@ js::DebugExceptionUnwind(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc)
         break;
 
       default:
-        JS_NOT_REACHED("Invalid trap status");
+        MOZ_ASSUME_UNREACHABLE("Invalid trap status");
     }
 
     return status;
@@ -561,8 +563,8 @@ JS_GetParentOrScopeChain(JSContext *cx, JSObject *obj)
 JS_PUBLIC_API(const char *)
 JS_GetDebugClassName(JSObject *obj)
 {
-    if (obj->isDebugScope())
-        return obj->asDebugScope().scope().getClass()->name;
+    if (obj->is<DebugScopeObject>())
+        return obj->as<DebugScopeObject>().scope().getClass()->name;
     return obj->getClass()->name;
 }
 
@@ -677,7 +679,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj_, JSPropertyDescArray *pda)
     uint32_t i = 0;
     JSPropertyDesc *pd = NULL;
 
-    if (obj->isDebugScope()) {
+    if (obj->is<DebugScopeObject>()) {
         AutoIdVector props(cx);
         if (!Proxy::enumerate(cx, obj, props))
             return false;
@@ -826,12 +828,6 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 
 /************************************************************************/
 
-JS_FRIEND_API(void)
-js_RevertVersion(JSContext *cx)
-{
-    cx->clearVersionOverride();
-}
-
 JS_PUBLIC_API(const JSDebugHooks *)
 JS_GetGlobalDebugHooks(JSRuntime *rt)
 {
@@ -860,7 +856,6 @@ JS_DumpBytecode(JSContext *cx, JSScript *scriptArg)
 extern JS_PUBLIC_API(void)
 JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
 {
-#if defined(DEBUG)
     Rooted<JSScript*> script(cx, scriptArg);
     JS_ASSERT(script->hasScriptCounts);
 
@@ -872,7 +867,6 @@ JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
     js_DumpPCCounts(cx, script, &sprinter);
     fputs(sprinter.string(), stdout);
     fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename(), script->lineno);
-#endif
 }
 
 namespace {
@@ -911,7 +905,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             JS_DumpPCCounts(cx, script);
     }
 
-#if defined(JS_ION) && defined(DEBUG)
+#if defined(JS_ION)
     for (unsigned thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         for (CellIter i(cx->zone(), (AllocKind) thingKind); !i.done(); i.next()) {
             JSObject *obj = i.get<JSObject>();
@@ -1236,8 +1230,6 @@ JSObject *
 JSAbstractFramePtr::scopeChain(JSContext *cx)
 {
     AbstractFramePtr frame = Valueify(*this);
-    JS_ASSERT_IF(frame.isStackFrame(),
-                 cx->stack.space().containsSlow(frame.asStackFrame()));
     RootedObject scopeChain(cx, frame.scopeChain());
     AutoCompartment ac(cx, scopeChain);
     return GetDebugScopeForFrame(cx, frame);
@@ -1247,9 +1239,6 @@ JSObject *
 JSAbstractFramePtr::callObject(JSContext *cx)
 {
     AbstractFramePtr frame = Valueify(*this);
-    JS_ASSERT_IF(frame.isStackFrame(),
-                 cx->stack.space().containsSlow(frame.asStackFrame()));
-
     if (!frame.isFunctionFrame())
         return NULL;
 
@@ -1264,7 +1253,7 @@ JSAbstractFramePtr::callObject(JSContext *cx)
      *    JS_GetFrameCallObject will return the innermost function's callobj.
      */
     while (o) {
-        ScopeObject &scope = o->asDebugScope().scope();
+        ScopeObject &scope = o->as<DebugScopeObject>().scope();
         if (scope.is<CallObject>())
             return o;
         o = o->enclosingScope();
@@ -1334,6 +1323,9 @@ JSAbstractFramePtr::evaluateUCInStackFrame(JSContext *cx,
                                            const char *filename, unsigned lineno,
                                            MutableHandleValue rval)
 {
+    /* Protect inlined chars from root analysis poisoning. */
+    SkipRoot skipChars(cx, &chars);
+
     if (!CheckDebugMode(cx))
         return false;
 

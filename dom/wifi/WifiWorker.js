@@ -11,7 +11,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-var DEBUG = false; // set to true to show debug messages
+var DEBUG = false; // set to true to show debug messages.
 
 const WIFIWORKER_CONTRACTID = "@mozilla.org/wifi/worker;1";
 const WIFIWORKER_CID        = Components.ID("{a14e8977-d259-433a-a88d-58dd44657e5b}");
@@ -39,6 +39,10 @@ const SETTINGS_WIFI_DHCPSERVER_ENDIP   = "tethering.wifi.dhcpserver.endip";
 const SETTINGS_WIFI_DNS1               = "tethering.wifi.dns1";
 const SETTINGS_WIFI_DNS2               = "tethering.wifi.dns2";
 
+// Settings DB path for USB tethering.
+const SETTINGS_USB_DHCPSERVER_STARTIP  = "tethering.usb.dhcpserver.startip";
+const SETTINGS_USB_DHCPSERVER_ENDIP    = "tethering.usb.dhcpserver.endip";
+
 // Default value for WIFI tethering.
 const DEFAULT_WIFI_IP                  = "192.168.1.1";
 const DEFAULT_WIFI_PREFIX              = "24";
@@ -49,6 +53,10 @@ const DEFAULT_WIFI_SECURITY_TYPE       = "open";
 const DEFAULT_WIFI_SECURITY_PASSWORD   = "1234567890";
 const DEFAULT_DNS1                     = "8.8.8.8";
 const DEFAULT_DNS2                     = "8.8.4.4";
+
+// Default value for USB tethering.
+const DEFAULT_USB_DHCPSERVER_STARTIP   = "192.168.0.10";
+const DEFAULT_USB_DHCPSERVER_ENDIP     = "192.168.0.30";
 
 const WIFI_FIRMWARE_AP            = "AP";
 const WIFI_FIRMWARE_STATION       = "STA";
@@ -137,7 +145,7 @@ var WifiManager = (function() {
   // Polling the status worker
   var recvErrors = 0;
   eventWorker.onmessage = function(e) {
-    // process the event and tell the event worker to listen for more events
+    // Process the event and tell the event worker to listen for more events.
     if (handleEvent(e.data.event))
       waitForEvent();
   };
@@ -146,7 +154,7 @@ var WifiManager = (function() {
     eventWorker.postMessage({ cmd: "wait_for_event" });
   }
 
-  // Commands to the control worker
+  // Commands to the control worker.
 
   function voidControlMessage(cmd, callback) {
     controlMessage({ cmd: cmd }, function (data) {
@@ -380,8 +388,10 @@ var WifiManager = (function() {
     doBooleanCommand("WPS_PBC", "OK", callback);
   }
 
-  function wpsPinCommand(pin, callback) {
-    doStringCommand("WPS_PIN any" + (pin === undefined ? "" : (" " + pin)),
+  function wpsPinCommand(detail, callback) {
+    doStringCommand("WPS_PIN " +
+                    (detail.bssid === undefined ? "any" : detail.bssid) +
+                    (detail.pin === undefined ? "" : (" " + detail.pin)),
                     callback);
   }
 
@@ -616,11 +626,77 @@ var WifiManager = (function() {
     });
   }
 
+  var staticIpConfig = Object.create(null);
+  function setStaticIpMode(network, info, callback) {
+    let setNetworkKey = getNetworkKey(network);
+    let curNetworkKey = null;
+    let currentNetwork = Object.create(null);
+    currentNetwork.netId = manager.connectionInfo.id;
+
+    manager.getNetworkConfiguration(currentNetwork, function (){
+      curNetworkKey = getNetworkKey(currentNetwork);
+
+      // Add additional information to static ip configuration
+      // It is used to compatiable with information dhcp callback.
+      info.ipaddr = stringToIp(info.ipaddr_str);
+      info.gateway = stringToIp(info.gateway_str);
+      info.mask_str = makeMask(info.maskLength);
+
+      // Optional
+      info.dns1 = stringToIp("dns1_str" in info ? info.dns1_str : "");
+      info.dns2 = stringToIp("dns2_str" in info ? info.dns2_str : "");
+      info.proxy = stringToIp("proxy_str" in info ? info.proxy_str : "");
+
+      staticIpConfig[setNetworkKey] = info;
+
+      // If the ssid of current connection is the same as configured ssid
+      // It means we need update current connection to use static IP address.
+      if (setNetworkKey == curNetworkKey) {
+        // Use configureInterface directly doesn't work, the network iterface
+        // and routing table is changed but still cannot connect to network
+        // so the workaround here is disable interface the enable again to
+        // trigger network reconnect with static ip.
+        disableInterface(manager.ifname, function (ok) {
+          enableInterface(manager.ifname, function (ok) {
+          });
+        });
+      }
+    });
+  }
+
   var dhcpInfo = null;
-  function runDhcp(ifname, callback) {
+  function runDhcp(ifname) {
+    debug("Run Dhcp");
     controlMessage({ cmd: "dhcp_do_request", ifname: ifname }, function(data) {
       dhcpInfo = data.status ? null : data;
-      callback(dhcpInfo);
+      runIpConfig(ifname, dhcpInfo);
+    });
+  }
+
+  function runStaticIp(ifname, key) {
+    debug("Run static ip");
+
+    // Read static ip information from settings.
+    let staticIpInfo;
+
+    if (!(key in staticIpConfig))
+      return;
+
+    staticIpInfo = staticIpConfig[key];
+
+    // Stop dhcpd when use static IP
+    if (dhcpInfo != null) {
+      stopDhcp(manager.ifname, function() {});
+    }
+
+    // Set ip, mask length, gateway, dns to network interface
+    configureInterface(ifname,
+                       staticIpInfo.ipaddr,
+                       staticIpInfo.maskLength,
+                       staticIpInfo.gateway,
+                       staticIpInfo.dns1,
+                       staticIpInfo.dns2, function (data) {
+      runIpConfig(ifname, staticIpInfo);
     });
   }
 
@@ -767,7 +843,7 @@ var WifiManager = (function() {
       return;
     }
     if (connectTries++ < 3) {
-      // try again in 5 seconds
+      // Try again in 5 seconds.
       if (!retryTimer)
         retryTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 
@@ -803,32 +879,48 @@ var WifiManager = (function() {
   function onconnected() {
     // For now we do our own DHCP. In the future, this should be handed
     // off to the Network Manager.
-    runDhcp(manager.ifname, function (data) {
-      if (!data) {
-        debug("DHCP failed to run");
-        notify("dhcpconnected", { info: data });
+    let currentNetwork = Object.create(null);
+    currentNetwork.netId = manager.connectionInfo.id;
+
+    manager.getNetworkConfiguration(currentNetwork, function (){
+      let key = getNetworkKey(currentNetwork);
+      if (staticIpConfig  &&
+          (key in staticIpConfig) &&
+          staticIpConfig[key].enabled) {
+          debug("Run static ip");
+          runStaticIp(manager.ifname, key);
+          return;
+      }
+      runDhcp(manager.ifname);
+    });
+  }
+
+  function runIpConfig(name, data) {
+    if (!data) {
+      debug("IP config failed to run");
+      notify("networkconnected", { info: data });
+      return;
+    }
+
+    setProperty("net." + name + ".dns1", ipToString(data.dns1),
+                function(ok) {
+      if (!ok) {
+        debug("Unable to set net.<ifname>.dns1");
         return;
       }
-      setProperty("net." + manager.ifname + ".dns1", ipToString(data.dns1),
+      setProperty("net." + name + ".dns2", ipToString(data.dns2),
                   function(ok) {
         if (!ok) {
-          debug("Unable to set net.<ifname>.dns1");
+          debug("Unable to set net.<ifname>.dns2");
           return;
         }
-        setProperty("net." + manager.ifname + ".dns2", ipToString(data.dns2),
+        setProperty("net." + name + ".gw", ipToString(data.gateway),
                     function(ok) {
           if (!ok) {
-            debug("Unable to set net.<ifname>.dns2");
+            debug("Unable to set net.<ifname>.gw");
             return;
           }
-          setProperty("net." + manager.ifname + ".gw", ipToString(data.gateway),
-                      function(ok) {
-            if (!ok) {
-              debug("Unable to set net.<ifname>.gw");
-              return;
-            }
-            notify("dhcpconnected", { info: data });
-          });
+          notify("networkconnected", { info: data });
         });
       });
     });
@@ -865,7 +957,7 @@ var WifiManager = (function() {
     });
   }
 
-  // handle events sent to us by the event worker
+  // Handle events sent to us by the event worker.
   function handleEvent(event) {
     debug("Event coming in: " + event);
     if (event.indexOf("CTRL-EVENT-") !== 0 && event.indexOf("WPS") !== 0) {
@@ -898,7 +990,7 @@ var WifiManager = (function() {
     var space = event.indexOf(" ");
     var eventData = event.substr(0, space + 1);
     if (eventData.indexOf("CTRL-EVENT-STATE-CHANGE") === 0) {
-      // Parse the event data
+      // Parse the event data.
       var fields = {};
       var tokens = event.substr(space + 1).split(" ");
       for (var n = 0; n < tokens.length; ++n) {
@@ -938,7 +1030,7 @@ var WifiManager = (function() {
       }
 
       // As long we haven't seen too many recv errors yet, we
-      // will keep going for a bit longer
+      // will keep going for a bit longer.
       if (eventData.indexOf("recv error") !== -1 && ++recvErrors < 10)
         return true;
 
@@ -976,8 +1068,11 @@ var WifiManager = (function() {
     if (eventData.indexOf("CTRL-EVENT-CONNECTED") === 0) {
       // Format: CTRL-EVENT-CONNECTED - Connection to 00:1e:58:ec:d5:6d completed (reauth) [id=1 id_str=]
       var bssid = event.split(" ")[4];
-      var id = event.substr(event.indexOf("id=")).split(" ")[0];
+
+      var keyword = "id=";
+      var id = event.substr(event.indexOf(keyword) + keyword.length).split(" ")[0];
       // Read current BSSID here, it will always being provided.
+      manager.connectionInfo.id = id;
       manager.connectionInfo.bssid = bssid;
       return true;
     }
@@ -1002,7 +1097,7 @@ var WifiManager = (function() {
       notifyStateChange({ state: "WPS_OVERLAP_DETECTED", BSSID: null, id: -1 });
       return true;
     }
-    // unknown event
+    // Unknown event.
     return true;
   }
 
@@ -1065,7 +1160,7 @@ var WifiManager = (function() {
     });
   }
 
-  // Initial state
+  // Initial state.
   manager.state = "UNINITIALIZED";
   manager.tetheringState = "UNINITIALIZED";
   manager.enabled = false;
@@ -1089,7 +1184,7 @@ var WifiManager = (function() {
                                              Ci.nsITimer.TYPE_ONE_SHOT);
   };
 
-  // Public interface of the wifi service
+  // Public interface of the wifi service.
   manager.setWifiEnabled = function(enable, callback) {
     if (enable === manager.enabled) {
       callback("no change");
@@ -1241,7 +1336,7 @@ var WifiManager = (function() {
   var networkConfigurationFields = [
     "ssid", "bssid", "psk", "wep_key0", "wep_key1", "wep_key2", "wep_key3",
     "wep_tx_keyidx", "priority", "key_mgmt", "scan_ssid", "disabled",
-    "identity", "password", "auth_alg"
+    "identity", "password", "auth_alg", "phase1", "phase2", "eap"
   ];
 
   manager.getNetworkConfiguration = function(config, callback) {
@@ -1281,7 +1376,7 @@ var WifiManager = (function() {
         });
       }
     }
-    // If config didn't contain any of the fields we want, don't lose the error callback
+    // If config didn't contain any of the fields we want, don't lose the error callback.
     if (done == networkConfigurationFields.length)
       callback(false);
   }
@@ -1318,7 +1413,7 @@ var WifiManager = (function() {
               ++errors;
             if (++done == lines.length - 1) {
               if (errors) {
-                // If an error occured, delete the new netId
+                // If an error occured, delete the new netId.
                 removeNetworkCommand(netId, function() {
                   callback(null);
                 });
@@ -1357,6 +1452,43 @@ var WifiManager = (function() {
                  ((n >> 24) & 0xFF);
   }
 
+  function stringToIp(string) {
+    let ip = 0;
+    let start, end = -1;
+    for (let i = 0; i < 4; i++) {
+      start = end + 1;
+      end = string.indexOf(".", start);
+      if (end == -1) {
+        end = string.length;
+      }
+      let num = parseInt(string.slice(start, end), 10);
+      if (isNaN(num)) {
+        return 0;
+      }
+      ip |= num << (i * 8);
+    }
+    return ip;
+  }
+
+  function swap32(n) {
+    return (((n >> 24) & 0xFF) <<  0) |
+           (((n >> 16) & 0xFF) <<  8) |
+           (((n >>  8) & 0xFF) << 16) |
+           (((n >>  0) & 0xFF) << 24);
+  }
+
+  function ntohl(n) {
+    return swap32(n);
+  }
+
+  function makeMask(len) {
+    let mask = 0;
+    for (let i = 0; i < len; ++i) {
+      mask |= (0x80000000 >> i);
+    }
+    return ntohl(mask);
+  }
+
   manager.saveConfig = function(callback) {
     saveConfigCommand(callback);
   }
@@ -1378,6 +1510,7 @@ var WifiManager = (function() {
   manager.wpsCancel = wpsCancelCommand;
   manager.setPowerMode = setPowerModeCommand;
   manager.setSuspendOptimizations = setSuspendOptimizationsCommand;
+  manager.setStaticIpMode = setStaticIpMode;
   manager.getRssiApprox = getRssiApproxCommand;
   manager.getLinkSpeed = getLinkSpeedCommand;
   manager.getDhcpInfo = function() { return dhcpInfo; }
@@ -1443,29 +1576,29 @@ function getNetworkKey(network)
   var ssid = "",
       encryption = "OPEN";
 
-  if ("capabilities" in network) {
+  if ("security" in network) {
     // manager network object, represents an AP
     // object structure
     // {
     //   .ssid           : SSID of AP
-    //   .capabilities[] : "WPA-PSK" for WPA-PSK
+    //   .security[]     : "WPA-PSK" for WPA-PSK
     //                     "WPA-EAP" for WPA-EAP
     //                     "WEP" for WEP
     //                     "" for OPEN
     //   other keys
     // }
 
-    var capabilities = network.capabilities;
+    var security = network.security;
     ssid = network.ssid;
 
-    for (let j = 0; j < capabilities.length; j++) {
-      if (capabilities[j] === "WPA-PSK") {
+    for (let j = 0; j < security.length; j++) {
+      if (security[j] === "WPA-PSK") {
         encryption = "WPA-PSK";
         break;
-      } else if (capabilities[j] === "WPA-EAP") {
+      } else if (security[j] === "WPA-EAP") {
         encryption = "WPA-EAP";
         break;
-      } else if (capabilities[j] === "WEP") {
+      } else if (security[j] === "WEP") {
         encryption = "WEP";
         break;
       }
@@ -1499,7 +1632,7 @@ function getNetworkKey(network)
   // ssid here must be dequoted, and it's safer to esacpe it.
   // encryption won't be empty and always be assigned one of the followings :
   // "OPEN"/"WEP"/"WPA-PSK"/"WPA-EAP".
-  // So for a invalid network object, the returned key will be "OPEN"
+  // So for a invalid network object, the returned key will be "OPEN".
   return escape(ssid) + encryption;
 }
 
@@ -1514,6 +1647,16 @@ function getKeyManagement(flags) {
     types.push("WPA-EAP");
   if (/\[WEP/.test(flags))
     types.push("WEP");
+  return types;
+}
+
+function getCapabilities(flags) {
+  var types = [];
+  if (!flags)
+    return types;
+
+  if (/\[WPS/.test(flags))
+    types.push("WPS");
   return types;
 }
 
@@ -1539,12 +1682,14 @@ function calculateSignal(strength) {
   return Math.floor(((strength - MIN_RSSI) / (MAX_RSSI - MIN_RSSI)) * 100);
 }
 
-function Network(ssid, capabilities, password) {
+function Network(ssid, security, password, capabilities) {
   this.ssid = ssid;
-  this.capabilities = capabilities;
+  this.security = security;
 
   if (typeof password !== "undefined")
     this.password = password;
+  if (capabilities !== undefined)
+    this.capabilities = capabilities;
   // TODO connected here as well?
 
   this.__exposedProps__ = Network.api;
@@ -1552,6 +1697,7 @@ function Network(ssid, capabilities, password) {
 
 Network.api = {
   ssid: "r",
+  security: "r",
   capabilities: "r",
   known: "r",
 
@@ -1560,13 +1706,17 @@ Network.api = {
   psk: "rw",
   identity: "rw",
   wep: "rw",
-  hidden: "rw"
+  hidden: "rw",
+  eap: "rw",
+  phase1: "rw",
+  phase2: "rw"
 };
 
 // Note: We never use ScanResult.prototype, so the fact that it's unrelated to
 // Network.prototype is OK.
 function ScanResult(ssid, bssid, flags, signal) {
-  Network.call(this, ssid, getKeyManagement(flags));
+  Network.call(this, ssid, getKeyManagement(flags), undefined,
+               getCapabilities(flags));
   this.bssid = bssid;
   this.signalStrength = signal;
   this.relSignalStrength = calculateSignal(Number(signal));
@@ -1665,6 +1815,7 @@ function WifiWorker() {
                     "WifiManager:associate", "WifiManager:forget",
                     "WifiManager:wps", "WifiManager:getState",
                     "WifiManager:setPowerSavingMode",
+                    "WifiManager:setStaticIpMode",
                     "child-process-shutdown"];
 
   messages.forEach((function(msgName) {
@@ -1679,10 +1830,10 @@ function WifiWorker() {
   this._needToEnableNetworks = false;
   this._highestPriority = -1;
 
-  // networks is a map from SSID -> a scan result.
+  // Networks is a map from SSID -> a scan result.
   this.networks = Object.create(null);
 
-  // configuredNetworks is a map from SSID -> our view of a network. It only
+  // ConfiguredNetworks is a map from SSID -> our view of a network. It only
   // lists networks known to the wpa_supplicant. The SSID field (and other
   // fields) are quoted for ease of use with WifiManager commands.
   // Note that we don't have to worry about escaping embedded quotes since in
@@ -1698,7 +1849,7 @@ function WifiWorker() {
   this._connectionInfoTimer = null;
   this._reconnectOnDisconnect = false;
 
-  // Users of instances of nsITimer should keep a reference to the timer until 
+  // Users of instances of nsITimer should keep a reference to the timer until
   // it is no longer needed in order to assure the timer is fired.
   this._callbackTimer = null;
 
@@ -1741,11 +1892,9 @@ function WifiWorker() {
   // self.configuredNetworks and prepares it for the DOM.
   netToDOM = function(net) {
     var ssid = dequote(net.ssid);
-    var capabilities = (net.key_mgmt === "NONE" && net.wep_key0)
-                       ? ["WEP"]
-                       : (net.key_mgmt && net.key_mgmt !== "NONE")
-                       ? [net.key_mgmt]
-                       : [];
+    var security = (net.key_mgmt === "NONE" && net.wep_key0) ? ["WEP"] :
+                   (net.key_mgmt && net.key_mgmt !== "NONE") ? [net.key_mgmt] :
+                   [];
     var password;
     if (("psk" in net && net.psk) ||
         ("password" in net && net.password) ||
@@ -1753,7 +1902,7 @@ function WifiWorker() {
       password = "*";
     }
 
-    var pub = new Network(ssid, capabilities, password);
+    var pub = new Network(ssid, security, password);
     if (net.identity)
       pub.identity = dequote(net.identity);
     if (net.netId)
@@ -1774,6 +1923,7 @@ function WifiWorker() {
     delete net.bssid;
     delete net.signalStrength;
     delete net.relSignalStrength;
+    delete net.security;
     delete net.capabilities;
 
     if (!configured)
@@ -1820,6 +1970,12 @@ function WifiWorker() {
       configured.wep_key0 = net.wep_key0 = isWepHexKey(net.wep) ? net.wep : quote(net.wep);
       configured.auth_alg = net.auth_alg = "OPEN SHARED";
     }
+
+    if ("phase1" in net)
+      net.phase1 = quote(net.phase1);
+
+    if ("phase2" in net)
+      net.phase2 = quote(net.phase2);
 
     return net;
   };
@@ -2024,7 +2180,7 @@ function WifiWorker() {
     }
   };
 
-  WifiManager.ondhcpconnected = function() {
+  WifiManager.onnetworkconnected = function() {
     if (this.info) {
       WifiNetworkInterface.state =
         Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
@@ -2119,17 +2275,17 @@ function WifiWorker() {
               network.password = "*";
             }
           } else if (!self._allowWpaEap &&
-                     (eapIndex = network.capabilities.indexOf("WPA-EAP")) >= 0) {
+                     (eapIndex = network.security.indexOf("WPA-EAP")) >= 0) {
             // Don't offer to connect to WPA-EAP networks unless one has been
             // configured through other means (e.g. it was added directly to
             // wpa_supplicant.conf). Here, we have an unknown WPA-EAP network,
             // so we ignore it entirely if it only supports WPA-EAP, otherwise
             // we take EAP out of the list and offer the rest of the
-            // capabilities.
-            if (network.capabilities.length === 1)
+            // security.
+            if (network.security.length === 1)
               continue;
 
-            network.capabilities.splice(eapIndex, 1);
+            network.security.splice(eapIndex, 1);
           }
 
           self.networksArray.push(network);
@@ -2152,7 +2308,7 @@ function WifiWorker() {
   // Read the 'wifi.enabled' setting in order to start with a known
   // value at boot time. The handle() will be called after reading.
   //
-  // nsISettingsServiceCallback implementation
+  // nsISettingsServiceCallback implementation.
   var initWifiEnabledCb = {
     handle: function handle(aName, aResult) {
       if (aName !== SETTINGS_WIFI_ENABLED)
@@ -2200,6 +2356,9 @@ function WifiWorker() {
   lock.get(SETTINGS_WIFI_DNS2, this);
   lock.get(SETTINGS_WIFI_TETHERING_ENABLED, this);
 
+  lock.get(SETTINGS_USB_DHCPSERVER_STARTIP, this);
+  lock.get(SETTINGS_USB_DHCPSERVER_ENDIP, this);
+
   this._wifiTetheringSettingsToRead = [SETTINGS_WIFI_SSID,
                                        SETTINGS_WIFI_SECURITY_TYPE,
                                        SETTINGS_WIFI_SECURITY_PASSWORD,
@@ -2209,8 +2368,9 @@ function WifiWorker() {
                                        SETTINGS_WIFI_DHCPSERVER_ENDIP,
                                        SETTINGS_WIFI_DNS1,
                                        SETTINGS_WIFI_DNS2,
-                                       SETTINGS_WIFI_TETHERING_ENABLED];
-
+                                       SETTINGS_WIFI_TETHERING_ENABLED,
+                                       SETTINGS_USB_DHCPSERVER_STARTIP,
+                                       SETTINGS_USB_DHCPSERVER_ENDIP];
 }
 
 function translateState(state) {
@@ -2258,7 +2418,7 @@ WifiWorker.prototype = {
   tetheringSettings: {},
 
   initTetheringSettings: function initTetheringSettings() {
-    this.tetheringSettings[SETTINGS_WIFI_ENABLED] = false;
+    this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] = null;
     this.tetheringSettings[SETTINGS_WIFI_SSID] = DEFAULT_WIFI_SSID;
     this.tetheringSettings[SETTINGS_WIFI_SECURITY_TYPE] = DEFAULT_WIFI_SECURITY_TYPE;
     this.tetheringSettings[SETTINGS_WIFI_SECURITY_PASSWORD] = DEFAULT_WIFI_SECURITY_PASSWORD;
@@ -2268,6 +2428,9 @@ WifiWorker.prototype = {
     this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP] = DEFAULT_WIFI_DHCPSERVER_ENDIP;
     this.tetheringSettings[SETTINGS_WIFI_DNS1] = DEFAULT_DNS1;
     this.tetheringSettings[SETTINGS_WIFI_DNS2] = DEFAULT_DNS2;
+
+    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP] = DEFAULT_USB_DHCPSERVER_STARTIP;
+    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP] = DEFAULT_USB_DHCPSERVER_ENDIP;
   },
 
   // Internal methods.
@@ -2501,6 +2664,9 @@ WifiWorker.prototype = {
       case "WifiManager:setPowerSavingMode":
         this.setPowerSavingMode(msg);
         break;
+      case "WifiManager:setStaticIpMode":
+        this.setStaticIpMode(msg);
+        break;
       case "WifiManager:getState": {
         let i;
         if ((i = this._domManagers.indexOf(msg.manager)) === -1) {
@@ -2600,15 +2766,15 @@ WifiWorker.prototype = {
         if (id === "__exposedProps__") {
           continue;
         }
-        if (id === "capabilities") {
+        if (id === "security") {
           result[id] = 0;
-          var capabilities = element[id];
-          for (let j = 0; j < capabilities.length; j++) {
-            if (capabilities[j] === "WPA-PSK") {
+          var security = element[id];
+          for (let j = 0; j < security.length; j++) {
+            if (security[j] === "WPA-PSK") {
               result[id] |= Ci.nsIWifiScanResult.WPA_PSK;
-            } else if (capabilities[j] === "WPA-EAP") {
+            } else if (security[j] === "WPA-EAP") {
               result[id] |= Ci.nsIWifiScanResult.WPA_EAP;
-            } else if (capabilities[j] === "WEP") {
+            } else if (security[j] === "WEP") {
               result[id] |= Ci.nsIWifiScanResult.WEP;
             } else {
              result[id] = 0;
@@ -2734,8 +2900,10 @@ WifiWorker.prototype = {
     let securityId;
     let interfaceIp;
     let prefix;
-    let dhcpStartIp;
-    let dhcpEndIp;
+    let wifiDhcpStartIp;
+    let wifiDhcpEndIp;
+    let usbDhcpStartIp;
+    let usbDhcpEndIp;
     let dns1;
     let dns2;
 
@@ -2744,8 +2912,10 @@ WifiWorker.prototype = {
     securityId = this.tetheringSettings[SETTINGS_WIFI_SECURITY_PASSWORD];
     interfaceIp = this.tetheringSettings[SETTINGS_WIFI_IP];
     prefix = this.tetheringSettings[SETTINGS_WIFI_PREFIX];
-    dhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
-    dhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
+    wifiDhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
+    wifiDhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
+    usbDhcpStartIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP];
+    usbDhcpEndIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP];
     dns1 = this.tetheringSettings[SETTINGS_WIFI_DNS1];
     dns2 = this.tetheringSettings[SETTINGS_WIFI_DNS2];
 
@@ -2767,7 +2937,8 @@ WifiWorker.prototype = {
     }
     // Using the default values here until application supports these settings.
     if (interfaceIp == "" || prefix == "" ||
-        dhcpStartIp == "" || dhcpEndIp == "") {
+        wifiDhcpStartIp == "" || wifiDhcpEndIp == "" ||
+        usbDhcpStartIp == "" || usbDhcpEndIp == "") {
       debug("Invalid subnet information.");
       return null;
     }
@@ -2778,8 +2949,10 @@ WifiWorker.prototype = {
       key: securityId,
       ip: interfaceIp,
       prefix: prefix,
-      startIp: dhcpStartIp,
-      endIp: dhcpEndIp,
+      wifiStartIp: wifiDhcpStartIp,
+      wifiEndIp: wifiDhcpEndIp,
+      usbStartIp: usbDhcpStartIp,
+      usbEndIp: usbDhcpEndIp,
       dns1: dns1,
       dns2: dns2,
       enable: enable,
@@ -2932,7 +3105,7 @@ WifiWorker.prototype = {
           self._sendMessage(message, false, "WPS PBC failed", msg);
       });
     } else if (detail.method === "pin") {
-      WifiManager.wpsPin(detail.pin, function(pin) {
+      WifiManager.wpsPin(detail, function(pin) {
         if (pin)
           self._sendMessage(message, true, pin, msg);
         else
@@ -2967,6 +3140,30 @@ WifiWorker.prototype = {
           self._sendMessage(message, false, "Set power saving mode failed", msg);
         }
       });
+    });
+  },
+
+  setStaticIpMode: function(msg) {
+    const message = "WifiManager:setStaticMode:Return";
+    let self = this;
+    let network = msg.data.network;
+    let info = msg.data.info;
+
+    netFromDOM(network, null);
+
+    // To compatiable with DHCP returned info structure, do translation here
+    info.ipaddr_str = info.ipaddr;
+    info.proxy_str = info.proxy;
+    info.gateway_str = info.gateway;
+    info.dns1_str = info.dns1;
+    info.dns2_str = info.dns2;
+
+    WifiManager.setStaticIpMode(network, info, function(ok) {
+      if (ok) {
+        self._sendMessage(message, true, true, msg);
+      } else {
+        self._sendMessage(message, false, "Set static ip mode failed", msg);
+      }
     });
   },
 
@@ -3102,6 +3299,8 @@ WifiWorker.prototype = {
       case SETTINGS_WIFI_DHCPSERVER_ENDIP:
       case SETTINGS_WIFI_DNS1:
       case SETTINGS_WIFI_DNS2:
+      case SETTINGS_USB_DHCPSERVER_STARTIP:
+      case SETTINGS_USB_DHCPSERVER_ENDIP:
         if (aResult !== null) {
           this.tetheringSettings[aName] = aResult;
         }

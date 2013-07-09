@@ -212,7 +212,6 @@ MOCHITEST_FILES = \
 		test_bug659596.html \
 		test_bug659743.xml \
 		test_bug660663.html \
-		test_bug664299.html \
 		test_bug666200.html \
 		test_bug666666.html \
 		test_bug669012.html \
@@ -259,6 +258,7 @@ MOCHITEST_FILES = \
 		test_q_attributes_reflection.html \
 		test_html_attributes_reflection.html \
 		test_bug651956.html \
+		test_bug674927.html \
 		test_bug694503.html \
 		test_object_plugin_nav.html \
 		test_bug742030.html \
@@ -359,6 +359,7 @@ MOCHITEST_FILES = \
 		test_iframe_sandbox_workers.html \
 		file_iframe_sandbox_g_if1.html \
 		file_iframe_sandbox_worker.js \
+		test_img_attributes_reflection.html \
 		test_named_options.html \
 		test_htmlcollection.html \
 		test_formelements.html \
@@ -382,6 +383,13 @@ MOCHITEST_FILES = \
 		test_bug879319.html \
 		allowMedia.sjs \
 		test_bug874758.html \
+		test_bug885024.html \
+		test_track.html \
+		test_track_disabled.html \
+		test_srcdoc.html \
+		file_srcdoc.html \
+		test_srcdoc-2.html \
+		file_srcdoc-2.html \
 		$(NULL)
 
 MOCHITEST_CHROME_FILES = \

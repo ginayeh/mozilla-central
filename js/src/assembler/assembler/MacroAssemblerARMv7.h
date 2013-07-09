@@ -28,15 +28,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacroAssemblerARMv7_h
-#define MacroAssemblerARMv7_h
+#ifndef assembler_assembler_MacroAssemblerARMv7_h
+#define assembler_assembler_MacroAssemblerARMv7_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE(ASSEMBLER)
 
-#include "ARMv7Assembler.h"
-#include "AbstractMacroAssembler.h"
+#include "assembler/assembler/ARMv7Assembler.h"
+#include "assembler/assembler/AbstractMacroAssembler.h"
 
 namespace JSC {
 
@@ -1220,4 +1220,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif // MacroAssemblerARMv7_h
+#endif /* assembler_assembler_MacroAssemblerARMv7_h */

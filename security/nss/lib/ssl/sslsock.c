@@ -782,10 +782,7 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRBool on)
 	    rv = SECFailure;
 	} else {
             if (PR_FALSE != on) {
-                /* PKCS#11 bypass is not supported with TLS 1.2. */
-                if (ss->vrange.max >= SSL_LIBRARY_VERSION_TLS_1_2) {
-                    ss->opt.bypassPKCS11 = PR_FALSE;
-                } else if (PR_SUCCESS == SSL_BypassSetup() ) {
+                if (PR_SUCCESS == SSL_BypassSetup() ) {
 #ifdef NO_PKCS11_BYPASS
                     ss->opt.bypassPKCS11 = PR_FALSE;
 #else
@@ -1880,10 +1877,6 @@ SSL_VersionRangeSet(PRFileDesc *fd, const SSLVersionRange *vrange)
     ssl_GetSSL3HandshakeLock(ss);
 
     ss->vrange = *vrange;
-    /* PKCS#11 bypass is not supported with TLS 1.2. */
-    if (ss->vrange.max >= SSL_LIBRARY_VERSION_TLS_1_2) {
-	ss->opt.bypassPKCS11 = PR_FALSE;
-    }
 
     ssl_ReleaseSSL3HandshakeLock(ss);
     ssl_Release1stHandshakeLock(ss);
@@ -2348,9 +2341,13 @@ ssl_Poll(PRFileDesc *fd, PRInt16 how_flags, PRInt16 *p_out_flags)
 	    } else if (new_flags & PR_POLL_WRITE) {
 		    /* The caller is trying to write, but the handshake is 
 		    ** blocked waiting for data to read, and the first 
-		    ** handshake has been sent.  so do NOT to poll on write.
+		    ** handshake has been sent.  So do NOT to poll on write
+		    ** unless we did false start.
 		    */
-		    new_flags ^=  PR_POLL_WRITE;   /* don't select on write. */
+		    if (!(ss->version >= SSL_LIBRARY_VERSION_3_0 &&
+			ss->ssl3.hs.canFalseStart)) {
+			new_flags ^=  PR_POLL_WRITE;   /* don't select on write. */
+		    }
 		    new_flags |=  PR_POLL_READ;	   /* do    select on read. */
 	    }
 	}

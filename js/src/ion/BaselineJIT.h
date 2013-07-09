@@ -4,17 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_baseline_jit_h__
-#define jsion_baseline_jit_h__
+#ifndef ion_BaselineJIT_h
+#define ion_BaselineJIT_h
 
 #ifdef JS_ION
+
+#include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "IonCode.h"
-#include "IonMacroAssembler.h"
-#include "Bailouts.h"
+#include "ion/IonCode.h"
+#include "ion/IonMacroAssembler.h"
+#include "ion/Bailouts.h"
 
 #include "ds/LifoAlloc.h"
 
@@ -22,7 +24,7 @@ namespace js {
 namespace ion {
 
 class StackValue;
-struct ICEntry;
+class ICEntry;
 class ICStub;
 
 class PCMappingSlotInfo
@@ -157,7 +159,7 @@ struct BaselineScript
         return offsetof(BaselineScript, method_);
     }
 
-    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *data,
+    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *data,
                              size_t *fallbackStubs) const {
         *data = mallocSizeOf(this);
 
@@ -263,10 +265,13 @@ IsBaselineEnabled(JSContext *cx)
 }
 
 MethodStatus
-CanEnterBaselineJIT(JSContext *cx, JSScript *scriptArg, StackFrame *fp, bool newType);
+CanEnterBaselineMethod(JSContext *cx, RunState &state);
+
+MethodStatus
+CanEnterBaselineAtBranch(JSContext *cx, StackFrame *fp, bool newType);
 
 IonExecStatus
-EnterBaselineMethod(JSContext *cx, StackFrame *fp);
+EnterBaselineMethod(JSContext *cx, RunState &state);
 
 IonExecStatus
 EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc);
@@ -275,7 +280,7 @@ void
 FinishDiscardBaselineScript(FreeOp *fop, JSScript *script);
 
 void
-SizeOfBaselineData(JSScript *script, JSMallocSizeOfFun mallocSizeOf, size_t *data,
+SizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
                    size_t *fallbackStubs);
 
 void
@@ -334,5 +339,4 @@ MarkActiveBaselineScripts(Zone *zone);
 
 #endif // JS_ION
 
-#endif // jsion_baseline_jit_h__
-
+#endif /* ion_BaselineJIT_h */

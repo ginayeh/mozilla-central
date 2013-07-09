@@ -6,29 +6,17 @@
 
 /* JS symbol tables. */
 
-#include <stdlib.h>
-#include <string.h>
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
-#include "jstypes.h"
-#include "jsclist.h"
-#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jslock.h"
-#include "jsnum.h"
 #include "jsobj.h"
-#include "jsstr.h"
 
 #include "js/HashTable.h"
-#include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
 
-#include "jsatominlines.h"
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
@@ -458,7 +446,10 @@ JSObject::addProperty(JSContext *cx, HandleObject obj, HandleId id,
 {
     JS_ASSERT(!JSID_IS_VOID(id));
 
-    if (!obj->isExtensible()) {
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return NULL;
+    if (!extensible) {
         obj->reportNotExtensible(cx);
         return NULL;
     }
@@ -602,10 +593,11 @@ JSObject::putProperty(JSContext *cx, HandleObject obj, HandleId id,
     JS_ASSERT(!JSID_IS_VOID(id));
 
 #ifdef DEBUG
-    if (obj->isArray()) {
+    if (obj->is<ArrayObject>()) {
+        ArrayObject *arr = &obj->as<ArrayObject>();
         uint32_t index;
         if (js_IdIsIndex(id, &index))
-            JS_ASSERT(index < obj->getArrayLength() || obj->arrayLengthIsWritable());
+            JS_ASSERT(index < arr->length() || arr->lengthIsWritable());
     }
 #endif
 
@@ -621,7 +613,10 @@ JSObject::putProperty(JSContext *cx, HandleObject obj, HandleId id,
          * You can't add properties to a non-extensible object, but you can change
          * attributes of properties in such objects.
          */
-        if (!obj->isExtensible()) {
+        bool extensible;
+        if (!JSObject::isExtensible(cx, obj, &extensible))
+            return NULL;
+        if (!extensible) {
             obj->reportNotExtensible(cx);
             return NULL;
         }
@@ -1088,9 +1083,14 @@ Shape::setObjectMetadata(JSContext *cx, JSObject *metadata, TaggedProto proto, S
 /* static */ bool
 js::ObjectImpl::preventExtensions(JSContext *cx, Handle<ObjectImpl*> obj)
 {
-    MOZ_ASSERT(obj->isExtensible(),
+#ifdef DEBUG
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    MOZ_ASSERT(extensible,
                "Callers must ensure |obj| is extensible before calling "
                "preventExtensions");
+#endif
 
     if (obj->isProxy()) {
         RootedObject object(cx, obj->asObjectPtr());
@@ -1338,6 +1338,7 @@ EmptyShape::getInitialShape(JSContext *cx, Class *clasp, TaggedProto proto,
     if (p)
         return p->shape;
 
+    SkipRoot skip(cx, &p); /* The hash may look like a GC pointer and get poisoned. */
     Rooted<TaggedProto> protoRoot(cx, proto);
     RootedObject parentRoot(cx, parent);
     RootedObject metadataRoot(cx, metadata);
@@ -1384,7 +1385,7 @@ NewObjectCache::invalidateEntriesForShape(JSContext *cx, HandleShape shape, Hand
     EntryIndex entry;
     if (lookupGlobal(clasp, global, kind, &entry))
         PodZero(&entries[entry]);
-    if (!proto->isGlobal() && lookupProto(clasp, proto, kind, &entry))
+    if (!proto->is<GlobalObject>() && lookupProto(clasp, proto, kind, &entry))
         PodZero(&entries[entry]);
     if (lookupType(clasp, type, kind, &entry))
         PodZero(&entries[entry]);

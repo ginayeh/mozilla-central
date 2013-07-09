@@ -12,7 +12,7 @@ let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
                .getService(Ci.mozIJSSubScriptLoader);
 
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
-loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
+loader.loadSubScript("chrome://marionette/content/marionette-common.js");
 Cu.import("chrome://marionette/content/marionette-elements.js");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -279,6 +279,7 @@ function resetValues() {
   mouseEventsOnly = false;
 }
 
+
 /*
  * Marionette Methods
  */
@@ -384,7 +385,7 @@ function executeScript(msg, directInject) {
         let data = NetUtil.readInputStreamToString(stream, stream.available());
         script = data + script;
       }
-      let res = Cu.evalInSandbox(script, sandbox, "1.8");
+      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file" ,0);
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
       marionetteLogObj.clearLogs();
@@ -406,16 +407,16 @@ function executeScript(msg, directInject) {
         return;
       }
 
-      let scriptSrc = "let __marionetteFunc = function(){" + script + "};" +
-                      "__marionetteFunc.apply(null, __marionetteParams);";
+      script = "let __marionetteFunc = function(){" + script + "};" +
+                   "__marionetteFunc.apply(null, __marionetteParams);";
       if (importedScripts.exists()) {
         let stream = Components.classes["@mozilla.org/network/file-input-stream;1"].  
                       createInstance(Components.interfaces.nsIFileInputStream);
         stream.init(importedScripts, -1, 0, 0);
         let data = NetUtil.readInputStreamToString(stream, stream.available());
-        scriptSrc = data + scriptSrc;
+        script = data + script;
       }
-      let res = Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
+      let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file", 0);
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
       marionetteLogObj.clearLogs();
@@ -424,7 +425,12 @@ function executeScript(msg, directInject) {
   }
   catch (e) {
     // 17 = JavascriptException
-    sendError(e.name + ': ' + e.message, 17, e.stack, asyncTestCommandId);
+    let error = createStackMessage(e,
+                                   "execute_script",
+                                   msg.json.filename,
+                                   msg.json.line,
+                                   script);
+    sendError(error[0], 17, error[1], asyncTestCommandId);
   }
 }
 
@@ -531,11 +537,15 @@ function executeWithCallback(msg, useFinish) {
       let data = NetUtil.readInputStreamToString(stream, stream.available());
       scriptSrc = data + scriptSrc;
     }
-    Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
+    Cu.evalInSandbox(scriptSrc, sandbox, "1.8", "dummy file", 0);
   } catch (e) {
     // 17 = JavascriptException
-    sandbox.asyncComplete(e.name + ': ' + e.message, 17,
-                          e.stack, asyncTestCommandId);
+    let error = createStackMessage(e,
+                                   "execute_async_script",
+                                   msg.json.filename,
+                                   msg.json.line,
+                                   scriptSrc);
+    sandbox.asyncComplete(error[0], 17, error[1], asyncTestCommandId);
   }
 }
 
@@ -543,7 +553,15 @@ function executeWithCallback(msg, useFinish) {
  * This function creates a touch event given a touch type and a touch
  */
 function emitTouchEvent(type, touch) {
-  // Using domWindowUtils
+  let loggingInfo = "Marionette: emitting Touch event of type " + type + " to element with id: " + touch.target.id + " and tag name: " + touch.target.tagName + " at coordinates (" + touch.clientX + ", " + touch.clientY + ") relative to the viewport";
+  dump(loggingInfo);
+  /*
+  Disabled per bug 888303
+  marionetteLogObj.log(loggingInfo, "TRACE");
+  sendSyncMessage("Marionette:shareData",
+                  {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+  marionetteLogObj.clearLogs();
+  */
   let domWindowUtils = curWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
   domWindowUtils.sendTouchEvent(type, [touch.identifier], [touch.screenX], [touch.screenY], [touch.radiusX], [touch.radiusY], [touch.rotationAngle], [touch.force], 1, 0);
 }
@@ -556,11 +574,19 @@ function emitTouchEvent(type, touch) {
  *           elClientX and elClientY are the coordinates of the mouse relative to the viewport
  */
 function emitMouseEvent(doc, type, elClientX, elClientY, detail, button) {
+  let loggingInfo = "Marionette: emitting Mouse event of type " + type + " at coordinates (" + elClientX + ", " + elClientY + ") relative to the viewport";
+  dump(loggingInfo);
+  /*
+  Disabled per bug 888303
+  marionetteLogObj.log(loggingInfo, "TRACE");
+  sendSyncMessage("Marionette:shareData",
+                  {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+  marionetteLogObj.clearLogs();
+  */
   detail = detail || 1;
   button = button || 0;
-  var win = doc.defaultView;
+  let win = doc.defaultView;
   // Figure out the element the mouse would be over at (x, y)
-  var target = doc.elementFromPoint(elClientX, elClientY);
   utils.synthesizeMouseAtPoint(elClientX, elClientY, {type: type, button: button, clickCount: detail}, win);
 }
 

@@ -88,6 +88,9 @@ static const char *sExtensionNames[] = {
     "GL_OES_element_index_uint",
     "GL_OES_vertex_array_object",
     "GL_ARB_vertex_array_object",
+    "GL_APPLE_vertex_array_object",
+    "GL_ARB_draw_buffers",
+    "GL_EXT_draw_buffers",
     nullptr
 };
 
@@ -550,11 +553,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        if (IsExtensionSupported(OES_vertex_array_object)) {
+        if (IsExtensionSupported(ARB_vertex_array_object) ||
+            IsExtensionSupported(OES_vertex_array_object)) {
             SymLoadStruct vaoSymbols[] = {
                 { (PRFuncPtr*) &mSymbols.fIsVertexArray, { "IsVertexArray", "IsVertexArrayOES", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fGenVertexArrays, { "GenVertexArrays", "GenVertexArraysOES", nullptr } },
-                { (PRFuncPtr*) &mSymbols.fBindVertexArray, { "BindVertexArrays", "BindVertexArrayOES", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fBindVertexArray, { "BindVertexArray", "BindVertexArrayOES", nullptr } },
                 { (PRFuncPtr*) &mSymbols.fDeleteVertexArrays, { "DeleteVertexArrays", "DeleteVertexArraysOES", nullptr } },
                 { nullptr, { nullptr } },
             };
@@ -562,7 +566,32 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             if (!LoadSymbols(&vaoSymbols[0], trygl, prefix)) {
                 NS_ERROR("GL supports Vertex Array Object without supplying its functions.");
 
+                MarkExtensionUnsupported(ARB_vertex_array_object);
                 MarkExtensionUnsupported(OES_vertex_array_object);
+                MarkExtensionUnsupported(APPLE_vertex_array_object);
+                mSymbols.fIsVertexArray = nullptr;
+                mSymbols.fGenVertexArrays = nullptr;
+                mSymbols.fBindVertexArray = nullptr;
+                mSymbols.fDeleteVertexArrays = nullptr;
+            }
+        }
+        else if (IsExtensionSupported(APPLE_vertex_array_object)) {
+            /*
+             * separate call to LoadSymbols with APPLE_vertex_array_object to work around
+             * a driver bug : the IsVertexArray symbol (without suffix) can be present but unusable.
+             */
+            SymLoadStruct vaoSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fIsVertexArray, { "IsVertexArrayAPPLE", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fGenVertexArrays, { "GenVertexArraysAPPLE", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fBindVertexArray, { "BindVertexArrayAPPLE", nullptr } },
+                { (PRFuncPtr*) &mSymbols.fDeleteVertexArrays, { "DeleteVertexArraysAPPLE", nullptr } },
+                { nullptr, { nullptr } },
+            };
+
+            if (!LoadSymbols(&vaoSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports Vertex Array Object without supplying its functions.");
+
+                MarkExtensionUnsupported(APPLE_vertex_array_object);
                 mSymbols.fIsVertexArray = nullptr;
                 mSymbols.fGenVertexArrays = nullptr;
                 mSymbols.fBindVertexArray = nullptr;
@@ -596,11 +625,24 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 #ifdef XP_MACOSX
         if (mWorkAroundDriverBugs) {
             if (mVendor == VendorIntel) {
-                // see bug 737182 for 2D textures, bug 684882 for cube map textures.
-                mMaxTextureSize        = std::min(mMaxTextureSize,        4096);
+                SInt32 major, minor;
+                OSErr err1 = ::Gestalt(gestaltSystemVersionMajor, &major);
+                OSErr err2 = ::Gestalt(gestaltSystemVersionMinor, &minor);
+
+                // For 2D textures, see bug 737182 for the original restriction to 4K and
+                // see bug 807096 for why we further restricted it to 2K on < 10.8
+                // For good measure, we align renderbuffers on what we do for 2D textures
+                if (err1 != noErr || err2 != noErr ||
+                    major < 10 || (major == 10 && minor < 8)) {
+                    mMaxTextureSize        = std::min(mMaxTextureSize, 2048);
+                    mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize, 2048);
+                }
+                else {
+                    mMaxTextureSize        = std::min(mMaxTextureSize, 4096);
+                    mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize, 4096);
+                }
+                // For cube map textures, see bug 684882.
                 mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 512);
-                // for good measure, we align renderbuffers on what we do for 2D textures
-                mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize,   4096);
                 mNeedsTextureSizeChecks = true;
             } else if (mVendor == VendorNVIDIA) {
                 SInt32 major, minor;
@@ -924,8 +966,12 @@ GLContext::UpdatePixelFormat()
     MOZ_ASSERT(caps.color == !!format.blue);
 
     MOZ_ASSERT(caps.alpha == !!format.alpha);
-    MOZ_ASSERT(caps.depth == !!format.depth);
-    MOZ_ASSERT(caps.stencil == !!format.stencil);
+
+    // These we either must have if they're requested, or
+    // we can have if they're not.
+    MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
+    MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
+
     MOZ_ASSERT(caps.antialias == (format.samples > 1));
 #endif
     mPixelFormat = new PixelBufferFormat(format);
@@ -1435,7 +1481,7 @@ static already_AddRefed<gfxImageSurface> YInvertImageSurface(gfxImageSurface* aS
 }
 
 already_AddRefed<gfxImageSurface>
-GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader)
+GLContext::GetTexImage(GLuint aTexture, bool aYInvert, SurfaceFormat aFormat)
 {
     MakeCurrent();
     GuaranteeResolve();
@@ -1461,7 +1507,7 @@ GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader
         fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
     }
 
-    if (aShader == RGBALayerProgramType || aShader == RGBXLayerProgramType) {
+    if (aFormat == FORMAT_R8G8B8A8 || aFormat == FORMAT_R8G8B8X8) {
       SwapRAndBComponents(surf);
     }
 
@@ -1705,8 +1751,7 @@ GLContext::ReadPixelsIntoImageSurface(gfxImageSurface* dest)
             break;
 
         default:
-            MOZ_NOT_REACHED("Bad format.");
-            return;
+            MOZ_CRASH("Bad format.");
     }
     MOZ_ASSERT(dest->Stride() == dest->Width() * destPixelSize);
 
@@ -1723,7 +1768,7 @@ GLContext::ReadPixelsIntoImageSurface(gfxImageSurface* dest)
         if (DebugMode()) {
             NS_WARNING("Needing intermediary surface for ReadPixels. This will be slow!");
         }
-        gfxASurface::gfxImageFormat readFormatGFX;
+        ImageFormat readFormatGFX;
 
         switch (readFormat) {
             case LOCAL_GL_RGBA:
@@ -1739,8 +1784,7 @@ GLContext::ReadPixelsIntoImageSurface(gfxImageSurface* dest)
                 break;
             }
             default: {
-                MOZ_NOT_REACHED("Bad read format.");
-                return;
+                MOZ_CRASH("Bad read format.");
             }
         }
 
@@ -1761,8 +1805,7 @@ GLContext::ReadPixelsIntoImageSurface(gfxImageSurface* dest)
                 break;
             }
             default: {
-                MOZ_NOT_REACHED("Bad read type.");
-                return;
+                MOZ_CRASH("Bad read type.");
             }
         }
 
@@ -1990,7 +2033,7 @@ DataOffset(gfxImageSurface *aSurf, const nsIntPoint &aPoint)
   return data;
 }
 
-ShaderProgramType
+GLContext::SurfaceFormat
 GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
                                   const nsIntRegion& aDstRegion,
                                   GLuint& aTexture,
@@ -2067,37 +2110,36 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
     GLenum format;
     GLenum type;
     int32_t pixelSize = gfxASurface::BytePerPixelFromFormat(imageSurface->Format());
-    ShaderProgramType shader;
+    SurfaceFormat surfaceFormat;
 
     switch (imageSurface->Format()) {
         case gfxASurface::ImageFormatARGB32:
             format = LOCAL_GL_RGBA;
             type = LOCAL_GL_UNSIGNED_BYTE;
-            shader = BGRALayerProgramType;
+            surfaceFormat = FORMAT_B8G8R8A8;
             break;
         case gfxASurface::ImageFormatRGB24:
             // Treat RGB24 surfaces as RGBA32 except for the shader
             // program used.
             format = LOCAL_GL_RGBA;
             type = LOCAL_GL_UNSIGNED_BYTE;
-            shader = BGRXLayerProgramType;
+            surfaceFormat = FORMAT_B8G8R8X8;
             break;
         case gfxASurface::ImageFormatRGB16_565:
             format = LOCAL_GL_RGB;
             type = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
-            shader = RGBALayerProgramType;
+            surfaceFormat = FORMAT_R5G6B5;
             break;
         case gfxASurface::ImageFormatA8:
             format = LOCAL_GL_LUMINANCE;
             type = LOCAL_GL_UNSIGNED_BYTE;
-            // We don't have a specific luminance shader
-            shader = ShaderProgramType(0);
+            surfaceFormat = FORMAT_A8;
             break;
         default:
             NS_ASSERTION(false, "Unhandled image surface format!");
             format = 0;
             type = 0;
-            shader = ShaderProgramType(0);
+            surfaceFormat = FORMAT_UNKNOWN;
     }
 
     int32_t stride = imageSurface->Stride();
@@ -2146,7 +2188,7 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
 
     }
 
-    return shader;
+    return surfaceFormat;
 }
 
 static GLint GetAddressAlignment(ptrdiff_t aAddress)

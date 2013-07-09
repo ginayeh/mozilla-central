@@ -9,6 +9,8 @@ var gDebuggee = null;
 var gDebugger = null;
 
 function test() {
+  requestLongerTimeout(3);
+
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
@@ -40,7 +42,7 @@ function testSimpleCall() {
       is(testVar.target.querySelector(".variables-view-element-details").childNodes.length, 0,
         "Adding type and class properties shouldn't add any new tree nodes.");
 
-      is(testVar.target.querySelector(".value").getAttribute("value"), "[object Window]",
+      is(testVar.target.querySelector(".value").getAttribute("value"), "Window",
         "The information for the variable wasn't set correctly.");
 
 

@@ -68,7 +68,7 @@ ForkJoinSlice::releaseContext()
 }
 
 bool
-ForkJoinSlice::isMainThread()
+ForkJoinSlice::isMainThread() const
 {
     return true;
 }
@@ -82,26 +82,25 @@ ForkJoinSlice::InitializeTLS()
 JSRuntime *
 ForkJoinSlice::runtime()
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
 }
 
 bool
 ForkJoinSlice::check()
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
-    return true;
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
 }
 
 void
 ForkJoinSlice::requestGC(JS::gcreason::Reason reason)
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
 }
 
 void
 ForkJoinSlice::requestZoneGC(JS::Zone *zone, JS::gcreason::Reason reason)
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
 }
 
 void
@@ -110,14 +109,20 @@ ParallelBailoutRecord::setCause(ParallelBailoutCause cause,
                                 JSScript *currentScript,
                                 jsbytecode *currentPc)
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
 }
 
 void
 ParallelBailoutRecord::addTrace(JSScript *script,
                                 jsbytecode *pc)
 {
-    JS_NOT_REACHED("Not THREADSAFE build");
+    MOZ_ASSUME_UNREACHABLE("Not THREADSAFE build");
+}
+
+bool
+js::InSequentialOrExclusiveParallelSection()
+{
+    return true;
 }
 
 bool
@@ -140,8 +145,8 @@ ExecuteSequentially(JSContext *cx, HandleValue funVal, bool *complete)
     FastInvokeGuard fig(cx, funVal);
     bool allComplete = true;
     for (uint32_t i = 0; i < numSlices; i++) {
-        InvokeArgsGuard &args = fig.args();
-        if (!args.pushed() && !cx->stack.pushInvokeArgs(cx, 3, &args))
+        InvokeArgs &args = fig.args();
+        if (!args.init(3))
             return false;
         args.setCallee(funVal);
         args.setThis(UndefinedValue());
@@ -387,6 +392,7 @@ class ForkJoinShared : public TaskExecutor, public Monitor
     void setAbortFlag(bool fatal);
 
     JSRuntime *runtime() { return cx_->runtime(); }
+    JS::Zone *zone() { return cx_->zone(); }
 
     JSContext *acquireContext() { PR_Lock(cxLock_); return cx_; }
     void releaseContext() { PR_Unlock(cxLock_); }
@@ -445,7 +451,7 @@ bool
 js::ForkJoin(JSContext *cx, CallArgs &args)
 {
     JS_ASSERT(args[0].isObject()); // else the self-hosted code is wrong
-    JS_ASSERT(args[0].toObject().isFunction());
+    JS_ASSERT(args[0].toObject().is<JSFunction>());
 
     ForkJoinMode mode = ForkJoinModeNormal;
     if (args.length() > 1) {
@@ -588,12 +594,12 @@ js::ParallelDo::apply()
         // compiled scripts were collected.
         if (ParallelTestsShouldPass(cx_) && worklist_.length() != 0) {
             JS_ReportError(cx_, "ForkJoin: compilation required in par or bailout mode");
-            return ExecutionFatal;
+            return SpewEndOp(ExecutionFatal);
         }
         break;
 
       case NumForkJoinModes:
-        JS_NOT_REACHED("Invalid mode");
+        MOZ_ASSUME_UNREACHABLE("Invalid mode");
     }
 
     while (bailouts < MAX_BAILOUTS) {
@@ -622,10 +628,10 @@ js::ParallelDo::enqueueInitialScript(ExecutionStatus *status)
     // RedLight: fatal error or fell back to sequential
 
     // The kernel should be a self-hosted function.
-    if (!fun_->isFunction())
+    if (!fun_->is<JSFunction>())
         return sequentialExecution(true, status);
 
-    RootedFunction callee(cx_, fun_->toFunction());
+    RootedFunction callee(cx_, &fun_->as<JSFunction>());
 
     if (!callee->isInterpreted() || !callee->isSelfHostedBuiltin())
         return sequentialExecution(true, status);
@@ -1206,7 +1212,7 @@ js::ParallelDo::recoverFromBailout(ExecutionStatus *status)
 
     // After any bailout, we always scan over callee list of main
     // function, if nothing else
-    RootedScript mainScript(cx_, fun_->toFunction()->nonLazyScript());
+    RootedScript mainScript(cx_, fun_->as<JSFunction>().nonLazyScript());
     if (!addToWorklist(mainScript))
         return fatalError(status);
 
@@ -1326,7 +1332,7 @@ ForkJoinShared::init()
         return false;
 
     for (unsigned i = 0; i < numSlices_; i++) {
-        Allocator *allocator = cx_->runtime()->new_<Allocator>(cx_->zone());
+        Allocator *allocator = cx_->new_<Allocator>(cx_->zone());
         if (!allocator)
             return false;
 
@@ -1411,6 +1417,7 @@ ForkJoinShared::executeFromWorker(uint32_t workerId, uintptr_t stackLimit)
 
     PerThreadData thisThread(cx_->runtime());
     TlsPerThreadData.set(&thisThread);
+
     // Don't use setIonStackLimit() because that acquires the ionStackLimitLock, and the
     // lock has not been initialized in these cases.
     thisThread.ionStackLimit = stackLimit;
@@ -1454,8 +1461,8 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
     JS_ASSERT(slice.bailoutRecord->topScript == NULL);
 
     RootedObject fun(perThread, fun_);
-    JS_ASSERT(fun->isFunction());
-    RootedFunction callee(perThread, fun->toFunction());
+    JS_ASSERT(fun->is<JSFunction>());
+    RootedFunction callee(perThread, &fun->as<JSFunction>());
     if (!callee->nonLazyScript()->hasParallelIonScript()) {
         // Sometimes, particularly with GCZeal, the parallel ion
         // script can be collected between starting the parallel
@@ -1645,16 +1652,23 @@ ForkJoinSlice::ForkJoinSlice(PerThreadData *perThreadData,
                              uint32_t sliceId, uint32_t numSlices,
                              Allocator *allocator, ForkJoinShared *shared,
                              ParallelBailoutRecord *bailoutRecord)
-    : perThreadData(perThreadData),
-      sliceId(sliceId),
-      numSlices(numSlices),
-      allocator(allocator),
-      bailoutRecord(bailoutRecord),
-      shared(shared)
-{ }
+  : ThreadSafeContext(shared->runtime(), perThreadData, Context_ForkJoin),
+    sliceId(sliceId),
+    numSlices(numSlices),
+    bailoutRecord(bailoutRecord),
+    shared(shared),
+    acquiredContext_(false)
+{
+    /*
+     * Unsafely set the zone. This is used to track malloc counters and to
+     * trigger GCs and is otherwise not thread-safe to access.
+     */
+    zone_ = shared->zone();
+    allocator_ = allocator;
+}
 
 bool
-ForkJoinSlice::isMainThread()
+ForkJoinSlice::isMainThread() const
 {
     return perThreadData == &shared->runtime()->mainThread;
 }
@@ -1668,13 +1682,24 @@ ForkJoinSlice::runtime()
 JSContext *
 ForkJoinSlice::acquireContext()
 {
-    return shared->acquireContext();
+    JSContext *cx = shared->acquireContext();
+    JS_ASSERT(!acquiredContext_);
+    acquiredContext_ = true;
+    return cx;
 }
 
 void
 ForkJoinSlice::releaseContext()
 {
+    JS_ASSERT(acquiredContext_);
+    acquiredContext_ = false;
     return shared->releaseContext();
+}
+
+bool
+ForkJoinSlice::hasAcquiredContext() const
+{
+    return acquiredContext_;
 }
 
 bool
@@ -1921,7 +1946,7 @@ class ParallelSpewer
 
         if (cx) {
             jsbytecode *pc;
-            JSScript *script = cx->stack.currentScript(&pc);
+            JSScript *script = cx->currentScript(&pc);
             if (script && pc) {
                 NonBuiltinScriptFrameIter iter(cx);
                 if (iter.done()) {
@@ -2117,6 +2142,12 @@ parallel::SpewBailoutIR(uint32_t bblockId, uint32_t lirId,
 }
 
 #endif // DEBUG
+
+bool
+js::InSequentialOrExclusiveParallelSection()
+{
+    return !InParallelSection() || ForkJoinSlice::Current()->hasAcquiredContext();
+}
 
 bool
 js::ParallelTestsShouldPass(JSContext *cx)
