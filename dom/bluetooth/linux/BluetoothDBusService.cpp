@@ -140,11 +140,12 @@ static const char* sBluetoothDBusSignals[] =
 static nsAutoPtr<RawDBusConnection> gThreadConnection;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sPairingReqTable;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sAuthorizeReqTable;
-static Atomic<int32_t> sIsPairing;
 static nsString sAdapterPath;
 
 typedef bool (*FilterFunc)(const BluetoothValue&);
 typedef void (*SinkCallback)(DBusMessage*, void*);
+
+Atomic<int32_t> BluetoothDBusService::mIsPairing;
 
 static bool
 GetConnectedDevicesFilter(const BluetoothValue& aValue)
@@ -252,6 +253,20 @@ BluetoothDBusService::AddReservedServicesInternal(
   return true;
 }
 
+// static
+void
+BluetoothDBusService::GetIsPairing(int32_t* aIsPairing)
+{
+  *aIsPairing = mIsPairing;
+}
+
+// static
+void
+BluetoothDBusService::SetIsPairing(int32_t aIsPairing)
+{
+  mIsPairing = aIsPairing;
+}
+
 void
 BluetoothDBusService::DisconnectAllAcls(const nsAString& aAdapterPath)
 {
@@ -286,17 +301,6 @@ ContainsIcon(const InfallibleTArray<BluetoothNamedValue>& aProperties)
   }
   return false;
 }
-
-/*static DBusCallback sBluetoothDBusPropCallbacks[] =
-{
-  GetManagerPropertiesCallback,
-  GetAdapterPropertiesCallback,
-  GetDevicePropertiesCallback
-};
-
-MOZ_STATIC_ASSERT(
-  sizeof(sBluetoothDBusPropCallbacks) == sizeof(sBluetoothDBusIfaces),
-  "DBus Property callback array and DBus interface array must be same size");*/
 
 static bool
 GetPropertiesInternal(const nsAString& aPath,
@@ -374,7 +378,7 @@ public:
     // original signal
     InfallibleTArray<BluetoothNamedValue>& properties =
       prop.get_ArrayOfBluetoothNamedValue();
-   uint8_t i;
+    uint8_t i;
     for (i = 0; i < properties.Length(); i++) {
       if (properties[i].name().EqualsLiteral("Name")) {
         properties[i].name().AssignLiteral("name");
@@ -1177,7 +1181,7 @@ BluetoothDBusService::StopInternal()
   sAuthorizeReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
   sAuthorizeReqTable.Clear();
 
-  sIsPairing = 0;
+  mIsPairing = 0;
 
   StopDBus();
   return NS_OK;
@@ -1283,9 +1287,9 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
 
   SinkCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
-    callback = SinkConnectCallback;
+    callback = OnSendSinkConnectReply;
   } else if (aMessage.EqualsLiteral("Disconnect")) {
-    callback = SinkDisconnectCallback;
+    callback = OnSendSinkDisconnectReply;
   } else {
     BT_WARNING("Unknown sink message");
     return NS_ERROR_FAILURE;
@@ -1531,7 +1535,7 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
   if (!dbus_func_send_async(mConnection,
                             msg,
                             1000,
-                            GetVoidCallback,
+                            OnSetPropertyReply,
                             (void*)aRunnable)) {
     NS_WARNING("Could not start async function!");
     return NS_ERROR_FAILURE;
@@ -1636,14 +1640,14 @@ BluetoothDBusService::CreatePairedDeviceInternal(
    *
    * Please see Bug 818696 for more information.
    */
-  sIsPairing++;
+  mIsPairing++;
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
   // Then send CreatePairedDevice, it will register a temp device agent then
   // unregister it after pairing process is over
   bool ret = dbus_func_args_async(mConnection,
                                   aTimeout,
-                                  GetObjectPathCallback,
+                                  OnCreatePairedDeviceReply,
                                   (void*)runnable,
                                   NS_ConvertUTF16toUTF8(sAdapterPath).get(),
                                   DBUS_ADAPTER_IFACE,
@@ -2047,7 +2051,7 @@ BluetoothDBusService::UpdateSdpRecords(const nsAString& aDeviceAddress,
 
   return dbus_func_args_async(mConnection,
                               -1,
-                              DiscoverServicesCallback,
+                              OnDiscoverServicesReply,
                               (void*)callbackRunnable,
                               NS_ConvertUTF16toUTF8(objectPath).get(),
                               DBUS_DEVICE_IFACE,
@@ -2260,7 +2264,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  GetVoidCallback,
+                                  OnControlReply,
                                   (void*)runnable,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,
@@ -2359,7 +2363,7 @@ BluetoothDBusService::SendPlayStatus(uint32_t aDuration,
   uint32_t tempPlayStatus = playStatus;
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  GetVoidCallback,
+                                  OnControlReply,
                                   (void*)runnable,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,
@@ -2421,7 +2425,7 @@ BluetoothDBusService::UpdatePlayStatus(uint32_t aDuration,
   uint32_t tempPlayStatus = aPlayStatus;
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  ControlCallback,
+                                  OnUpdatePlayStatusReply,
                                   nullptr,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,
@@ -2457,7 +2461,7 @@ BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
 
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  ControlCallback,
+                                  OnControlReply,
                                   nullptr,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_CTL_IFACE,

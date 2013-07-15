@@ -72,37 +72,28 @@ ParseControlPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                            nsAString& aErrorStr);
 
 void
-GetObjectPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+OnCreatePairedDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
-GetVoidCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+OnControlReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
-GetIntPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+OnSetPropertyReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
-GetManagerPropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+OnSendSinkConnectReply(DBusMessage* aMsg, void* aParam);
 
 void
-GetAdapterPropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+OnSendSinkDisconnectReply(DBusMessage* aMsg, void* aParam);
 
 void
-GetDevicePropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
-
-void
-SinkConnectCallback(DBusMessage* aMsg, void* aParam);
-
-void
-SinkDisconnectCallback(DBusMessage* aMsg, void* aParam);
-
-void
-ControlCallback(DBusMessage* aMsg, void* aParam);
+OnUpdatePlayStatusReply(DBusMessage* aMsg, void* aParam);
 
 void
 OnSendDiscoveryMessageReply(DBusMessage *aReply, void *aData);
 
 void
-DiscoverServicesCallback(DBusMessage* aMsg, void* aData);
+OnDiscoverServicesReply(DBusMessage* aMsg, void* aData);
 
 class BluetoothValue;
 class BluetoothProfileManagerBase;

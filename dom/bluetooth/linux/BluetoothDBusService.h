@@ -76,6 +76,12 @@ public:
   static bool
   RemoveReservedServicesInternal(const nsTArray<uint32_t>& aServiceHandles);
 
+  static void
+  GetIsPairing(int32_t* aIsPairing);
+
+  static void
+  SetIsPairing(int32_t aIsPairing);
+
   virtual nsresult
   GetScoSocket(const nsAString& aObjectPath,
                bool aAuth,
@@ -203,6 +209,7 @@ private:
 
   void DisconnectAllAcls(const nsAString& aAdapterPath);
 
+  static Atomic<int32_t> mIsPairing;
 };
 
 END_BLUETOOTH_NAMESPACE

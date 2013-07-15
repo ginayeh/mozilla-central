@@ -6,6 +6,7 @@
 
 #include "base/basictypes.h"
 #include "BluetoothDBusCallback.h"
+#include "BluetoothDBusService.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -34,11 +35,11 @@ using namespace mozilla;
 using namespace mozilla::ipc;
 BEGIN_BLUETOOTH_NAMESPACE
 
-Properties ManagerProperties[] = {
+Properties sManagerProperties[] = {
   {"Adapters", DBUS_TYPE_ARRAY},
 };
 
-Properties AdapterProperties[] = {
+Properties sAdapterProperties[] = {
   {"Address", DBUS_TYPE_STRING},
   {"Name", DBUS_TYPE_STRING},
   {"Class", DBUS_TYPE_UINT32},
@@ -53,7 +54,7 @@ Properties AdapterProperties[] = {
   {"Type", DBUS_TYPE_STRING}
 };
 
-Properties DeviceProperties[] = {
+Properties sDeviceProperties[] = {
   {"Address", DBUS_TYPE_STRING},
   {"Name", DBUS_TYPE_STRING},
   {"Icon", DBUS_TYPE_STRING},
@@ -74,13 +75,13 @@ Properties DeviceProperties[] = {
   {"Services", DBUS_TYPE_ARRAY}
 };
 
-Properties SinkProperties[] = {
+Properties sSinkProperties[] = {
   {"State", DBUS_TYPE_STRING},
   {"Connected", DBUS_TYPE_BOOLEAN},
   {"Playing", DBUS_TYPE_BOOLEAN}
 };
 
-Properties ControlProperties[] = {
+Properties sControlProperties[] = {
   {"Connected", DBUS_TYPE_BOOLEAN}
 };
 
@@ -116,32 +117,6 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
   }
   return false;
 }
-
-
-/*void
-UnpackIntMessage(DBusMessage* aMsg, DBusError* aErr,
-                 BluetoothValue& aValue, nsAString& aErrorStr)
-{
-  MOZ_ASSERT(aMsg);
-
-  LOGV("[B] %s", __FUNCTION__);
-  DBusError err;
-  dbus_error_init(&err);
-  if (!IsDBusMessageError(aMsg, aErr, aErrorStr)) {
-    MOZ_ASSERT(dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN,
-               "Got dbus callback that's not a METHOD_RETURN!");
-    int i;
-    if (!dbus_message_get_args(aMsg, &err, DBUS_TYPE_INT32,
-          &i, DBUS_TYPE_INVALID)) {
-      if (dbus_error_is_set(&err)) {
-        aErrorStr = NS_ConvertUTF8toUTF16(err.message);
-        LOG_AND_FREE_DBUS_ERROR(&err);
-      }
-    } else {
-      aValue = (uint32_t)i;
-    }
-  }
-}*/
 
 static bool
 GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
@@ -393,7 +368,7 @@ UnpackAdapterPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
 {
   LOGV("[B] %s", __FUNCTION__);
   UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          AdapterProperties, ArrayLength(AdapterProperties));
+                          sAdapterProperties, ArrayLength(sAdapterProperties));
 }
 
 void
@@ -402,7 +377,7 @@ UnpackDevicePropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
 {
   LOGV("[B] %s", __FUNCTION__);
   UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          DeviceProperties, ArrayLength(DeviceProperties));
+                          sDeviceProperties, ArrayLength(sDeviceProperties));
 }
 
 void
@@ -411,7 +386,7 @@ UnpackManagerPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
 {
   LOGV("[B] %s", __FUNCTION__);
   UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          ManagerProperties, ArrayLength(ManagerProperties));
+                          sManagerProperties, ArrayLength(sManagerProperties));
 }
 
 void
@@ -419,7 +394,7 @@ ParseDeviceProperties(DBusMessageIter* aIter, BluetoothValue& aValue,
                       nsAString& aErrorStr)
 {
   ParseProperties(aIter, aValue, aErrorStr,
-                  DeviceProperties, ArrayLength(DeviceProperties));
+                  sDeviceProperties, ArrayLength(sDeviceProperties));
 }
 
 void
@@ -427,7 +402,7 @@ ParseManagerPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                            nsAString& aErrorStr)
 {
   ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      ManagerProperties, ArrayLength(ManagerProperties));
+                      sManagerProperties, ArrayLength(sManagerProperties));
 }
 
 void
@@ -435,7 +410,7 @@ ParseAdapterPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                            nsAString& aErrorStr)
 {
   ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      AdapterProperties, ArrayLength(AdapterProperties));
+                      sAdapterProperties, ArrayLength(sAdapterProperties));
 }
 
 void
@@ -443,7 +418,7 @@ ParseDevicePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                           nsAString& aErrorStr)
 {
   ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      DeviceProperties, ArrayLength(DeviceProperties));
+                      sDeviceProperties, ArrayLength(sDeviceProperties));
 }
 
 void
@@ -451,7 +426,7 @@ ParseSinkPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                         nsAString& aErrorStr)
 {
   ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      SinkProperties, ArrayLength(SinkProperties));
+                      sSinkProperties, ArrayLength(sSinkProperties));
 }
 
 void
@@ -459,7 +434,7 @@ ParseControlPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                            nsAString& aErrorStr)
 {
   ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      ControlProperties, ArrayLength(ControlProperties));
+                      sControlProperties, ArrayLength(sControlProperties));
 }
 
 static void
@@ -486,53 +461,33 @@ RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
 }
 
 void
-GetObjectPathCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
+OnCreatePairedDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
   LOGV("[B] %s", __FUNCTION__);
-//  if (sIsPairing) {
+  int32_t isPairing;
+  BluetoothDBusService::GetIsPairing(&isPairing);
+  if (isPairing) {
     RunDBusCallback(aMsg, aBluetoothReplyRunnable,
                     UnpackObjectPathMessage);
-//  }
+    isPairing--;
+    BluetoothDBusService::SetIsPairing(isPairing);
+  }
 }
 
 void
-GetVoidCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
+OnControlReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
   LOGV("[B] %s", __FUNCTION__);
   RunDBusCallback(aMsg, aBluetoothReplyRunnable,
                   UnpackVoidMessage);
 }
 
-/*void
-GetIntCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackIntMessage);
-}*/
-
 void
-GetManagerPropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
+OnSetPropertyReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
   LOGV("[B] %s", __FUNCTION__);
   RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackManagerPropertiesMessage);
-}
-
-void
-GetAdapterPropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackAdapterPropertiesMessage);
-}
-
-void
-GetDevicePropertiesCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackDevicePropertiesMessage);
+                  UnpackVoidMessage);
 }
 
 #ifdef DEBUG
@@ -550,7 +505,7 @@ CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
 #endif
 
 void
-SinkConnectCallback(DBusMessage* aMsg, void* aParam)
+OnSendSinkConnectReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
@@ -560,7 +515,7 @@ SinkConnectCallback(DBusMessage* aMsg, void* aParam)
 }
 
 void
-SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
+OnSendSinkDisconnectReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
@@ -570,7 +525,7 @@ SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
 }
 
 void
-ControlCallback(DBusMessage* aMsg, void* aParam)
+OnUpdatePlayStatusReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
@@ -598,7 +553,7 @@ OnSendDiscoveryMessageReply(DBusMessage *aReply, void *aData)
 }
 
 void
-DiscoverServicesCallback(DBusMessage* aMsg, void* aData)
+OnDiscoverServicesReply(DBusMessage* aMsg, void* aData)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(!NS_IsMainThread());
@@ -607,6 +562,5 @@ DiscoverServicesCallback(DBusMessage* aMsg, void* aData)
       static_cast<OnUpdateSdpRecordsRunnable*>(aData));
   NS_DispatchToMainThread(r);
 }
-
 
 END_BLUETOOTH_NAMESPACE
