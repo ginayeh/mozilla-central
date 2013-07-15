@@ -5,6 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "base/basictypes.h"
+#include "BluetoothCommon.h"
 #include "BluetoothDBusCallback.h"
 #include "BluetoothDBusService.h"
 #include "BluetoothReplyRunnable.h"
@@ -398,43 +399,52 @@ ParseDeviceProperties(DBusMessageIter* aIter, BluetoothValue& aValue,
 }
 
 void
-ParseManagerPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr)
+ParsePropertyChange(const char* aInterface, DBusMessage* aMsg,
+                    BluetoothValue& aValue, nsAString& aErrorStr)
 {
-  ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      sManagerProperties, ArrayLength(sManagerProperties));
-}
+  LOGV("[B] %s", __FUNCTION__);
+  Properties* propertiesType;
+  int propertiesLength;
+  if (strcmp(aInterface, DBUS_MANAGER_IFACE) == 0) {
+    propertiesType = sManagerProperties;
+    propertiesLength = ArrayLength(sManagerProperties);
+  } else if (strcmp(aInterface, DBUS_ADAPTER_IFACE) == 0) {
+    propertiesType = sAdapterProperties;
+    propertiesLength = ArrayLength(sAdapterProperties);
+  } else if (strcmp(aInterface, DBUS_DEVICE_IFACE) == 0) {
+    propertiesType = sDeviceProperties;
+    propertiesLength = ArrayLength(sDeviceProperties);
+  } else if (strcmp(aInterface, DBUS_SINK_IFACE) == 0) {
+    propertiesType = sSinkProperties;
+    propertiesLength = ArrayLength(sSinkProperties);
+  } else if (strcmp(aInterface, DBUS_CTL_IFACE) == 0) {
+    propertiesType = sControlProperties;
+    propertiesLength = ArrayLength(sControlProperties);
+  } else {
+    BT_WARNING("Unknown Interface");
+    aErrorStr.AssignLiteral("Unknown Interface");
+    return;
+  }
 
-void
-ParseAdapterPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr)
-{
-  ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      sAdapterProperties, ArrayLength(sAdapterProperties));
-}
+  int prop_index = -1;
+  InfallibleTArray<BluetoothNamedValue> props;
+  DBusMessageIter iter;
+  DBusError err;
+  dbus_error_init(&err);
 
-void
-ParseDevicePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                          nsAString& aErrorStr)
-{
-  ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      sDeviceProperties, ArrayLength(sDeviceProperties));
-}
+  if (!dbus_message_iter_init(aMsg, &iter)) {
+    NS_WARNING("Can't create iterator!");
+    aErrorStr.AssignLiteral("Can't create iterator!");
+    return;
+  }
 
-void
-ParseSinkPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                        nsAString& aErrorStr)
-{
-  ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      sSinkProperties, ArrayLength(sSinkProperties));
-}
-
-void
-ParseControlPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr)
-{
-  ParsePropertyChange(aMsg, aValue, aErrorStr,
-                      sControlProperties, ArrayLength(sControlProperties));
+  if (!GetProperty(iter, propertiesType, propertiesLength,
+      &prop_index, props)) {
+    BT_WARNING("Can't get property!");
+    aErrorStr.AssignLiteral("Can't get property!");
+    return;
+  }
+  aValue = props;
 }
 
 static void

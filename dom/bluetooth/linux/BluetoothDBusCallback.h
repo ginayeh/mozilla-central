@@ -52,24 +52,8 @@ ParseDeviceProperties(DBusMessageIter* aIter, BluetoothValue& aValue,
                       nsAString& aErrorStr);
 
 void
-ParseManagerPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr);
-
-void
-ParseAdapterPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr);
-
-void
-ParseDevicePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                          nsAString& aErrorStr);
-
-void
-ParseSinkPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                        nsAString& aErrorStr);
-
-void
-ParseControlPropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
-                           nsAString& aErrorStr);
+ParsePropertyChange(const char* aIterface, DBusMessage* aMsg,
+                    BluetoothValue& aValue, nsAString& aErrorStr);
 
 void
 OnCreatePairedDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);

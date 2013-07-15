@@ -80,14 +80,7 @@ USING_BLUETOOTH_NAMESPACE
 #endif
 
 #define B2G_AGENT_CAPABILITIES "DisplayYesNo"
-#define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC  ".Manager"
-#define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC  ".Adapter"
-#define DBUS_DEVICE_IFACE  BLUEZ_DBUS_BASE_IFC  ".Device"
-#define DBUS_AGENT_IFACE   BLUEZ_DBUS_BASE_IFC  ".Agent"
-#define DBUS_SINK_IFACE    BLUEZ_DBUS_BASE_IFC  ".AudioSink"
-#define DBUS_CTL_IFACE     BLUEZ_DBUS_BASE_IFC  ".Control"
 #define BLUEZ_DBUS_BASE_PATH      "/org/bluez"
-#define BLUEZ_DBUS_BASE_IFC       "org.bluez"
 #define BLUEZ_ERROR_IFC           "org.bluez.Error"
 
 #define ERR_SERVICE_NOT_READY         "ServiceNotReadyError"
@@ -934,10 +927,10 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     }
   } else if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE,
                                     "PropertyChanged")) {
-    ParseAdapterPropertyChange(aMsg, v, errorStr);
+    ParsePropertyChange(DBUS_ADAPTER_IFACE, aMsg, v, errorStr);
   } else if (dbus_message_is_signal(aMsg, DBUS_DEVICE_IFACE,
                                     "PropertyChanged")) {
-    ParseDevicePropertyChange(aMsg, v, errorStr);
+    ParsePropertyChange(DBUS_DEVICE_IFACE, aMsg, v, errorStr);
 
     // Fire another task for sending system message of
     // "bluetooth-pairedstatuschanged"
@@ -963,16 +956,16 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
     }
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE,
                                     "PropertyChanged")) {
-    ParseManagerPropertyChange(aMsg, v, errorStr);
+    ParsePropertyChange(DBUS_MANAGER_IFACE, aMsg, v, errorStr);
   } else if (dbus_message_is_signal(aMsg, DBUS_SINK_IFACE,
                                     "PropertyChanged")) {
-    ParseSinkPropertyChange(aMsg, v, errorStr);
+    ParsePropertyChange(DBUS_SINK_IFACE, aMsg, v, errorStr);
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
     nsRefPtr<nsRunnable> task = new SendPlayStatusTask();
     NS_DispatchToMainThread(task);
     return DBUS_HANDLER_RESULT_HANDLED;
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
-    ParseControlPropertyChange(aMsg, v, errorStr);
+    ParsePropertyChange(DBUS_CTL_IFACE, aMsg, v, errorStr);
   } else {
     errorStr = NS_ConvertUTF8toUTF16(dbus_message_get_member(aMsg));
     errorStr.AppendLiteral(" Signal not handled!");

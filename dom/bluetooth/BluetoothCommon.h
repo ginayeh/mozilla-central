@@ -51,6 +51,14 @@ extern bool gBluetoothDebugFlag;
 #define KEY_MANAGER      "/B2G/bluetooth/manager"
 #define KEY_ADAPTER      "/B2G/bluetooth/adapter"
 
+#define DBUS_MANAGER_IFACE BLUEZ_DBUS_BASE_IFC  ".Manager"
+#define DBUS_ADAPTER_IFACE BLUEZ_DBUS_BASE_IFC  ".Adapter"
+#define DBUS_DEVICE_IFACE  BLUEZ_DBUS_BASE_IFC  ".Device"
+#define DBUS_AGENT_IFACE   BLUEZ_DBUS_BASE_IFC  ".Agent"
+#define DBUS_SINK_IFACE    BLUEZ_DBUS_BASE_IFC  ".AudioSink"
+#define DBUS_CTL_IFACE     BLUEZ_DBUS_BASE_IFC  ".Control"
+#define BLUEZ_DBUS_BASE_IFC       "org.bluez"
+
 /**
  * When connection status of Bluetooth profiles change, we'll notify observers
  * of following topics.
