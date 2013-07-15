@@ -4532,7 +4532,8 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
   aKeyEvent->GetShiftKey(&aNativeEvent->shiftKey);
   aKeyEvent->GetMetaKey(&aNativeEvent->metaKey);
 
-  aNativeEvent->nativeEvent = GetNativeEvent(aKeyEvent);
+  aNativeEvent->mGeckoEvent =
+    static_cast<nsKeyEvent*>(GetNativeEvent(aKeyEvent));
 
   return true;
 }
@@ -5754,6 +5755,22 @@ nsContentUtils::AllocClassMatchingInfo(nsINode* aRootNode,
     aRootNode->OwnerDoc()->GetCompatibilityMode() == eCompatibility_NavQuirks ?
     eIgnoreCase : eCaseMatters;
   return info;
+}
+
+// static
+void
+nsContentUtils::DeferredFinalize(nsISupports* aSupports)
+{
+  cyclecollector::DeferredFinalize(aSupports);
+}
+
+// static
+void
+nsContentUtils::DeferredFinalize(mozilla::DeferredFinalizeAppendFunction aAppendFunc,
+                                 mozilla::DeferredFinalizeFunction aFunc,
+                                 void* aThing)
+{
+  cyclecollector::DeferredFinalize(aAppendFunc, aFunc, aThing);
 }
 
 // static

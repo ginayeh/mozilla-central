@@ -117,6 +117,7 @@ namespace js {
 class AutoDebugModeGC;
 class ArrayBufferObject;
 class DebugScopes;
+class WeakMapBase;
 }
 
 struct JSCompartment
@@ -134,6 +135,7 @@ struct JSCompartment
   private:
     friend struct JSRuntime;
     friend struct JSContext;
+    friend class js::ExclusiveContext;
     js::ReadBarriered<js::GlobalObject> global_;
 
     unsigned                     enterCompartmentDepth;
@@ -223,9 +225,6 @@ struct JSCompartment
     js::types::TypeObjectSet     newTypeObjects;
     js::types::TypeObjectSet     lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
-
-    js::types::TypeObject *getNewType(JSContext *cx, js::Class *clasp, js::TaggedProto proto,
-                                      JSFunction *fun = NULL);
 
     js::types::TypeObject *getLazyType(JSContext *cx, js::Class *clasp, js::TaggedProto proto);
 
@@ -410,14 +409,20 @@ class js::AutoDebugModeGC
     }
 };
 
+namespace js {
+
 inline bool
-JSContext::typeInferenceEnabled() const
+ExclusiveContext::typeInferenceEnabled() const
 {
-    return compartment()->zone()->types.inferenceEnabled;
+    // Type inference cannot be enabled in compartments which are accessed off
+    // the main thread by an ExclusiveContext. TI data is stored in per-zone
+    // allocators which could otherwise race with main thread operations.
+    JS_ASSERT_IF(!isJSContext(), !compartment_->zone()->types.inferenceEnabled);
+    return compartment_->zone()->types.inferenceEnabled;
 }
 
 inline js::Handle<js::GlobalObject*>
-JSContext::global() const
+ExclusiveContext::global() const
 {
     /*
      * It's safe to use |unsafeGet()| here because any compartment that is
@@ -425,10 +430,8 @@ JSContext::global() const
      * barrier on it. Once the compartment is popped, the handle is no longer
      * safe to use.
      */
-    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment()->global_.unsafeGet());
+    return Handle<GlobalObject*>::fromMarkedLocation(compartment_->global_.unsafeGet());
 }
-
-namespace js {
 
 class AssertCompartmentUnchanged
 {

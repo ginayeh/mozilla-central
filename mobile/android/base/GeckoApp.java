@@ -59,6 +59,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
 
 import android.telephony.CellLocation;
@@ -81,6 +82,7 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -167,6 +169,7 @@ abstract public class GeckoApp
     protected RelativeLayout mGeckoLayout;
     public View getView() { return mGeckoLayout; }
     private View mCameraView;
+    private OrientationEventListener mCameraOrientationEventListener;
     public List<GeckoAppShell.AppStateListener> mAppStateListeners;
     private static GeckoApp sAppContext;
     protected MenuPanel mMenuPanel;
@@ -1147,6 +1150,24 @@ abstract public class GeckoApp
     }
 
     /**
+     * Check and start the Java profiler if MOZ_PROFILER_STARTUP env var is specified
+     **/
+    protected void earlyStartJavaSampler(Intent intent)
+    {
+        String env = intent.getStringExtra("env0");
+        for (int i = 1; env != null; i++) {
+            if (env.startsWith("MOZ_PROFILER_STARTUP=")) {
+                if (!env.endsWith("=")) {
+                    GeckoJavaSampler.start(10, 1000);
+                    Log.d(LOGTAG, "Profiling Java on startup");
+                }
+                break;
+            }
+            env = intent.getStringExtra("env" + i);
+        }
+    }
+
+    /**
      * Called when the activity is first created.
      *
      * Here we initialize all of our profile settings, Firefox Health Report,
@@ -1166,7 +1187,9 @@ abstract public class GeckoApp
         mJavaUiStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_JAVAUI");
         mGeckoReadyStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_GECKOREADY");
 
-        String args = getIntent().getStringExtra("args");
+        Intent intent = getIntent();
+        String args = intent.getStringExtra("args");
+        earlyStartJavaSampler(intent);
 
         String profileName = null;
         String profilePath = null;
@@ -1435,7 +1458,6 @@ abstract public class GeckoApp
 
         if (!mIsRestoringActivity) {
             sGeckoThread = new GeckoThread(intent, passedUri);
-            ThreadUtils.setGeckoThread(sGeckoThread);
         }
         if (!ACTION_DEBUG.equals(action) &&
             GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {
@@ -1672,7 +1694,8 @@ abstract public class GeckoApp
             });
 
             restoreMode = RESTORE_NORMAL;
-        } else if (savedInstanceState != null) {
+        } else if (savedInstanceState != null ||
+                PreferenceManager.getDefaultSharedPreferences(this).getBoolean(GeckoPreferences.PREFS_RESTORE_SESSION, false)) {
             restoreMode = RESTORE_NORMAL;
         }
 
@@ -1719,8 +1742,21 @@ abstract public class GeckoApp
     }
 
     public void enableCameraView() {
+        // Start listening for orientation events
+        mCameraOrientationEventListener = new OrientationEventListener(this) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                if (mAppStateListeners != null) {
+                    for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
+                        listener.onOrientationChanged();
+                    }
+                }
+            }
+        };
+        mCameraOrientationEventListener.enable();
+
+        // Try to make it fully transparent.
         if (mCameraView instanceof SurfaceView) {
-            // Try to make it fully transparent.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
                 mCameraView.setAlpha(0.0f);
             }
@@ -1734,6 +1770,10 @@ abstract public class GeckoApp
     }
 
     public void disableCameraView() {
+        if (mCameraOrientationEventListener != null) {
+            mCameraOrientationEventListener.disable();
+            mCameraOrientationEventListener = null;
+        }
         RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
         mCameraLayout.removeView(mCameraView);
     }
@@ -2103,12 +2143,6 @@ abstract public class GeckoApp
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
             refreshChrome();
-        }
-
-        if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
-                listener.onConfigurationChanged();
-            }
         }
     }
 

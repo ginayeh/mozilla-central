@@ -574,12 +574,11 @@ JS_GetCustomIteratorCount(JSContext *cx)
 JS_FRIEND_API(JSBool)
 JS_IsDeadWrapper(JSObject *obj)
 {
-    if (!IsProxy(obj)) {
+    if (!obj->is<ProxyObject>()) {
         return false;
     }
 
-    BaseProxyHandler *handler = GetProxyHandler(obj);
-    return handler->family() == &DeadObjectProxy::sDeadObjectFamily;
+    return obj->as<ProxyObject>().handler()->family() == &DeadObjectProxy::sDeadObjectFamily;
 }
 
 void
@@ -723,7 +722,7 @@ DumpHeapVisitCell(JSRuntime *rt, void *data, void *thing,
                   JSGCTraceKind traceKind, size_t thingSize)
 {
     JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
-    char cellDesc[1024];
+    char cellDesc[1024 * 32];
     JS_GetTraceThingInfo(cellDesc, sizeof(cellDesc), dtrc, thing, traceKind, true);
     fprintf(dtrc->output, "%p %c %s\n", thing, MarkDescriptor(thing), cellDesc);
     JS_TraceChildren(dtrc, thing, traceKind);
@@ -1128,11 +1127,15 @@ js_ReportIsNotFunction(JSContext *cx, const JS::Value& v)
     return ReportIsNotFunction(cx, v);
 }
 
-#if defined(DEBUG) && defined(JS_THREADSAFE)
+#ifdef DEBUG
 JS_PUBLIC_API(bool)
 js::IsInRequest(JSContext *cx)
 {
+#ifdef JS_THREADSAFE
     return !!cx->runtime()->requestDepth;
+#else
+    return true;
+#endif
 }
 #endif
 

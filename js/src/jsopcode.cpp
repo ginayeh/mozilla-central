@@ -37,7 +37,6 @@
 #include "vm/StringBuffer.h"
 
 #include "jscntxtinlines.h"
-#include "jsobjinlines.h"
 #include "jscompartmentinlines.h"
 #include "jsopcodeinlines.h"
 
@@ -491,7 +490,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
                                : JSID_TO_ATOM(shape->propid());
 
                 JSAutoByteString bytes;
-                if (!js_AtomToPrintableString(cx, atom, &bytes))
+                if (!AtomToPrintableString(cx, atom, &bytes))
                     return false;
 
                 r.popFront();

@@ -446,7 +446,7 @@ SendFunctionsToVTune(JSContext *cx, AsmJSModule &module)
             return false;
 
         JSAutoByteString bytes;
-        const char *method_name = js_AtomToPrintableString(cx, func.name, &bytes);
+        const char *method_name = AtomToPrintableString(cx, func.name, &bytes);
         if (!method_name)
             return false;
 
@@ -573,7 +573,7 @@ js::LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp)
     }
 
     gc::AllocKind allocKind = gc::GetGCObjectKind(module.numExportedFunctions());
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &ObjectClass, allocKind));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind));
     if (!obj)
         return false;
 

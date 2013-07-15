@@ -37,11 +37,14 @@ enum ShaderProgramType {
   RGBXLayerProgramType,
   BGRXLayerProgramType,
   RGBARectLayerProgramType,
+  BGRARectLayerProgramType,
   RGBAExternalLayerProgramType,
   ColorLayerProgramType,
   YCbCrLayerProgramType,
   ComponentAlphaPass1ProgramType,
+  ComponentAlphaPass1RGBProgramType,
   ComponentAlphaPass2ProgramType,
+  ComponentAlphaPass2RGBProgramType,
   Copy2DProgramType,
   Copy2DRectProgramType,
   NumProgramTypes
@@ -75,8 +78,10 @@ ShaderProgramFromTargetAndFormat(GLenum aTarget,
 {
   switch(aTarget) {
     case LOCAL_GL_TEXTURE_EXTERNAL:
+      MOZ_ASSERT(aFormat == gfx::FORMAT_R8G8B8A8);
       return RGBALayerExternalProgramType;
     case LOCAL_GL_TEXTURE_RECTANGLE_ARB:
+      MOZ_ASSERT(aFormat == gfx::FORMAT_R8G8B8A8);
       return RGBARectLayerProgramType;
     default:
       return ShaderProgramFromSurfaceFormat(aFormat);
@@ -122,6 +127,10 @@ struct ProgramProfileOGL
     if (aMask == Mask2d &&
         (aType == Copy2DProgramType ||
          aType == Copy2DRectProgramType))
+      return false;
+
+    if (aMask != MaskNone &&
+        aType == BGRARectLayerProgramType)
       return false;
 
     return aMask != Mask3d ||

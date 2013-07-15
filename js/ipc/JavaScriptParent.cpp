@@ -60,6 +60,7 @@ class CPOWProxyHandler : public BaseProxyHandler
         return false;
     }
 
+    virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
                                        PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy,
@@ -78,20 +79,35 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool set(JSContext *cx, JS::HandleObject proxy, JS::HandleObject receiver,
                      JS::HandleId id, bool strict, JS::MutableHandleValue vp) MOZ_OVERRIDE;
     virtual bool keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                         MutableHandleValue vp) MOZ_OVERRIDE;
 
+    virtual bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) MOZ_OVERRIDE;
     virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args) MOZ_OVERRIDE;
-    virtual void finalize(JSFreeOp *fop, JSObject *proxy) MOZ_OVERRIDE;
     virtual bool objectClassIs(HandleObject obj, js::ESClassValue classValue, JSContext *cx) MOZ_OVERRIDE;
     virtual const char* className(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
-    virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
-    virtual bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) MOZ_OVERRIDE;
+    virtual void finalize(JSFreeOp *fop, JSObject *proxy) MOZ_OVERRIDE;
 
     static CPOWProxyHandler singleton;
 };
 
 CPOWProxyHandler CPOWProxyHandler::singleton;
+
+bool
+CPOWProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy)
+{
+    return ParentOf(proxy)->preventExtensions(cx, proxy);
+}
+
+bool
+JavaScriptParent::preventExtensions(JSContext *cx, HandleObject proxy)
+{
+    ObjectId objId = idOf(proxy);
+
+    ReturnStatus status;
+    if (!CallPreventExtensions(objId, &status))
+        return ipcfail(cx);
+
+    return ok(cx, status);
+}
 
 bool
 CPOWProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
@@ -151,7 +167,28 @@ bool
 CPOWProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
                                  PropertyDescriptor *desc)
 {
-    MOZ_CRASH("unimplemented");
+    return ParentOf(proxy)->defineProperty(cx, proxy, id, desc);
+}
+
+bool
+JavaScriptParent::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+                                 PropertyDescriptor *desc)
+{
+    ObjectId objId = idOf(proxy);
+
+    nsString idstr;
+    if (!convertIdToGeckoString(cx, id, &idstr))
+        return false;
+
+    PPropertyDescriptor descriptor;
+    if (!fromDescriptor(cx, *desc, &descriptor))
+        return false;
+
+    ReturnStatus status;
+    if (!CallDefineProperty(objId, idstr, descriptor, &status))
+        return ipcfail(cx);
+
+    return ok(cx, status);
 }
 
 bool
@@ -163,101 +200,41 @@ CPOWProxyHandler::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdV
 bool
 JavaScriptParent::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    ObjectId objId = idOf(proxy);
-
-    ReturnStatus status;
-    InfallibleTArray<nsString> names;
-    if (!CallGetOwnPropertyNames(objId, &status, &names))
-        return ipcfail(cx);
-    if (!ok(cx, status))
-        return false;
-
-    RootedId name(cx);
-    for (size_t i = 0; i < names.Length(); i++) {
-        if (!convertGeckoStringToId(cx, names[i], &name))
-            return false;
-        if (!props.append(name))
-            return false;
-    }
-
-    return true;
-}
-
-bool
-CPOWProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
-{
-    return ParentOf(proxy)->keys(cx, proxy, props);
-}
-
-bool
-JavaScriptParent::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
-{
-    ObjectId objId = idOf(proxy);
-
-    ReturnStatus status;
-    InfallibleTArray<nsString> names;
-    if (!CallKeys(objId, &status, &names))
-        return ipcfail(cx);
-    if (!ok(cx, status))
-        return false;
-
-    RootedId name(cx);
-    for (size_t i = 0; i < names.Length(); i++) {
-        if (!convertGeckoStringToId(cx, names[i], &name))
-            return false;
-        if (!props.append(name))
-            return false;
-    }
-
-    return true;
+    return getPropertyNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
 
 bool
 CPOWProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
 {
-    MOZ_CRASH("unimplemented");
+    return ParentOf(proxy)->delete_(cx, proxy, id, bp);
+}
+
+bool
+JavaScriptParent::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
+{
+    ObjectId objId = idOf(proxy);
+
+    nsString idstr;
+    if (!convertIdToGeckoString(cx, id, &idstr))
+        return false;
+
+    ReturnStatus status;
+    if (!CallDelete(objId, idstr, &status, bp))
+        return ipcfail(cx);
+
+    return ok(cx, status);
 }
 
 bool
 CPOWProxyHandler::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    MOZ_CRASH("unimplemented");
+    return ParentOf(proxy)->enumerate(cx, proxy, props);
 }
 
 bool
-CPOWProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy)
+JavaScriptParent::enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    return ParentOf(proxy)->preventExtensions(cx, proxy);
-}
-
-bool
-JavaScriptParent::preventExtensions(JSContext *cx, HandleObject proxy)
-{
-    ObjectId objId = idOf(proxy);
-
-    ReturnStatus status;
-    if (!CallPreventExtensions(objId, &status))
-        return ipcfail(cx);
-
-    return ok(cx, status);
-}
-
-bool
-CPOWProxyHandler::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
-{
-    return ParentOf(proxy)->isExtensible(cx, proxy, extensible);
-}
-
-bool
-JavaScriptParent::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
-{
-    ObjectId objId = idOf(proxy);
-
-    ReturnStatus status;
-    if (!CallIsExtensible(objId, &status, extensible))
-        return ipcfail(cx);
-
-    return ok(cx, status);
+    return getPropertyNames(cx, proxy, 0, props);
 }
 
 bool
@@ -367,10 +344,33 @@ JavaScriptParent::set(JSContext *cx, JS::HandleObject proxy, JS::HandleObject re
 }
 
 bool
-CPOWProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                          MutableHandleValue vp)
+CPOWProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
-    MOZ_CRASH("unimplemented");
+    return ParentOf(proxy)->keys(cx, proxy, props);
+}
+
+bool
+JavaScriptParent::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
+{
+    return getPropertyNames(cx, proxy, JSITER_OWNONLY, props);
+}
+
+bool
+CPOWProxyHandler::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
+{
+    return ParentOf(proxy)->isExtensible(cx, proxy, extensible);
+}
+
+bool
+JavaScriptParent::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible)
+{
+    ObjectId objId = idOf(proxy);
+
+    ReturnStatus status;
+    if (!CallIsExtensible(objId, &status, extensible))
+        return ipcfail(cx);
+
+    return ok(cx, status);
 }
 
 bool
@@ -446,25 +446,6 @@ JavaScriptParent::call(JSContext *cx, HandleObject proxy, const CallArgs &args)
     return true;
 }
 
-void
-CPOWProxyHandler::finalize(JSFreeOp *fop, JSObject *proxy)
-{
-    ParentOf(proxy)->drop(proxy);
-}
-
-void
-JavaScriptParent::drop(JSObject *obj)
-{
-    if (inactive_)
-        return;
-
-    ObjectId objId = idOf(obj);
-
-    objects_.remove(objId);
-    if (!SendDropObject(objId))
-        MOZ_CRASH();
-    decref();
-}
 
 bool
 CPOWProxyHandler::objectClassIs(HandleObject proxy, js::ESClassValue classValue, JSContext *cx)
@@ -504,6 +485,26 @@ JavaScriptParent::className(JSContext *cx, HandleObject proxy)
     return ToNewCString(name);
 }
 
+void
+CPOWProxyHandler::finalize(JSFreeOp *fop, JSObject *proxy)
+{
+    ParentOf(proxy)->drop(proxy);
+}
+
+void
+JavaScriptParent::drop(JSObject *obj)
+{
+    if (inactive_)
+        return;
+
+    ObjectId objId = idOf(obj);
+
+    objects_.remove(objId);
+    if (!SendDropObject(objId))
+        MOZ_CRASH();
+    decref();
+}
+
 bool
 JavaScriptParent::init()
 {
@@ -522,6 +523,29 @@ JavaScriptParent::makeId(JSContext *cx, JSObject *obj, ObjectId *idp)
     }
 
     *idp = idOf(obj);
+    return true;
+}
+
+bool
+JavaScriptParent::getPropertyNames(JSContext *cx, HandleObject proxy, uint32_t flags, AutoIdVector &props)
+{
+    ObjectId objId = idOf(proxy);
+
+    ReturnStatus status;
+    InfallibleTArray<nsString> names;
+    if (!CallGetPropertyNames(objId, flags, &status, &names))
+        return ipcfail(cx);
+    if (!ok(cx, status))
+        return false;
+
+    for (size_t i = 0; i < names.Length(); i++) {
+        RootedId name(cx);
+        if (!convertGeckoStringToId(cx, names[i], &name))
+            return false;
+        if (!props.append(name))
+            return false;
+    }
+
     return true;
 }
 

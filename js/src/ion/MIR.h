@@ -329,9 +329,10 @@ class MDefinition : public MNode
 
     virtual Opcode op() const = 0;
     virtual const char *opName() const = 0;
-    void printName(FILE *fp);
+    void printName(FILE *fp) const;
     static void PrintOpcodeName(FILE *fp, Opcode op);
-    virtual void printOpcode(FILE *fp);
+    virtual void printOpcode(FILE *fp) const;
+    void dump(FILE *fp) const;
 
     // For LICM.
     virtual bool neverHoist() const { return false; }
@@ -627,20 +628,20 @@ class MAryInstruction : public MInstruction
   protected:
     FixedArityList<MUse, Arity> operands_;
 
-    void setOperand(size_t index, MDefinition *operand) {
+    void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
         operands_[index].set(operand, this, index);
         operand->addUse(&operands_[index]);
     }
 
-    MUse *getUseFor(size_t index) {
+    MUse *getUseFor(size_t index) MOZ_FINAL MOZ_OVERRIDE {
         return &operands_[index];
     }
 
   public:
-    MDefinition *getOperand(size_t index) const {
+    MDefinition *getOperand(size_t index) const MOZ_FINAL MOZ_OVERRIDE {
         return operands_[index].producer();
     }
-    size_t numOperands() const {
+    size_t numOperands() const MOZ_FINAL MOZ_OVERRIDE {
         return Arity;
     }
 };
@@ -654,6 +655,11 @@ class MUnaryInstruction : public MAryInstruction<1>
     MUnaryInstruction(MDefinition *ins)
     {
         setOperand(0, ins);
+    }
+
+  public:
+    MDefinition *input() const {
+        return getOperand(0);
     }
 };
 
@@ -740,7 +746,7 @@ class MConstant : public MNullaryInstruction
         return &value_;
     }
 
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 
     HashNumber valueHash() const;
     bool congruentTo(MDefinition * const &ins) const;
@@ -774,7 +780,7 @@ class MParameter : public MNullaryInstruction
     int32_t index() const {
         return index_;
     }
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 
     HashNumber valueHash() const;
     bool congruentTo(MDefinition * const &ins) const;
@@ -818,10 +824,10 @@ class MControlInstruction : public MInstruction
         return true;
     }
 
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 };
 
-class MTableSwitch
+class MTableSwitch MOZ_FINAL
   : public MControlInstruction
 {
     // The successors of the tableswitch
@@ -941,7 +947,7 @@ class MAryControlInstruction : public MControlInstruction
     FixedArityList<MBasicBlock *, Successors> successors_;
 
   protected:
-    void setOperand(size_t index, MDefinition *operand) {
+    void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
         operands_[index].set(operand, this, index);
         operand->addUse(&operands_[index]);
     }
@@ -949,24 +955,24 @@ class MAryControlInstruction : public MControlInstruction
         successors_[index] = successor;
     }
 
-    MUse *getUseFor(size_t index) {
+    MUse *getUseFor(size_t index) MOZ_FINAL MOZ_OVERRIDE {
         return &operands_[index];
     }
 
   public:
-    MDefinition *getOperand(size_t index) const {
+    MDefinition *getOperand(size_t index) const MOZ_FINAL MOZ_OVERRIDE {
         return operands_[index].producer();
     }
-    size_t numOperands() const {
+    size_t numOperands() const MOZ_FINAL MOZ_OVERRIDE {
         return Arity;
     }
-    size_t numSuccessors() const {
+    size_t numSuccessors() const MOZ_FINAL MOZ_OVERRIDE {
         return Successors;
     }
-    MBasicBlock *getSuccessor(size_t i) const {
+    MBasicBlock *getSuccessor(size_t i) const MOZ_FINAL MOZ_OVERRIDE {
         return successors_[i];
     }
-    void replaceSuccessor(size_t i, MBasicBlock *succ) {
+    void replaceSuccessor(size_t i, MBasicBlock *succ) MOZ_FINAL MOZ_OVERRIDE {
         successors_[i] = succ;
     }
 };
@@ -1361,18 +1367,18 @@ class MVariadicInstruction : public MInstruction
 
   public:
     // Will assert if called before initialization.
-    MDefinition *getOperand(size_t index) const {
+    MDefinition *getOperand(size_t index) const MOZ_FINAL MOZ_OVERRIDE {
         return operands_[index].producer();
     }
-    size_t numOperands() const {
+    size_t numOperands() const MOZ_FINAL MOZ_OVERRIDE {
         return operands_.length();
     }
-    void setOperand(size_t index, MDefinition *operand) {
+    void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
         operands_[index].set(operand, this, index);
         operand->addUse(&operands_[index]);
     }
 
-    MUse *getUseFor(size_t index) {
+    MUse *getUseFor(size_t index) MOZ_FINAL MOZ_OVERRIDE {
         return &operands_[index];
     }
 };
@@ -1688,8 +1694,9 @@ class MBinaryInstruction : public MAryInstruction<2>
             left = tmp;
         }
 
-        MDefinition *insLeft = ins->getOperand(0);
-        MDefinition *insRight = ins->getOperand(1);
+        MBinaryInstruction *bi = static_cast<MBinaryInstruction *>(ins);
+        MDefinition *insLeft = bi->getOperand(0);
+        MDefinition *insRight = bi->getOperand(1);
         if (isCommutative() && insLeft->valueNumber() > insRight->valueNumber()) {
             tmp = insRight;
             insRight = insLeft;
@@ -1699,6 +1706,11 @@ class MBinaryInstruction : public MAryInstruction<2>
         return (left->valueNumber() == insLeft->valueNumber()) &&
                (right->valueNumber() == insRight->valueNumber());
     }
+
+    // Return true if the operands to this instruction are both unsigned,
+    // in which case any wrapping operands were replaced with the underlying
+    // int32 operands.
+    bool tryUseUnsignedOperands();
 };
 
 class MTernaryInstruction : public MAryInstruction<3>
@@ -1732,12 +1744,13 @@ class MTernaryInstruction : public MAryInstruction<3>
         if (isEffectful() || ins->isEffectful())
             return false;
 
+        MTernaryInstruction *ter = static_cast<MTernaryInstruction *>(ins);
         MDefinition *first = getOperand(0);
         MDefinition *second = getOperand(1);
         MDefinition *third = getOperand(2);
-        MDefinition *insFirst = ins->getOperand(0);
-        MDefinition *insSecond = ins->getOperand(1);
-        MDefinition *insThird = ins->getOperand(2);
+        MDefinition *insFirst = ter->getOperand(0);
+        MDefinition *insSecond = ter->getOperand(1);
+        MDefinition *insThird = ter->getOperand(2);
 
         return first->valueNumber() == insFirst->valueNumber() &&
                second->valueNumber() == insSecond->valueNumber() &&
@@ -1780,14 +1793,15 @@ class MQuaternaryInstruction : public MAryInstruction<4>
         if (isEffectful() || ins->isEffectful())
             return false;
 
+        MQuaternaryInstruction *qua = static_cast<MQuaternaryInstruction *>(ins);
         MDefinition *first = getOperand(0);
         MDefinition *second = getOperand(1);
         MDefinition *third = getOperand(2);
         MDefinition *fourth = getOperand(3);
-        MDefinition *insFirst = ins->getOperand(0);
-        MDefinition *insSecond = ins->getOperand(1);
-        MDefinition *insThird = ins->getOperand(2);
-        MDefinition *insFourth = ins->getOperand(3);
+        MDefinition *insFirst = qua->getOperand(0);
+        MDefinition *insSecond = qua->getOperand(1);
+        MDefinition *insThird = qua->getOperand(2);
+        MDefinition *insFourth = qua->getOperand(3);
 
         return first->valueNumber() == insFirst->valueNumber() &&
                second->valueNumber() == insSecond->valueNumber() &&
@@ -1912,7 +1926,7 @@ class MCompare
         return AliasSet::None();
     }
 
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 
   protected:
     bool congruentTo(MDefinition *const &ins) const {
@@ -2020,9 +2034,6 @@ class MUnbox : public MUnaryInstruction, public BoxInputsPolicy
     Mode mode() const {
         return mode_;
     }
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     BailoutKind bailoutKind() const {
         // If infallible, no bailout should be generated.
         JS_ASSERT(fallible());
@@ -2041,7 +2052,7 @@ class MUnbox : public MUnaryInstruction, public BoxInputsPolicy
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 };
 
 class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
@@ -2059,10 +2070,6 @@ class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
 
     static MGuardObject *New(MDefinition *ins) {
         return new MGuardObject(ins);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
     }
 
     TypePolicy *typePolicy() {
@@ -2090,10 +2097,6 @@ class MGuardString
 
     static MGuardString *New(MDefinition *ins) {
         return new MGuardString(ins);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
     }
 
     TypePolicy *typePolicy() {
@@ -2402,7 +2405,7 @@ class MPassArg : public MUnaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 };
 
 // Converts a primitive (either typed or untyped) to a double. If the input is
@@ -2447,9 +2450,6 @@ class MToDouble
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     bool congruentTo(MDefinition *const &ins) const {
         if (!ins->isToDouble() || ins->toToDouble()->conversion() != conversion())
             return false;
@@ -2482,9 +2482,6 @@ class MAsmJSUnsignedToDouble
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
     }
@@ -2513,10 +2510,6 @@ class MToInt32 : public MUnaryInstruction
     static MToInt32 *New(MDefinition *def)
     {
         return new MToInt32(def);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
@@ -2561,10 +2554,6 @@ class MTruncateToInt32 : public MUnaryInstruction
         return new MTruncateToInt32(def);
     }
 
-    MDefinition *input() const {
-        return getOperand(0);
-    }
-
     MDefinition *foldsTo(bool useValueNumbers);
 
     bool congruentTo(MDefinition *const &ins) const {
@@ -2593,10 +2582,6 @@ class MToString : public MUnaryInstruction
     static MToString *New(MDefinition *def)
     {
         return new MToString(def);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
@@ -2670,9 +2655,6 @@ class MTypeOf
     }
     MIRType inputType() const {
         return inputType_;
-    }
-    MDefinition *input() const {
-        return getOperand(0);
     }
     MDefinition *foldsTo(bool useValueNumbers);
 
@@ -2895,25 +2877,7 @@ class MUrsh : public MShiftInstruction
 
     void infer(BaselineInspector *inspector, jsbytecode *pc);
 
-    bool canOverflow() {
-        // solution is only negative when lhs < 0 and rhs & 0x1f == 0
-        MDefinition *lhs = getOperand(0);
-        MDefinition *rhs = getOperand(1);
-
-        if (lhs->isConstant()) {
-            Value lhsv = lhs->toConstant()->value();
-            if (lhsv.isInt32() && lhsv.toInt32() >= 0)
-                return false;
-        }
-
-        if (rhs->isConstant()) {
-            Value rhsv = rhs->toConstant()->value();
-            if (rhsv.isInt32() && rhsv.toInt32() % 32 != 0)
-                return false;
-        }
-
-        return canOverflow_;
-    }
+    bool canOverflow();
 
     bool fallible() {
         return canOverflow();
@@ -3199,9 +3163,6 @@ class MPowHalf
     static MPowHalf *New(MDefinition *input) {
         return new MPowHalf(input);
     }
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
     }
@@ -3269,9 +3230,6 @@ class MMathFunction
     }
     MathCache *cache() const {
         return cache_;
-    }
-    MDefinition *input() const {
-        return getOperand(0);
     }
     TypePolicy *typePolicy() {
         return this;
@@ -3435,12 +3393,14 @@ class MDiv : public MBinaryArithInstruction
     bool canBeNegativeZero_;
     bool canBeNegativeOverflow_;
     bool canBeDivideByZero_;
+    bool unsigned_;
 
     MDiv(MDefinition *left, MDefinition *right, MIRType type)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
         canBeNegativeOverflow_(true),
-        canBeDivideByZero_(true)
+        canBeDivideByZero_(true),
+        unsigned_(false)
     {
         if (type != MIRType_Value)
             specialization_ = type;
@@ -3485,14 +3445,21 @@ class MDiv : public MBinaryArithInstruction
         return canBeDivideByZero_;
     }
 
+    bool isUnsigned() {
+        return unsigned_;
+    }
+
     bool fallible();
     bool truncate();
 };
 
 class MMod : public MBinaryArithInstruction
 {
+    bool unsigned_;
+
     MMod(MDefinition *left, MDefinition *right, MIRType type)
-      : MBinaryArithInstruction(left, right)
+      : MBinaryArithInstruction(left, right),
+        unsigned_(false)
     {
         if (type != MIRType_Value)
             specialization_ = type;
@@ -3515,6 +3482,14 @@ class MMod : public MBinaryArithInstruction
 
     double getIdentity() {
         MOZ_ASSUME_UNREACHABLE("not used");
+    }
+
+    bool canBeNegativeDividend() const;
+    bool canBeDivideByZero() const;
+    bool canBePowerOfTwoDivisor() const;
+
+    bool isUnsigned() {
+        return unsigned_;
     }
 
     bool fallible();
@@ -3647,7 +3622,7 @@ class MFromCharCode
     }
 };
 
-class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
+class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
 {
     js::Vector<MUse, 2, IonAllocPolicy> inputs_;
 
@@ -3755,7 +3730,7 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
         // returns the operand that it will always be equal to (a, in
         // those two cases).
         MDefinition *first = getOperand(0);
-        for (size_t i = 1; i < numOperands(); i++) {
+        for (size_t i = 1, e = numOperands(); i < e; i++) {
             if (getOperand(i) != first && getOperand(i) != this)
                 return NULL;
         }
@@ -3781,7 +3756,7 @@ class MBeta : public MUnaryInstruction
 
   public:
     INSTRUCTION_HEADER(Beta)
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
     static MBeta *New(MDefinition *val, const Range *comp)
     {
         return new MBeta(val, comp);
@@ -4229,7 +4204,7 @@ class MConstantElements : public MNullaryInstruction
         return value_;
     }
 
-    void printOpcode(FILE *fp);
+    void printOpcode(FILE *fp) const;
 
     HashNumber valueHash() const {
         return (HashNumber)(size_t) value_;
@@ -5044,9 +5019,7 @@ class MLoadTypedArrayElementHole
         return getOperand(1);
     }
     AliasSet getAliasSet() const {
-        // Out-of-bounds accesses are handled using a VM call, this may
-        // invoke getters on the prototype chain.
-        return AliasSet::Store(AliasSet::Any);
+        return AliasSet::Load(AliasSet::TypedArrayElement);
     }
 };
 
@@ -5310,9 +5283,6 @@ class MClampToUint8
 
     MDefinition *foldsTo(bool useValueNumbers);
 
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     TypePolicy *typePolicy() {
         return this;
     }
@@ -5732,20 +5702,20 @@ class MDispatchInstruction
     }
 
   protected:
-    void setOperand(size_t index, MDefinition *operand) {
+    void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
         JS_ASSERT(index == 0);
         operand_.set(operand, this, 0);
         operand->addUse(&operand_);
     }
-    MUse *getUseFor(size_t index) {
+    MUse *getUseFor(size_t index) MOZ_FINAL MOZ_OVERRIDE {
         JS_ASSERT(index == 0);
         return &operand_;
     }
-    MDefinition *getOperand(size_t index) const {
+    MDefinition *getOperand(size_t index) const MOZ_FINAL MOZ_OVERRIDE {
         JS_ASSERT(index == 0);
         return operand_.producer();
     }
-    size_t numOperands() const {
+    size_t numOperands() const MOZ_FINAL MOZ_OVERRIDE {
         return 1;
     }
 
@@ -5757,13 +5727,13 @@ class MDispatchInstruction
         else
             map_[i].block = successor;
     }
-    size_t numSuccessors() const {
+    size_t numSuccessors() const MOZ_FINAL MOZ_OVERRIDE {
         return map_.length() + (fallback_ ? 1 : 0);
     }
-    void replaceSuccessor(size_t i, MBasicBlock *successor) {
+    void replaceSuccessor(size_t i, MBasicBlock *successor) MOZ_FINAL MOZ_OVERRIDE {
         setSuccessor(i, successor);
     }
-    MBasicBlock *getSuccessor(size_t i) const {
+    MBasicBlock *getSuccessor(size_t i) const MOZ_FINAL MOZ_OVERRIDE {
         JS_ASSERT(i < numSuccessors());
         if (i == map_.length())
             return fallback_;
@@ -5844,7 +5814,7 @@ class MFunctionDispatch : public MDispatchInstruction
 };
 
 // Represents a polymorphic dispatch to one or more functions.
-class MPolyInlineDispatch : public MControlInstruction, public SingleObjectPolicy
+class MPolyInlineDispatch MOZ_FINAL : public MControlInstruction, public SingleObjectPolicy
 {
     // A table to map JSFunctions to the blocks that execute them.
     struct Entry {
@@ -7412,7 +7382,6 @@ class MParDump
     }
 };
 
-
 // Given a value, guard that the value is in a particular TypeSet, then returns
 // that value.
 class MTypeBarrier
@@ -7453,9 +7422,6 @@ class MTypeBarrier
     bool congruentTo(MDefinition * const &def) const {
         return false;
     }
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
@@ -7493,9 +7459,6 @@ class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
         return this;
     }
 
-    MDefinition *input() const {
-        return getOperand(0);
-    }
     const types::StackTypeSet *typeSet() const {
         return typeSet_;
     }
@@ -7682,10 +7645,6 @@ class MNewStringObject :
 
     static MNewStringObject *New(MDefinition *input, HandleObject templateObj) {
         return new MNewStringObject(input, templateObj);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
     }
 
     StringObject *templateObj() const;
@@ -8002,10 +7961,6 @@ class MAsmJSNeg : public MUnaryInstruction
     static MAsmJSNeg *NewAsmJS(MDefinition *op, MIRType type) {
         return new MAsmJSNeg(op, type);
     }
-
-    MDefinition *input() const {
-        return getOperand(0);
-    }
 };
 
 class MAsmJSUDiv : public MBinaryInstruction
@@ -8232,7 +8187,7 @@ class MAsmJSPassStackArg : public MUnaryInstruction
     }
 };
 
-class MAsmJSCall : public MInstruction
+class MAsmJSCall MOZ_FINAL : public MInstruction
 {
   public:
     class Callee {

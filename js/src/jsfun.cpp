@@ -34,7 +34,6 @@
 #include "vm/Xdr.h"
 
 #include "jsfuninlines.h"
-#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -211,7 +210,7 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
     JSObject *objProto = obj->global().getOrCreateObjectPrototype(cx);
     if (!objProto)
         return NULL;
-    RootedObject proto(cx, NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL, SingletonObject));
+    RootedObject proto(cx, NewObjectWithGivenProto(cx, &JSObject::class_, objProto, NULL, SingletonObject));
     if (!proto)
         return NULL;
 
@@ -628,12 +627,19 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
 
         StableCharPtr chars = src->chars();
         bool exprBody = fun->isExprClosure();
-        // The source data for functions created by calling the Function
-        // constructor is only the function's body.
-        bool funCon = script->sourceStart == 0 && script->scriptSource()->argumentsNotIncluded();
 
-        // Functions created with the constructor should not be using the
-        // expression body extension.
+        // The source data for functions created by calling the Function
+        // constructor is only the function's body.  This depends on the fact,
+        // asserted below, that in Function("function f() {}"), the inner
+        // function's sourceStart points to the '(', not the 'f'.
+        bool funCon = !fun->isArrow() &&
+                      script->sourceStart == 0 &&
+                      script->sourceEnd == script->scriptSource()->length() &&
+                      script->scriptSource()->argumentsNotIncluded();
+
+        // Functions created with the constructor can't be arrow functions or
+        // expression closures.
+        JS_ASSERT_IF(funCon, !fun->isArrow());
         JS_ASSERT_IF(funCon, !exprBody);
         JS_ASSERT_IF(!funCon && !fun->isArrow(), src->length() > 0 && chars[0] == '(');
 
@@ -740,7 +746,7 @@ JSString *
 fun_toStringHelper(JSContext *cx, HandleObject obj, unsigned indent)
 {
     if (!obj->is<JSFunction>()) {
-        if (IsFunctionProxy(obj))
+        if (obj->is<FunctionProxyObject>())
             return Proxy::fun_toString(cx, obj, indent);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
@@ -1527,7 +1533,7 @@ JSFunction::isBuiltinFunctionConstructor()
 }
 
 JSFunction *
-js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned nargs,
+js::NewFunction(ExclusiveContext *cx, HandleObject funobjArg, Native native, unsigned nargs,
                 JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
                 gc::AllocKind allocKind /* = JSFunction::FinalizeKind */,
                 NewObjectKind newKind /* = GenericObject */)
@@ -1684,6 +1690,23 @@ js::DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
         return NULL;
 
     return fun;
+}
+
+bool
+js::IsConstructor(const Value &v)
+{
+    // Step 2.
+    if (!v.isObject())
+        return false;
+
+    // Step 3-4, a bit complex for us, since we have several flavors of
+    // [[Construct]] internal method.
+    JSObject &obj = v.toObject();
+    if (obj.is<JSFunction>()) {
+        JSFunction &fun = obj.as<JSFunction>();
+        return fun.isNativeConstructor() || fun.isInterpretedConstructor();
+    }
+    return obj.getClass()->construct != NULL;
 }
 
 void

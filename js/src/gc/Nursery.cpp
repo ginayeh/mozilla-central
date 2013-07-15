@@ -13,14 +13,13 @@
 
 #include "gc/GCInternals.h"
 #include "gc/Memory.h"
+#include "vm/ArrayObject.h"
 #include "vm/Debugger.h"
 #include "vm/TypedArrayObject.h"
 
-#include "jscompartmentinlines.h"
-#include "jsobjinlines.h"
-
 #include "gc/Barrier-inl.h"
 #include "gc/Nursery-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace gc;
@@ -617,7 +616,6 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason)
     if (rt->gcBytes >= rt->gcMaxBytes)
         disable();
 }
-
 
 void
 js::Nursery::sweep(FreeOp *fop)

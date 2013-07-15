@@ -27,64 +27,15 @@
 
 namespace js {
 
-inline bool
-NewObjectCache::lookupProto(Class *clasp, JSObject *proto, gc::AllocKind kind, EntryIndex *pentry)
-{
-    JS_ASSERT(!proto->is<GlobalObject>());
-    return lookup(clasp, proto, kind, pentry);
-}
-
-inline bool
-NewObjectCache::lookupGlobal(Class *clasp, js::GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry)
-{
-    return lookup(clasp, global, kind, pentry);
-}
-
-inline void
-NewObjectCache::fillGlobal(EntryIndex entry, Class *clasp, js::GlobalObject *global, gc::AllocKind kind, JSObject *obj)
-{
-    //JS_ASSERT(global == obj->getGlobal());
-    return fill(entry, clasp, global, kind, obj);
-}
-
-inline void
-NewObjectCache::copyCachedToObject(JSObject *dst, JSObject *src, gc::AllocKind kind)
-{
-    js_memcpy(dst, src, gc::Arena::thingSize(kind));
-#ifdef JSGC_GENERATIONAL
-    Shape::writeBarrierPost(dst->shape_, &dst->shape_);
-    types::TypeObject::writeBarrierPost(dst->type_, &dst->type_);
-#endif
-}
-
-inline JSObject *
-NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::InitialHeap heap)
-{
-    // The new object cache does not account for metadata attached via callbacks.
-    JS_ASSERT(!cx->compartment()->objectMetadataCallback);
-
-    JS_ASSERT(unsigned(entry_) < mozilla::ArrayLength(entries));
-    Entry *entry = &entries[entry_];
-
-    JSObject *obj = js_NewGCObject<NoGC>(cx, entry->kind, heap);
-    if (obj) {
-        copyCachedToObject(obj, reinterpret_cast<JSObject *>(&entry->templateObject), entry->kind);
-        Probes::createObject(cx, obj);
-        return obj;
-    }
-
-    return NULL;
-}
-
 #ifdef JS_CRASH_DIAGNOSTICS
 class CompartmentChecker
 {
-    JSContext *context;
+    ExclusiveContext *context;
     JSCompartment *compartment;
 
   public:
-    explicit CompartmentChecker(JSContext *cx)
-      : context(cx), compartment(cx->compartment())
+    explicit CompartmentChecker(ExclusiveContext *cx)
+      : context(cx), compartment(cx->compartment_)
     {}
 
     /*
@@ -110,7 +61,7 @@ class CompartmentChecker
     }
 
     void check(JSCompartment *c) {
-        if (c && c != context->runtime()->atomsCompartment) {
+        if (c && c != compartment->rt->atomsCompartment) {
             if (!compartment)
                 compartment = c;
             else if (c != compartment)
@@ -189,13 +140,12 @@ class CompartmentChecker
  * depends on other objects not having been swept yet.
  */
 #define START_ASSERT_SAME_COMPARTMENT()                                       \
-    JS_ASSERT(cx->compartment()->zone() == cx->zone());                       \
-    if (cx->runtime()->isHeapBusy())                                          \
+    if (cx->isHeapBusy())                                                     \
         return;                                                               \
     CompartmentChecker c(cx)
 
 template <class T1> inline void
-assertSameCompartment(JSContext *cx, const T1 &t1)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -204,7 +154,7 @@ assertSameCompartment(JSContext *cx, const T1 &t1)
 }
 
 template <class T1> inline void
-assertSameCompartmentDebugOnly(JSContext *cx, const T1 &t1)
+assertSameCompartmentDebugOnly(ExclusiveContext *cx, const T1 &t1)
 {
 #ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
@@ -213,7 +163,7 @@ assertSameCompartmentDebugOnly(JSContext *cx, const T1 &t1)
 }
 
 template <class T1, class T2> inline void
-assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -223,7 +173,7 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2)
 }
 
 template <class T1, class T2, class T3> inline void
-assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -234,7 +184,8 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 }
 
 template <class T1, class T2, class T3, class T4> inline void
-assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4)
+assertSameCompartment(ExclusiveContext *cx,
+                      const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -246,7 +197,8 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, c
 }
 
 template <class T1, class T2, class T3, class T4, class T5> inline void
-assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4, const T5 &t5)
+assertSameCompartment(ExclusiveContext *cx,
+                      const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4, const T5 &t5)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -326,7 +278,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
      *
      * - (new Object(Object)) returns the callee.
      */
-    JS_ASSERT_IF(native != FunctionProxyClass.construct &&
+    JS_ASSERT_IF(native != FunctionProxyObject::class_.construct &&
                  native != js::CallOrConstructBoundFunction &&
                  native != js::IteratorConstructor &&
                  (!callee->is<JSFunction>() || callee->as<JSFunction>().native() != obj_construct),
@@ -377,7 +329,7 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
     }
 
     if (attrs & JSPROP_GETTER)
-        return js_ReportGetterOnlyAssignment(cx);
+        return js_ReportGetterOnlyAssignment(cx, strict);
 
     if (!(attrs & JSPROP_SHORTID))
         return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
@@ -385,6 +337,42 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
     RootedId nid(cx, INT_TO_JSID(shortid));
 
     return CallJSPropertyOpSetter(cx, op, obj, nid, strict, vp);
+}
+
+inline uintptr_t
+GetNativeStackLimit(ExclusiveContext *cx)
+{
+    return GetNativeStackLimit(cx->asJSContext()->runtime());
+}
+
+inline RegExpCompartment &
+ExclusiveContext::regExps()
+{
+    return compartment_->regExps;
+}
+
+inline PropertyTree&
+ExclusiveContext::propertyTree()
+{
+    return compartment_->propertyTree;
+}
+
+inline BaseShapeSet &
+ExclusiveContext::baseShapes()
+{
+    return compartment_->baseShapes;
+}
+
+inline InitialShapeSet &
+ExclusiveContext::initialShapes()
+{
+    return compartment_->initialShapes;
+}
+
+inline DtoaCache &
+ExclusiveContext::dtoaCache()
+{
+    return compartment_->dtoaCache;
 }
 
 }  /* namespace js */
@@ -407,12 +395,6 @@ JSContext::setPendingException(js::Value v) {
     this->throwing = true;
     this->exception = v;
     js::assertSameCompartment(this, v);
-}
-
-inline js::PropertyTree&
-JSContext::propertyTree()
-{
-    return compartment()->propertyTree;
 }
 
 inline void
@@ -484,6 +466,18 @@ JSContext::setCompartment(JSCompartment *comp)
     allocator_ = zone_ ? &zone_->allocator : NULL;
 }
 
+inline void
+js::ExclusiveContext::privateSetCompartment(JSCompartment *comp)
+{
+    if (isJSContext()) {
+        asJSContext()->setCompartment(comp);
+    } else {
+        compartment_ = comp;
+        if (zone_ != comp->zone())
+            MOZ_CRASH();
+    }
+}
+
 inline JSScript *
 JSContext::currentScript(jsbytecode **ppc,
                          MaybeAllowCrossCompartment allowCrossCompartment) const
@@ -524,6 +518,20 @@ JSContext::currentScript(jsbytecode **ppc,
         JS_ASSERT(*ppc >= script->code && *ppc < script->code + script->length);
     }
     return script;
+}
+
+template <JSThreadSafeNative threadSafeNative>
+inline JSBool
+JSNativeThreadSafeWrapper(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+    return threadSafeNative(cx, argc, vp);
+}
+
+template <JSThreadSafeNative threadSafeNative>
+inline js::ParallelResult
+JSParallelNativeThreadSafeWrapper(js::ForkJoinSlice *slice, unsigned argc, JS::Value *vp)
+{
+    return threadSafeNative(slice, argc, vp) ? js::TP_SUCCESS : js::TP_FATAL;
 }
 
 #endif /* jscntxtinlines_h */

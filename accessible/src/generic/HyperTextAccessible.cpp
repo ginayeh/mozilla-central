@@ -1029,7 +1029,30 @@ HyperTextAccessible::GetTextBeforeOffset(int32_t aOffset,
       return GetText(*aStartOffset, *aEndOffset, aText);
     }
 
-    case BOUNDARY_LINE_START:
+    case BOUNDARY_LINE_START: {
+      if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
+        offset = AdjustCaretOffset(offset);
+
+      // If we are at last empty then home key and get the text (last empty line
+      // doesn't have own frame).
+      if (offset == CharacterCount()) {
+        nsAutoString lastChar;
+        GetText(offset -1, -1, lastChar);
+        if (lastChar.EqualsLiteral("\n")) {
+          *aStartOffset = FindLineBoundary(offset, eDirPrevious, eSelectBeginLine);
+          *aEndOffset = offset;
+          return GetText(*aStartOffset, *aEndOffset, aText);
+        }
+      }
+
+      // Home key, up arrow, home key.
+      *aEndOffset = FindLineBoundary(offset, eDirPrevious, eSelectBeginLine);
+      *aStartOffset = FindLineBoundary(offset, eDirPrevious, eSelectLine);
+      *aStartOffset = FindLineBoundary(*aStartOffset, eDirPrevious, eSelectBeginLine);
+
+      return GetText(*aStartOffset, *aEndOffset, aText);
+    }
+
     case BOUNDARY_LINE_END:
     case BOUNDARY_ATTRIBUTE_RANGE:
       return GetTextHelper(eGetBefore, aBoundaryType, aOffset,
@@ -1084,6 +1107,9 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
         }
       }
 
+      if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
+        offset = AdjustCaretOffset(offset);
+
       // Home key, arrow down and if not on last line then home key.
       *aStartOffset = FindLineBoundary(offset, eDirPrevious, eSelectBeginLine);
       *aEndOffset = FindLineBoundary(offset, eDirNext, eSelectLine);
@@ -1108,6 +1134,9 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
           return NS_OK;
         }
       }
+
+      if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
+        offset = AdjustCaretOffset(offset);
 
       // In contrast to word end boundary we follow the spec here. End key,
       // then up arrow and if not on first line then end key.

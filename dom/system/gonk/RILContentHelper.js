@@ -45,8 +45,8 @@ if (DEBUG) {
 
 const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");
-const MOBILEICCINFO_CID =
-  Components.ID("{8649c12f-f8f4-4664-bbdd-7d115c23e2a7}");
+const ICCINFO_CID =
+  Components.ID("{fab2c0f0-d73a-11e2-8b8b-0800200c9a66}");
 const MOBILECONNECTIONINFO_CID =
   Components.ID("{a35cfd39-2d93-4489-ac7d-396475dacb27}");
 const MOBILENETWORKINFO_CID =
@@ -79,6 +79,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:VoicemailInfoChanged",
   "RIL:CallError",
   "RIL:CardLockResult",
+  "RIL:CardLockRetryCount",
   "RIL:USSDReceived",
   "RIL:SendMMI:Return:OK",
   "RIL:SendMMI:Return:KO",
@@ -123,18 +124,29 @@ MobileIccCardLockResult.prototype = {
                       success: 'r'}
 };
 
-function MobileICCInfo() {}
-MobileICCInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileICCInfo]),
-  classID:        MOBILEICCINFO_CID,
+function MobileIccCardLockRetryCount(options) {
+  this.lockType = options.lockType;
+  this.retryCount = options.retryCount;
+  this.success = options.success;
+}
+MobileIccCardLockRetryCount.prototype = {
+  __exposedProps__ : {lockType: 'r',
+                      retryCount: 'r',
+                      success: 'r'}
+};
+
+function IccInfo() {}
+IccInfo.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozIccInfo]),
+  classID:        ICCINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
-    classID:          MOBILEICCINFO_CID,
-    classDescription: "MobileICCInfo",
+    classID:          ICCINFO_CID,
+    classDescription: "IccInfo",
     flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozMobileICCInfo]
+    interfaces:       [Ci.nsIDOMMozIccInfo]
   }),
 
-  // nsIDOMMozMobileICCInfo
+  // nsIDOMMozIccInfo
 
   iccid: null,
   mcc: null,
@@ -369,14 +381,13 @@ function RILContentHelper() {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
     retryCount:           0,
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
-    iccInfo:              new MobileICCInfo(),
+    iccInfo:              new IccInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
     dataConnectionInfo:   new MobileConnectionInfo()
   };
   this.voicemailInfo = new VoicemailInfo();
 
-  this.initRequests();
-  this.initMessageListener(RIL_IPC_MSG_NAMES);
+  this.initDOMRequestHelper(/* aWindow */ null, RIL_IPC_MSG_NAMES);
   this._windowsMap = [];
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 }
@@ -389,7 +400,8 @@ RILContentHelper.prototype = {
                                          Ci.nsIVoicemailProvider,
                                          Ci.nsITelephonyProvider,
                                          Ci.nsIIccProvider,
-                                         Ci.nsIObserver]),
+                                         Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference]),
   classID:   RILCONTENTHELPER_CID,
   classInfo: XPCOMUtils.generateCI({classID: RILCONTENTHELPER_CID,
                                     classDescription: "RILContentHelper",
@@ -646,6 +658,23 @@ RILContentHelper.prototype = {
     cpmm.sendAsyncMessage("RIL:SetCardLock", {
       clientId: 0,
       data: info
+    });
+    return request;
+  },
+
+  getCardLockRetryCount: function getCardLockRetryCount(window, lockType) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    let request = Services.DOMRequest.createRequest(window);
+    let requestId = this.getRequestId(request);
+    cpmm.sendAsyncMessage("RIL:GetCardLockRetryCount", {
+      clientId: 0,
+      data: {
+        lockType: lockType,
+        requestId: requestId
+      }
     });
     return request;
   },
@@ -1236,7 +1265,7 @@ RILContentHelper.prototype = {
 
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
-      this.removeMessageListener();
+      this.destroyDOMRequestHelper();
       Services.obs.removeObserver(this, "xpcom-shutdown");
     }
   },
@@ -1308,8 +1337,7 @@ RILContentHelper.prototype = {
       }
       case "RIL:IccInfoChanged":
         this.updateInfo(msg.json.data, this.rilContext.iccInfo);
-        this._deliverEvent("_mobileConnectionListeners",
-                           "notifyIccInfoChanged", null);
+        this._deliverEvent("_iccListeners", "notifyIccInfoChanged", null);
         break;
       case "RIL:VoiceInfoChanged":
         this.updateConnectionInfo(msg.json.data,
@@ -1375,6 +1403,14 @@ RILContentHelper.prototype = {
                                "notifyIccCardLockError",
                                [msg.json.lockType, msg.json.retryCount]);
           }
+          this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
+        }
+        break;
+      case "RIL:CardLockRetryCount":
+        if (msg.json.success) {
+          let result = new MobileIccCardLockRetryCount(msg.json);
+          this.fireRequestSuccess(msg.json.requestId, result);
+        } else {
           this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
         }
         break;

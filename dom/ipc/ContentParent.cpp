@@ -422,7 +422,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
 
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
         if (nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement())) {
-            nsRefPtr<TabParent> tp(new TabParent(aContext));
+            nsRefPtr<TabParent> tp(new TabParent(cp, aContext));
             tp->SetOwnerElement(aFrameElement);
             uint32_t chromeFlags = 0;
 
@@ -498,7 +498,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         sAppContentParents->Put(manifestURL, p);
     }
 
-    nsRefPtr<TabParent> tp = new TabParent(aContext);
+    nsRefPtr<TabParent> tp = new TabParent(p, aContext);
     tp->SetOwnerElement(aFrameElement);
     PBrowserParent* browser = p->SendPBrowserConstructor(
         nsRefPtr<TabParent>(tp).forget().get(), // DeallocPBrowserParent() releases this ref.
@@ -1640,7 +1640,7 @@ ContentParent::AllocPBrowserParent(const IPCTabContext& aContext,
         return nullptr;
     }
 
-    TabParent* parent = new TabParent(TabContext(aContext));
+    TabParent* parent = new TabParent(this, TabContext(aContext));
 
     // We release this ref in DeallocPBrowserParent()
     NS_ADDREF(parent);
@@ -2570,6 +2570,38 @@ ContentParent::RecvSystemMessageHandled()
 {
     SystemMessageHandledListener::OnSystemMessageHandled();
     return true;
+}
+
+bool
+ContentParent::RecvCreateFakeVolume(const nsString& fsName, const nsString& mountPoint)
+{
+#ifdef MOZ_WIDGET_GONK
+  nsresult rv;
+  nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
+  if (vs) {
+    vs->CreateFakeVolume(fsName, mountPoint);
+  }
+  return true;
+#else
+  NS_WARNING("ContentParent::RecvCreateFakeVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
+  return false;
+#endif
+}
+
+bool
+ContentParent::RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState)
+{
+#ifdef MOZ_WIDGET_GONK
+  nsresult rv;
+  nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
+  if (vs) {
+    vs->SetFakeVolumeState(fsName, fsState);
+  }
+  return true;
+#else
+  NS_WARNING("ContentParent::RecvSetFakeVolumeState shouldn't be called when MOZ_WIDGET_GONK is not defined");
+  return false;
+#endif
 }
 
 } // namespace dom

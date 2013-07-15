@@ -114,7 +114,7 @@ JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl
 
     if (thisv.isObject()) {
         JSObject &thisObj = args.thisv().toObject();
-        if (thisObj.isProxy())
+        if (thisObj.is<ProxyObject>())
             return Proxy::nativeCall(cx, test, impl, args);
     }
 
@@ -816,7 +816,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     analysisPurgeCallback(NULL),
     analysisPurgeTriggerBytes(0),
     gcMallocBytes(0),
-    autoGCRooters(NULL),
     scriptAndCountsVector(NULL),
     NaNValue(UndefinedValue()),
     negativeInfinityValue(UndefinedValue()),
@@ -1762,7 +1761,7 @@ StdNameToPropertyName(JSContext *cx, const JSStdName *stdn)
  */
 static const JSStdName standard_class_atoms[] = {
     {js_InitFunctionClass,              EAGER_CLASS_ATOM(Function), &JSFunction::class_},
-    {js_InitObjectClass,                EAGER_ATOM_AND_CLASP(Object)},
+    {js_InitObjectClass,                EAGER_CLASS_ATOM(Object), &JSObject::class_},
     {js_InitArrayClass,                 EAGER_ATOM_AND_OCLASP(Array)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_OCLASP(Boolean)},
     {js_InitDateClass,                  EAGER_ATOM_AND_OCLASP(Date)},
@@ -1780,7 +1779,7 @@ static const JSStdName standard_class_atoms[] = {
 #ifdef ENABLE_PARALLEL_JS
     {js_InitParallelArrayClass,         EAGER_ATOM_AND_OCLASP(ParallelArray)},
 #endif
-    {js_InitProxyClass,                 EAGER_CLASS_ATOM(Proxy), &js::ObjectProxyClass},
+    {js_InitProxyClass,                 EAGER_CLASS_ATOM(Proxy), OCLASP(ObjectProxy)},
 #if ENABLE_INTL_API
     {js_InitIntlClass,                  EAGER_ATOM_AND_CLASP(Intl)},
 #endif
@@ -1793,7 +1792,7 @@ static const JSStdName standard_class_atoms[] = {
  * this table.
  */
 static const JSStdName standard_class_names[] = {
-    {js_InitObjectClass,        EAGER_ATOM(eval), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(eval), &JSObject::class_},
 
     /* Global properties and functions defined by the Number class. */
     {js_InitNumberClass,        EAGER_ATOM(NaN), OCLASP(Number)},
@@ -1845,25 +1844,25 @@ static const JSStdName standard_class_names[] = {
 
 static const JSStdName object_prototype_names[] = {
     /* Object.prototype properties (global delegates to Object.prototype). */
-    {js_InitObjectClass,        EAGER_ATOM(proto), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(proto), &JSObject::class_},
 #if JS_HAS_TOSOURCE
-    {js_InitObjectClass,        EAGER_ATOM(toSource), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(toSource), &JSObject::class_},
 #endif
-    {js_InitObjectClass,        EAGER_ATOM(toString), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(toLocaleString), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(valueOf), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(toString), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(toLocaleString), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(valueOf), &JSObject::class_},
 #if JS_HAS_OBJ_WATCHPOINT
-    {js_InitObjectClass,        EAGER_ATOM(watch), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(unwatch), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(watch), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(unwatch), &JSObject::class_},
 #endif
-    {js_InitObjectClass,        EAGER_ATOM(hasOwnProperty), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(isPrototypeOf), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(propertyIsEnumerable), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(hasOwnProperty), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(isPrototypeOf), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(propertyIsEnumerable), &JSObject::class_},
 #if OLD_GETTER_SETTER_METHODS
-    {js_InitObjectClass,        EAGER_ATOM(defineGetter), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(defineSetter), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(lookupGetter), CLASP(Object)},
-    {js_InitObjectClass,        EAGER_ATOM(lookupSetter), CLASP(Object)},
+    {js_InitObjectClass,        EAGER_ATOM(defineGetter), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(defineSetter), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(lookupGetter), &JSObject::class_},
+    {js_InitObjectClass,        EAGER_ATOM(lookupSetter), &JSObject::class_},
 #endif
 
     {NULL,                      0, NULL}
@@ -2411,6 +2410,18 @@ JS_TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
     js::TraceChildren(trc, thing, kind);
 }
 
+static size_t
+CountDecimalDigits(size_t num)
+{
+    size_t numDigits = 0;
+    do {
+        num /= 10;
+        numDigits++;
+    } while (num > 0);
+
+    return numDigits;
+}
+
 JS_PUBLIC_API(void)
 JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
                      JSGCTraceKind kind, JSBool details)
@@ -2492,8 +2503,19 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             *buf++ = ' ';
             bufsize--;
             JSString *str = (JSString *)thing;
-            if (str->isLinear())
+
+            if (str->isLinear()) {
+                bool willFit = str->length() + strlen("<length > ") +
+                               CountDecimalDigits(str->length()) < bufsize;
+
+                n = JS_snprintf(buf, bufsize, "<length %d%s> ",
+                                (int)str->length(),
+                                willFit ? "" : " (truncated)");
+                buf += n;
+                bufsize -= n;
+
                 PutEscapedString(buf, bufsize, &str->asLinear(), 0);
+            }
             else
                 JS_snprintf(buf, bufsize, "<rope: length %d>", (int)str->length());
             break;
@@ -2784,10 +2806,11 @@ JS_MaybeGC(JSContext *cx)
 }
 
 JS_PUBLIC_API(void)
-JS_SetGCCallback(JSRuntime *rt, JSGCCallback cb)
+JS_SetGCCallback(JSRuntime *rt, JSGCCallback cb, void *data)
 {
     AssertHeapIsIdle(rt);
     rt->gcCallback = cb;
+    rt->gcCallbackData = data;
 }
 
 JS_PUBLIC_API(void)
@@ -3319,7 +3342,7 @@ JS_NewObject(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, JSObject *pare
 
     Class *clasp = Valueify(jsclasp);
     if (!clasp)
-        clasp = &ObjectClass;    /* default class is Object */
+        clasp = &JSObject::class_;    /* default class is Object */
 
     JS_ASSERT(clasp != &JSFunction::class_);
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
@@ -3349,7 +3372,7 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, 
 
     Class *clasp = Valueify(jsclasp);
     if (!clasp)
-        clasp = &ObjectClass;    /* default class is Object */
+        clasp = &JSObject::class_;    /* default class is Object */
 
     JS_ASSERT(clasp != &JSFunction::class_);
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
@@ -3460,7 +3483,7 @@ LookupResult(JSContext *cx, HandleObject obj, HandleObject obj2, HandleId id,
     }
 
     if (!obj2->isNative()) {
-        if (obj2->isProxy()) {
+        if (obj2->is<ProxyObject>()) {
             AutoPropertyDescriptorRooter desc(cx);
             if (!Proxy::getPropertyDescriptor(cx, obj2, id, &desc, 0))
                 return false;
@@ -3883,7 +3906,7 @@ JS_DefineObject(JSContext *cx, JSObject *objArg, const char *name, JSClass *jscl
 
     Class *clasp = Valueify(jsclasp);
     if (!clasp)
-        clasp = &ObjectClass;    /* default class is Object */
+        clasp = &JSObject::class_;    /* default class is Object */
 
     RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, proto, obj));
     if (!nobj)
@@ -3971,7 +3994,7 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
                 desc->value.setUndefined();
         }
     } else {
-        if (obj2->isProxy()) {
+        if (obj2->is<ProxyObject>()) {
             JSAutoResolveFlags rf(cx, flags);
             return own
                    ? Proxy::getOwnPropertyDescriptor(cx, obj2, id, desc, 0)
@@ -5157,6 +5180,10 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
       noScriptRval(cx->hasOption(JSOPTION_NO_SCRIPT_RVAL)),
       selfHostingMode(false),
       canLazilyParse(true),
+      strictOption(cx->hasOption(JSOPTION_STRICT_MODE)),
+      extraWarningsOption(cx->hasExtraWarningsOption()),
+      werrorOption(cx->hasWErrorOption()),
+      asmJSOption(cx->hasOption(JSOPTION_ASMJS)),
       sourcePolicy(SAVE_SOURCE)
 {
 }
@@ -5287,7 +5314,8 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSObject *objArg, const char *utf8, siz
     {
         CompileOptions options(cx);
         options.setCompileAndGo(false);
-        Parser<frontend::FullParseHandler> parser(cx, options, chars, length,
+        Parser<frontend::FullParseHandler> parser(cx, &cx->tempLifoAlloc(),
+                                                  options, chars, length,
                                                   /* foldConstants = */ true, NULL, NULL);
         older = JS_SetErrorReporter(cx, NULL);
         if (!parser.parse(obj) && parser.tokenStream.isUnexpectedEOF()) {
@@ -7098,7 +7126,18 @@ JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
 }
 
 AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
-  : down(cx->runtime()->autoGCRooters), tag_(tag), stackTop(&cx->runtime()->autoGCRooters)
+  : down(ContextFriendFields::get(cx)->autoGCRooters),
+    tag_(tag),
+    stackTop(&ContextFriendFields::get(cx)->autoGCRooters)
+{
+    JS_ASSERT(this != *stackTop);
+    *stackTop = this;
+}
+
+AutoGCRooter::AutoGCRooter(ContextFriendFields *cx, ptrdiff_t tag)
+  : down(cx->autoGCRooters),
+    tag_(tag),
+    stackTop(&cx->autoGCRooters)
 {
     JS_ASSERT(this != *stackTop);
     *stackTop = this;

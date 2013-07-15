@@ -2685,7 +2685,7 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
             desc.setter = JS_StrictPropertyStub;
         desc.shortid = shape->shortid();
         propFlags = shape->getFlags();
-    } else if (IsProxy(referent)) {
+    } else if (referent->is<ProxyObject>()) {
         if (!Proxy::getOwnPropertyDescriptor(cx, referent, id, &desc, 0))
             return false;
         if (!desc.obj)
@@ -3160,7 +3160,7 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     CompileOptions options(cx);
     options.setFileAndLine("<string>", 1)
            .setCompileAndGo(false);
-    Parser<FullParseHandler> parser(cx, options,
+    Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options,
                                     JS_GetStringCharsZ(cx, scriptContents),
                                     JS_GetStringLength(scriptContents),
                                     /* foldConstants = */ true, NULL, NULL);
@@ -3201,7 +3201,8 @@ SyntaxParse(JSContext *cx, unsigned argc, jsval *vp)
 
     const jschar *chars = JS_GetStringCharsZ(cx, scriptContents);
     size_t length = JS_GetStringLength(scriptContents);
-    Parser<frontend::SyntaxParseHandler> parser(cx, options, chars, length, false, NULL, NULL);
+    Parser<frontend::SyntaxParseHandler> parser(cx, &cx->tempLifoAlloc(),
+                                                options, chars, length, false, NULL, NULL);
 
     bool succeeded = parser.parse(NULL);
     if (cx->isExceptionPending())
@@ -5280,7 +5281,7 @@ main(int argc, char **argv, char **envp)
                                "Don't compile very large scripts (default: on, off to disable)")
         || !op.addIntOption('\0', "ion-uses-before-compile", "COUNT",
                             "Wait for COUNT calls or iterations before compiling "
-                            "(default: 10240)", -1)
+                            "(default: 1000)", -1)
         || !op.addStringOption('\0', "ion-regalloc", "[mode]",
                                "Specify Ion register allocation:\n"
                                "  lsra: Linear Scan register allocation (default)\n"
