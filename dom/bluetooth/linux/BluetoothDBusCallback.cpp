@@ -447,9 +447,25 @@ ParsePropertyChange(const char* aInterface, DBusMessage* aMsg,
   aValue = props;
 }
 
+#ifdef DEBUG
+static bool
+UnpackReplyMessage(DBusMessage* aMsg)
+{
+  LOG("[B] %s", __FUNCTION__);
+  BluetoothValue v;
+  nsAutoString replyError;
+  UnpackVoidMessage(aMsg, nullptr, v, replyError);
+  if (!v.get_bool()) {
+    BT_WARNING(NS_ConvertUTF16toUTF8(replyError).get());
+  }
+  return v.get_bool();
+}
+#endif
+
 static void
-RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
-                UnpackFunc aFunc)
+UnpackReplyMessageAndReply(DBusMessage* aMsg,
+                           void* aBluetoothReplyRunnable,
+                           UnpackFunc aFunc)
 {
   LOGV("[B] %s", __FUNCTION__);
 #ifdef MOZ_WIDGET_GONK
@@ -460,12 +476,12 @@ RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
   MOZ_ASSERT(!NS_IsMainThread());
 #endif
   nsRefPtr<BluetoothReplyRunnable> replyRunnable =
-    dont_AddRef(static_cast< BluetoothReplyRunnable* >(aBluetoothReplyRunnable));
+    dont_AddRef(static_cast<BluetoothReplyRunnable*>(aBluetoothReplyRunnable));
 
   MOZ_ASSERT(replyRunnable, "Callback reply runnable is null!");
 
-  nsAutoString replyError;
   BluetoothValue v;
+  nsAutoString replyError;
   aFunc(aMsg, nullptr, v, replyError);
   DispatchBluetoothReply(replyRunnable, v, replyError);
 }
@@ -477,50 +493,43 @@ OnCreatePairedDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
   int32_t isPairing;
   BluetoothDBusService::GetIsPairing(&isPairing);
   if (isPairing) {
-    RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                    UnpackObjectPathMessage);
+    UnpackReplyMessageAndReply(aMsg, aBluetoothReplyRunnable,
+                               UnpackObjectPathMessage);
     isPairing--;
     BluetoothDBusService::SetIsPairing(isPairing);
   }
 }
 
 void
+OnRemoveDeviceReply(DBusMessage *aMsg, void *aBluetoothReplyRunnable)
+{
+  LOGV("[B] %s", __FUNCTION__);
+  UnpackReplyMessageAndReply(aMsg, aBluetoothReplyRunnable, UnpackVoidMessage);
+}
+
+
+void
 OnControlReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
   LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackVoidMessage);
+  UnpackReplyMessageAndReply(aMsg, aBluetoothReplyRunnable, UnpackVoidMessage);
 }
 
 void
 OnSetPropertyReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
 {
   LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackVoidMessage);
+  UnpackReplyMessageAndReply(aMsg, aBluetoothReplyRunnable, UnpackVoidMessage);
 }
-
-#ifdef DEBUG
-static void
-CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
-{
-  LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v;
-  nsAutoString replyError;
-  UnpackVoidMessage(aMsg, nullptr, v, replyError);
-  if (!v.get_bool()) {
-    BT_WARNING(NS_ConvertUTF16toUTF8(aError).get());
-  }
-}
-#endif
 
 void
 OnSendSinkConnectReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect sink");
-  CheckForError(aMsg, aParam, errorStr);
+  if (!UnpackReplyMessage(aMsg)) {
+    BT_WARNING("Failed to connect sink");
+  }
 #endif
 }
 
@@ -529,8 +538,9 @@ OnSendSinkDisconnectReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect sink");
-  CheckForError(false, aMsg, errorStr);
+  if (!UnpackReplyMessage(aMsg)) {
+    BT_WARNING("Failed to disconnect sink");
+  }
 #endif
 }
 
@@ -539,37 +549,30 @@ OnUpdatePlayStatusReply(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to update playstatus");
-  CheckForError(aMsg, aParam, errorStr);
+  if (!UnpackReplyMessage(aMsg)) {
+    BT_WARNING("Failed to update playstatus");
+  }
 #endif
 }
 
 void
-OnSendDiscoveryMessageReply(DBusMessage *aReply, void *aData)
+OnSendDiscoveryMessageReply(DBusMessage *aMsg, void *aBluetoothReplyRunnable)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
-
-  nsAutoString errorStr;
-
-  if (!aReply) {
-    errorStr.AssignLiteral("SendDiscovery failed");
-  }
-
-  nsRefPtr<BluetoothReplyRunnable> runnable =
-    dont_AddRef<BluetoothReplyRunnable>(static_cast<BluetoothReplyRunnable*>(aData));
-
-  DispatchBluetoothReply(runnable.get(), BluetoothValue(true), errorStr);
+  UnpackReplyMessageAndReply(aMsg, aBluetoothReplyRunnable, UnpackVoidMessage);
 }
 
 void
-OnDiscoverServicesReply(DBusMessage* aMsg, void* aData)
+OnDiscoverServicesReply(DBusMessage* aMsg, void* aRunnable)
 {
   LOG("[B] %s", __FUNCTION__);
-  MOZ_ASSERT(!NS_IsMainThread());
+
+  if (!UnpackReplyMessage(aMsg)) {
+    BT_WARNING("Failed to discover services");
+  }
 
   nsRefPtr<OnUpdateSdpRecordsRunnable> r(
-      static_cast<OnUpdateSdpRecordsRunnable*>(aData));
+    static_cast<OnUpdateSdpRecordsRunnable*>(aRunnable));
   NS_DispatchToMainThread(r);
 }
 

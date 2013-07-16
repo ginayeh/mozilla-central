@@ -1537,16 +1537,6 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
   return NS_OK;
 }
 
-bool
-BluetoothDBusService::GetDevicePath(const nsAString& aAdapterPath,
-                                    const nsAString& aDeviceAddress,
-                                    nsAString& aDevicePath)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  aDevicePath = GetObjectPathFromAddress(aAdapterPath, aDeviceAddress);
-  return true;
-}
-
 static int
 GetDeviceServiceChannel(const nsAString& aObjectPath,
                         const nsAString& aPattern,
@@ -1656,21 +1646,6 @@ BluetoothDBusService::CreatePairedDeviceInternal(
 
   runnable.forget();
   return NS_OK;
-}
-
-static void
-OnRemoveDeviceReply(DBusMessage *aReply, void *aData)
-{
-  nsAutoString errorStr;
-
-  if (!aReply) {
-    errorStr.AssignLiteral("RemoveDevice failed");
-  }
-
-  nsRefPtr<BluetoothReplyRunnable> runnable =
-    dont_AddRef<BluetoothReplyRunnable>(static_cast<BluetoothReplyRunnable*>(aData));
-
-  DispatchBluetoothReply(runnable.get(), BluetoothValue(true), errorStr);
 }
 
 nsresult

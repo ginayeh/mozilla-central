@@ -66,11 +66,6 @@ public:
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual bool
-  GetDevicePath(const nsAString& aAdapterPath,
-                const nsAString& aDeviceAddress,
-                nsAString& aDevicePath) MOZ_OVERRIDE;
-
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAddress,
                              int aTimeout,

@@ -172,20 +172,6 @@ public:
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) = 0;
 
-  /**
-   * Get the path of a device
-   *
-   * @param aAdapterPath Path to the Adapter that's communicating with the device
-   * @param aDeviceAddress Device address (XX:XX:XX:XX:XX:XX format)
-   * @param aDevicePath Return value of path
-   *
-   * @return True if path set correctly, false otherwise
-   */
-  virtual bool
-  GetDevicePath(const nsAString& aAdapterPath,
-                const nsAString& aDeviceAddress,
-                nsAString& aDevicePath) = 0;
-
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAddress,
                              int aTimeout,

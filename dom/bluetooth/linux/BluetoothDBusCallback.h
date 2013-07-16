@@ -59,6 +59,9 @@ void
 OnCreatePairedDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
+OnRemoveDeviceReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
+
+void
 OnControlReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
@@ -74,7 +77,7 @@ void
 OnUpdatePlayStatusReply(DBusMessage* aMsg, void* aParam);
 
 void
-OnSendDiscoveryMessageReply(DBusMessage *aReply, void *aData);
+OnSendDiscoveryMessageReply(DBusMessage* aMsg, void* aBluetoothReplyRunnable);
 
 void
 OnDiscoverServicesReply(DBusMessage* aMsg, void* aData);
