@@ -190,8 +190,11 @@ if test -n "$gonkdir" ; then
     STRIP="$gonk_toolchain_prefix"strip
     OBJCOPY="$gonk_toolchain_prefix"objcopy
 
-    STLPORT_CPPFLAGS="-I$gonkdir/ndk/sources/cxx-stl/stlport/stlport/ -I$gonkdir/external/stlport/stlport/"
-    STLPORT_LIBS="-lstlport"
+    if ! test -e "$gonkdir/ndk/sources/cxx-stl/stlport/src/iostream.cpp"; then
+        AC_MSG_ERROR([Couldn't find path to stlport sources in the gonk tree])
+    fi
+    STLPORT_CPPFLAGS="-I$_topsrcdir/build/stlport/stlport -I$gonkdir/ndk/sources/cxx-stl/system/include"
+    STLPORT_LIBS="$_objdir/build/stlport/libstlport_static.a -static-libstdc++"
 
     case "$target_cpu" in
     arm)
@@ -222,7 +225,7 @@ if test -n "$gonkdir" ; then
     CFLAGS="-mandroid -fno-short-enums -fno-exceptions $CFLAGS"
     CXXFLAGS="-mandroid -fno-short-enums -fno-exceptions -Wno-psabi $CXXFLAGS $STLPORT_CPPFLAGS"
     dnl Add -llog by default, since we use it all over the place.
-    LIBS="$LIBS -llog $STLPORT_LIBS"
+    LIBS="$LIBS -llog"
 
     LDFLAGS="-mandroid -L$gonkdir/out/target/product/$GONK_PRODUCT/obj/lib -Wl,-rpath-link=$gonkdir/out/target/product/$GONK_PRODUCT/obj/lib --sysroot=$gonkdir/out/target/product/$GONK_PRODUCT/obj/ $LDFLAGS"
 
@@ -4289,7 +4292,6 @@ MOZ_PLACES=1
 MOZ_SOCIAL=1
 MOZ_PREF_EXTENSIONS=1
 MOZ_PROFILELOCKING=1
-MOZ_PSM=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
 MOZ_HELP_VIEWER=
@@ -5283,14 +5285,6 @@ dnl ========================================================
 if test -n "$MOZ_ANDROID_BEAM"; then
     AC_DEFINE(MOZ_ANDROID_BEAM)
 fi
-
-dnl ========================================================
-dnl = Build Personal Security Manager
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(crypto,
-[  --disable-crypto        Disable crypto support (Personal Security Manager)],
-    MOZ_PSM=,
-    MOZ_PSM=1 )
 
 dnl ========================================================
 dnl = JS Debugger XPCOM component (js/jsd)
@@ -8146,7 +8140,14 @@ dnl Graphics checks.
 dnl ========================================================
 
 if test "${OS_TARGET}" = "WINNT" -o "${OS_ARCH}" = "Darwin" -o "${MOZ_WIDGET_TOOLKIT}" = "android" -o "${MOZ_WIDGET_TOOLKIT}" = "gtk2"; then
-MOZ_ENABLE_SKIA=1
+    case "${target_cpu}" in
+    i*86*|x86_64|arm)
+        MOZ_ENABLE_SKIA=1
+        ;;
+    *)
+        MOZ_ENABLE_SKIA=
+        ;;
+    esac
 else
 MOZ_ENABLE_SKIA=
 fi
@@ -8633,7 +8634,6 @@ AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_PERMISSIONS)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_JS_LIBS)
-AC_SUBST(MOZ_PSM)
 AC_SUBST(MOZ_DEBUG)
 AC_SUBST(MOZ_DEBUG_SYMBOLS)
 AC_SUBST(MOZ_DEBUG_ENABLE_DEFS)
@@ -9143,6 +9143,8 @@ netwerk/necko-config.h
 xpcom/xpcom-config.h
 xpcom/xpcom-private.h
 )
+
+AC_SUBST(STLPORT_LIBS)
 
 AC_OUTPUT([mozilla-config.h])
 

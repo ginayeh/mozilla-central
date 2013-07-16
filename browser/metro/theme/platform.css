@@ -194,16 +194,17 @@ menulist {
   min-width: @touch_action_minwidth@; /* keep the button from being too narrow */
   border: 0 none;
   -moz-box-align: center;
+  font-weight: 600;
 }
 
 .menu-popup richlistitem:not([disabled]):hover {
-  background-color: #dedad0;
+  background-color: #ccc;
   color: black;
 }
 
 .menu-popup richlistitem:not([disabled]):active {
-  background-color: @selected_color@ !important;
-  color: black;
+  background-color: black;
+  color: white;
 }
 
 .menu-popup > richlistbox[left-hand="true"] > richlistitem {
@@ -214,7 +215,7 @@ menulist {
   padding-right: 50px;
 }
 
-/* form select popup */
+/* Additional styles applied to popups for form <select> elements. */
 
 #select-container {
   padding: 0;
@@ -233,7 +234,7 @@ menulist {
 }
 
 /* listcell element doesn't have flex="1" so we need to force it */
-#select-commands .option-command > listcell {
+.option-command > listcell {
   -moz-box-flex: 1 !important;
 }
 
@@ -244,8 +245,8 @@ menulist {
 }
 
 .option-command.selected {
-  background-color: @selected_color@ !important;
-  color: black;
+  background-color: #ff8000;
+  color: white;
 }
 
 .option-command.optgroup {
@@ -255,12 +256,12 @@ menulist {
 }
 
 .option-command:not([disabled]):hover {
-  background-color: #dedad0;
+  background-color: #f0f0f0;
   color: black;
 }
 
 .option-command:not([disabled]):active {
-  background-color: @selected_color@ !important;
+  background-color: #d3d3d3;
   color: black;
 }
 
@@ -665,19 +666,19 @@ arrowbox {
 
 /* Find bar ------------------------------------------------------------- */
 
-#content-navigator {
+#findbar {
   background-color: @metro_orange@;
   padding: 0;
   pointer-events: none;
 }
 
-#content-navigator > toolbar {
+#findbar > toolbar {
   min-height: @findbar_height@ !important;
 }
 
-#content-navigator > .previous-button,
-#content-navigator > .next-button,
-#content-navigator > .close-button {
+#findbar > .previous-button,
+#findbar > .next-button,
+#findbar > .close-button {
   list-style-image: url(chrome://browser/skin/images/appbar-icons.png);
   min-width: @touch_button_small@ !important; /* button size */
   min-height: @touch_button_small@ !important; /* button size */
@@ -689,46 +690,46 @@ arrowbox {
   margin: 0 @margin_normal@ !important;
 }
 
-#content-navigator > .close-button {
+#findbar > .close-button {
   -moz-margin-start: 0;
   -moz-image-region: rect(0px, 480px, 40px, 440px);
 }
 
-#content-navigator > .close-button:hover {
+#findbar > .close-button:hover {
   -moz-image-region: rect(40px, 480px, 80px, 440px);
 }
 
-#content-navigator > .close-button:active {
+#findbar > .close-button:active {
   -moz-image-region: rect(80px, 480px, 120px, 440px);
 }
 
-#content-navigator > .previous-button {
+#findbar > .previous-button {
   -moz-margin-end: 0;
   -moz-image-region: rect(0px, 400px, 40px, 360px);
 }
 
-#content-navigator > .previous-button:hover {
+#findbar > .previous-button:hover {
   -moz-image-region: rect(40px, 400px, 80px, 360px);
 }
 
-#content-navigator > .previous-button:active{
+#findbar > .previous-button:active{
   -moz-image-region: rect(80px, 400px, 120px, 360px);
 }
 
-#content-navigator > .next-button {
+#findbar > .next-button {
   -moz-margin-start: 0;
   -moz-image-region: rect(0px, 440px, 40px, 400px);
 }
 
-#content-navigator > .next-button:hover {
+#findbar > .next-button:hover {
   -moz-image-region: rect(40px, 440px, 80px, 400px);
 }
 
-#content-navigator > .next-button:active {
+#findbar > .next-button:active {
   -moz-image-region: rect(80px, 440px, 120px, 400px);
 }
 
-#find-helper-textbox {
+#findbar-textbox {
   pointer-events: auto;
   -moz-margin-end: 0;
   border: none !important;
@@ -742,18 +743,18 @@ arrowbox {
 
 /* Override the default box ordering and make the find textbox appear to the
    right of the icon */
-#find-helper-textbox input {
+#findbar-textbox input {
   -moz-box-ordinal-group: 2
 }
 
-#find-helper-textbox deck {
+#findbar-textbox deck {
   margin-right: @margin_normal@;
 }
 
-#find-helper-textbox[status="1"] { /* Ci.nsITypeAheadFind.FIND_NOTFOUND */
+#findbar-textbox[status="1"] { /* Ci.nsITypeAheadFind.FIND_NOTFOUND */
   background: rgb(255,200,200);
 }
 
-#find-helper-textbox:hover:active {
+#findbar-textbox:hover:active {
   background: #8db8d8;
 }

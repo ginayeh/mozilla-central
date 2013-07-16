@@ -14,10 +14,6 @@
 
 #include "jscompartmentinlines.h"
 
-#ifdef JSGC_GENERATIONAL
-#include "vm/Shape-inl.h"
-#endif
-
 using namespace js;
 
 using mozilla::PodCopy;
@@ -422,7 +418,7 @@ js::ConcatStrings(JSContext *cx,
     if (!JSString::validateLength(cx, wholeLength))
         return NULL;
 
-    if (JSShortString::lengthFits(wholeLength)) {
+    if (JSShortString::lengthFits(wholeLength) && cx->isJSContext()) {
         JSShortString *str = js_NewGCShortString<allowGC>(cx);
         if (!str)
             return NULL;
