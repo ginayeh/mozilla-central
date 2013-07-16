@@ -315,16 +315,7 @@ GetPropertiesInternal(const nsAString& aPath,
                                             DBUS_TYPE_INVALID);
 
   nsAutoString replyError;
-  if (!strcmp(aIface, DBUS_DEVICE_IFACE)) {
-    UnpackDevicePropertiesMessage(msg, &err, aValue, replyError);
-  } else if (!strcmp(aIface, DBUS_ADAPTER_IFACE)) {
-    UnpackAdapterPropertiesMessage(msg, &err, aValue, replyError);
-  } else if (!strcmp(aIface, DBUS_MANAGER_IFACE)) {
-    UnpackManagerPropertiesMessage(msg, &err, aValue, replyError);
-  } else {
-    NS_WARNING("Unknown interface for GetProperties!");
-    return false;
-  }
+  UnpackPropertiesMessage(aIface, msg, &err, aValue, replyError, aIface);
 
   if (!replyError.IsEmpty()) {
     NS_WARNING("Failed to get device properties");

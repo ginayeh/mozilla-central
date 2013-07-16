@@ -36,23 +36,15 @@ UnpackObjectPathMessage(DBusMessage* aMsg, DBusError* aErr,
                         BluetoothValue& aValue, nsAString& aErrorStr);
 
 void
-UnpackManagerPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                               BluetoothValue& aValue, nsAString& aErrorStr);
-
-void
-UnpackAdapterPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                               BluetoothValue& aValue, nsAString& aErrorStr);
-
-void
-UnpackDevicePropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                              BluetoothValue& aValue, nsAString& aErrorStr);
+UnpackPropertiesMessage(const char* aIface, DBusMessage* aMsg, DBusError* aErr,
+                        BluetoothValue& aValue, nsAString& aErrorStr);
 
 void
 ParseDeviceProperties(DBusMessageIter* aIter, BluetoothValue& aValue,
                       nsAString& aErrorStr);
 
 void
-ParsePropertyChange(const char* aIterface, DBusMessage* aMsg,
+ParsePropertyChange(const char* aIface, DBusMessage* aMsg,
                     BluetoothValue& aValue, nsAString& aErrorStr);
 
 void

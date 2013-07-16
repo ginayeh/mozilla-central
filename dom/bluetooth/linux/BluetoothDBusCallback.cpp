@@ -345,49 +345,56 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr,
 }
 
 static void
-UnpackPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                        BluetoothValue& aValue, nsAString& aErrorStr,
-                        Properties* aPropertyTypes,
-                        int aPropertyTypeLen)
+GetPropertiesTypeAndLength(const char* aIface,
+                           Properties* aPropertiesType,
+                           int* aPropertiesLength)
+{
+  if (strcmp(aIface, DBUS_MANAGER_IFACE) == 0) {
+    aPropertiesType = sManagerProperties;
+    *aPropertiesLength = ArrayLength(sManagerProperties);
+  } else if (strcmp(aIface, DBUS_ADAPTER_IFACE) == 0) {
+    aPropertiesType = sAdapterProperties;
+    *aPropertiesLength = ArrayLength(sAdapterProperties);
+  } else if (strcmp(aIface, DBUS_DEVICE_IFACE) == 0) {
+    aPropertiesType = sDeviceProperties;
+    *aPropertiesLength = ArrayLength(sDeviceProperties);
+  } else if (strcmp(aIface, DBUS_SINK_IFACE) == 0) {
+    aPropertiesType = sSinkProperties;
+    *aPropertiesLength = ArrayLength(sSinkProperties);
+  } else if (strcmp(aIface, DBUS_CTL_IFACE) == 0) {
+    aPropertiesType = sControlProperties;
+    *aPropertiesLength = ArrayLength(sControlProperties);
+  } else {
+    BT_WARNING("Unknown Interface");
+    aPropertiesType = nullptr;
+    *aPropertiesLength = 0;
+  }
+}
+
+
+void
+UnpackPropertiesMessage(const char* aIface, DBusMessage* aMsg, DBusError* aErr,
+                        BluetoothValue& aValue, nsAString& aErrorStr)
 {
   LOGV("[B] %s", __FUNCTION__);
+  Properties* propertiesType;
+  int propertiesLength;
+  GetPropertiesTypeAndLength(aIface, propertiesType, &propertiesLength);
+  if (!propertiesType) {
+    aErrorStr.AssignLiteral("Unknown Interface");
+    return;
+  }
+
   if (!IsDBusMessageError(aMsg, aErr, aErrorStr) &&
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN) {
     DBusMessageIter iter;
     if (!dbus_message_iter_init(aMsg, &iter)) {
       aErrorStr.AssignLiteral("Cannot create dbus message iter!");
     } else {
-      ParseProperties(&iter, aValue, aErrorStr, aPropertyTypes,
-                      aPropertyTypeLen);
+      ParseProperties(&iter, aValue, aErrorStr,
+                      propertiesType, propertiesLength);
     }
   }
-}
-
-void
-UnpackAdapterPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                               BluetoothValue& aValue, nsAString& aErrorStr)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          sAdapterProperties, ArrayLength(sAdapterProperties));
-}
-
-void
-UnpackDevicePropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                              BluetoothValue& aValue, nsAString& aErrorStr)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          sDeviceProperties, ArrayLength(sDeviceProperties));
-}
-
-void
-UnpackManagerPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
-                               BluetoothValue& aValue, nsAString& aErrorStr)
-{
-  LOGV("[B] %s", __FUNCTION__);
-  UnpackPropertiesMessage(aMsg, aErr, aValue, aErrorStr,
-                          sManagerProperties, ArrayLength(sManagerProperties));
 }
 
 void
@@ -399,29 +406,14 @@ ParseDeviceProperties(DBusMessageIter* aIter, BluetoothValue& aValue,
 }
 
 void
-ParsePropertyChange(const char* aInterface, DBusMessage* aMsg,
+ParsePropertyChange(const char* aIface, DBusMessage* aMsg,
                     BluetoothValue& aValue, nsAString& aErrorStr)
 {
   LOGV("[B] %s", __FUNCTION__);
   Properties* propertiesType;
   int propertiesLength;
-  if (strcmp(aInterface, DBUS_MANAGER_IFACE) == 0) {
-    propertiesType = sManagerProperties;
-    propertiesLength = ArrayLength(sManagerProperties);
-  } else if (strcmp(aInterface, DBUS_ADAPTER_IFACE) == 0) {
-    propertiesType = sAdapterProperties;
-    propertiesLength = ArrayLength(sAdapterProperties);
-  } else if (strcmp(aInterface, DBUS_DEVICE_IFACE) == 0) {
-    propertiesType = sDeviceProperties;
-    propertiesLength = ArrayLength(sDeviceProperties);
-  } else if (strcmp(aInterface, DBUS_SINK_IFACE) == 0) {
-    propertiesType = sSinkProperties;
-    propertiesLength = ArrayLength(sSinkProperties);
-  } else if (strcmp(aInterface, DBUS_CTL_IFACE) == 0) {
-    propertiesType = sControlProperties;
-    propertiesLength = ArrayLength(sControlProperties);
-  } else {
-    BT_WARNING("Unknown Interface");
+  GetPropertiesTypeAndLength(aIface, propertiesType, &propertiesLength);
+  if (!propertiesType) {
     aErrorStr.AssignLiteral("Unknown Interface");
     return;
   }
