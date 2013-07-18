@@ -10,7 +10,9 @@
 #include "mozilla/Attributes.h"
 #include "BluetoothCommon.h"
 #include "mozilla/ipc/RawDBusConnection.h"
+#include "mozilla/ipc/DBusUtils.h"
 #include "BluetoothService.h"
+#include "BluetoothDBusCommon.h"
 
 class DBusMessage;
 
@@ -51,31 +53,6 @@ public:
   SetProperty(BluetoothObjectType aType,
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  static bool
-  AddServiceRecords(const char* serviceName,
-                    unsigned long long uuidMsb,
-                    unsigned long long uuidLsb,
-                    int channel);
-
-  static bool
-  RemoveServiceRecords(const char* serviceName,
-                       unsigned long long uuidMsb,
-                       unsigned long long uuidLsb,
-                       int channel);
-
-  static bool
-  AddReservedServicesInternal(const nsTArray<uint32_t>& aServices,
-                              nsTArray<uint32_t>& aServiceHandlesContainer);
-
-  static bool
-  RemoveReservedServicesInternal(const nsTArray<uint32_t>& aServiceHandles);
-
-  static void
-  GetIsPairing(int32_t* aIsPairing);
-
-  static void
-  SetIsPairing(int32_t aIsPairing);
 
   virtual nsresult
   GetScoSocket(const nsAString& aObjectPath,
@@ -175,6 +152,67 @@ public:
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) MOZ_OVERRIDE;
 
+  static bool
+  AddServiceRecords(const char* serviceName,
+                    unsigned long long uuidMsb,
+                    unsigned long long uuidLsb,
+                    int channel);
+
+  static bool
+  AddReservedServicesInternal(const nsTArray<uint32_t>& aServices,
+                              nsTArray<uint32_t>& aServiceHandlesContainer);
+
+  static bool
+  RemoveReservedServicesInternal(const nsTArray<uint32_t>& aServiceHandles);
+
+  static void
+  GetIsPairing(int32_t* aIsPairing)
+  {
+    *aIsPairing = mIsPairing;
+  }
+
+  static void
+  SetIsPairing(int32_t aIsPairing)
+  {
+    mIsPairing = aIsPairing;
+  }
+
+  static void
+  SetAdapterPath(const nsAString& aAdapterPath)
+  {
+    mAdapterPath = aAdapterPath;
+  }
+
+  static void
+  GetAdapterPath(nsAString& aAdapterPath)
+  {
+    aAdapterPath = mAdapterPath;
+  }
+
+  static void
+  PutPairingRequest(const nsAString& aAddress, DBusMessage* aMsg)
+  {
+    mPairingReqTable.Put(aAddress, aMsg);
+    // Increase ref count here because we need this message later.
+    // It'll be unrefed when set*Internal() is called.
+    dbus_message_ref(aMsg);
+  }
+
+  static void
+  PutAuthorizeRequest(const nsAString& aAddress, DBusMessage* aMsg)
+  {
+    mAuthorizeReqTable.Put(aAddress, aMsg);
+    // Increase ref count here because we need this message later.
+    // It'll be unrefed when setAuthorizationInternal() is called.
+    dbus_message_ref(aMsg);
+  }
+
+  static DBusConnection*
+  GetCommandThreadConnection()
+  {
+    return mCommandThreadConnection->GetConnection();
+  }
+
 private:
   enum ControlEventId {
     EVENT_PLAYBACK_STATUS_CHANGED            = 0x01,
@@ -205,6 +243,21 @@ private:
   void DisconnectAllAcls(const nsAString& aAdapterPath);
 
   static Atomic<int32_t> mIsPairing;
+  static nsString mAdapterPath;
+
+  /**
+   * Because we may have authorization request and pairing request from the
+   * same remote device at the same time, we need two tables to keep these
+   * messages.
+   */
+  static nsDataHashtable<nsStringHashKey, DBusMessage* > mPairingReqTable;
+  static nsDataHashtable<nsStringHashKey, DBusMessage* > mAuthorizeReqTable;
+
+  /**
+   * DBus Connection held for the BluetoothCommandThread to use. Should never be
+   * used by any other thread.
+   */
+  static nsAutoPtr<RawDBusConnection> mCommandThreadConnection;
 };
 
 END_BLUETOOTH_NAMESPACE
