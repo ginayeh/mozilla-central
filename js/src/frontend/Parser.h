@@ -99,6 +99,7 @@ struct ParseContext : public GenericParseContext
     StmtInfoPC      *topStmt;       /* top of statement info stack */
     StmtInfoPC      *topScopeStmt;  /* top lexical scope statement */
     Rooted<StaticBlockObject *> blockChain;
+    Node            maybeFunction;  /* sc->isFunctionBox, the pn where pn->pn_funbox == sc */
                                     /* compile time block scope chain */
 
     const unsigned  staticLevel;    /* static compilation unit nesting level */
@@ -214,6 +215,13 @@ struct ParseContext : public GenericParseContext
     // All inner functions in this context. Only filled in when parsing syntax.
     AutoFunctionVector innerFunctions;
 
+    // In a function context, points to a Directive struct that can be updated
+    // to reflect new directives encountered in the Directive Prologue that
+    // require reparsing the function. In global/module/generator-tail contexts,
+    // we don't need to reparse when encountering a DirectivePrologue so this
+    // pointer may be NULL.
+    Directives *newDirectives;
+
     // Set when parsing a declaration-like destructuring pattern.  This flag
     // causes PrimaryExpr to create PN_NAME parse nodes for variable references
     // which are not hooked into any definition's use chain, added to any tree
@@ -225,18 +233,17 @@ struct ParseContext : public GenericParseContext
     // they need to be treated differently.
     bool            inDeclDestructuring:1;
 
-    // True if we are in a function, saw a "use strict" directive, and weren't
-    // strict before.
-    bool            funBecameStrict:1;
-
     ParseContext(Parser<ParseHandler> *prs, GenericParseContext *parent,
-                 SharedContext *sc, unsigned staticLevel, uint32_t bodyid)
+                 Node maybeFunction, SharedContext *sc,
+                 Directives *newDirectives,
+                 unsigned staticLevel, uint32_t bodyid)
       : GenericParseContext(parent, sc),
         bodyid(0),           // initialized in init()
         blockidGen(bodyid),  // used to set |bodyid| and subsequently incremented in init()
         topStmt(NULL),
         topScopeStmt(NULL),
         blockChain(prs->context),
+        maybeFunction(maybeFunction),
         staticLevel(staticLevel),
         parenDepth(0),
         yieldCount(0),
@@ -250,8 +257,8 @@ struct ParseContext : public GenericParseContext
         lexdeps(prs->context),
         funcStmts(NULL),
         innerFunctions(prs->context),
-        inDeclDestructuring(false),
-        funBecameStrict(false)
+        newDirectives(newDirectives),
+        inDeclDestructuring(false)
     {
         prs->pc = this;
     }
@@ -289,6 +296,13 @@ struct ParseContext : public GenericParseContext
 };
 
 template <typename ParseHandler>
+inline
+Directives::Directives(ParseContext<ParseHandler> *parent)
+  : strict_(parent->sc->strict),
+    asmJS_(parent->useAsmOrInsideUseAsm())
+{}
+
+template <typename ParseHandler>
 struct BindData;
 
 class CompExprTransplanter;
@@ -317,6 +331,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     ParseContext<ParseHandler> *pc;
 
     SourceCompressionToken *sct;        /* compression token for aborting */
+    ScriptSource        *ss;
 
     /* Root atoms and objects allocated for the parsed tree. */
     AutoKeepAtoms       keepAtoms;
@@ -353,6 +368,26 @@ class Parser : private AutoGCRooter, public StrictModeGetter
            LazyScript *lazyOuterFunction);
     ~Parser();
 
+    // A Parser::Mark is the extension of the LifoAlloc::Mark to the entire
+    // Parser's state. Note: clients must still take care that any ParseContext
+    // that points into released ParseNodes is destroyed.
+    class Mark
+    {
+        friend class Parser;
+        LifoAlloc::Mark mark;
+        ObjectBox *traceListHead;
+    };
+    Mark mark() const {
+        Mark m;
+        m.mark = alloc.mark();
+        m.traceListHead = traceListHead;
+        return m;
+    }
+    void release(Mark m) {
+        alloc.release(m.mark);
+        traceListHead = m.traceListHead;
+    }
+
     friend void js::frontend::MarkParser(JSTracer *trc, AutoGCRooter *parser);
 
     const char *getFilename() const { return tokenStream.getFilename(); }
@@ -369,7 +404,8 @@ class Parser : private AutoGCRooter, public StrictModeGetter
      */
     ObjectBox *newObjectBox(JSObject *obj);
     ModuleBox *newModuleBox(Module *module, ParseContext<ParseHandler> *pc);
-    FunctionBox *newFunctionBox(JSFunction *fun, ParseContext<ParseHandler> *pc, bool strict);
+    FunctionBox *newFunctionBox(Node fn, JSFunction *fun, ParseContext<ParseHandler> *pc,
+                                Directives directives);
 
     /*
      * Create a new function object given parse context (pc) and a name (which
@@ -398,11 +434,11 @@ class Parser : private AutoGCRooter, public StrictModeGetter
 
     /* Public entry points for parsing. */
     Node statement(bool canHaveDirectives = false);
-    bool maybeParseDirective(Node pn, bool *cont);
+    bool maybeParseDirective(Node list, Node pn, bool *cont);
 
     // Parse a function, given only its body. Used for the Function constructor.
     Node standaloneFunctionBody(HandleFunction fun, const AutoNameVector &formals,
-                                bool strict, bool *becameStrict);
+                                Directives inheritedDirectives, Directives *newDirectives);
 
     // Parse a function, given only its arguments and body. Used for lazily
     // parsed functions.
@@ -416,7 +452,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node functionBody(FunctionSyntaxKind kind, FunctionBodyType type);
 
     bool functionArgsAndBodyGeneric(Node pn, HandleFunction fun, FunctionType type,
-                                    FunctionSyntaxKind kind, bool *becameStrict);
+                                    FunctionSyntaxKind kind, Directives *newDirectives);
 
     virtual bool strictMode() { return pc->sc->strict; }
 
@@ -487,7 +523,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                      FunctionType type, FunctionSyntaxKind kind);
     bool functionArgsAndBody(Node pn, HandleFunction fun,
                              FunctionType type, FunctionSyntaxKind kind,
-                             bool strict, bool *becameStrict = NULL);
+                             Directives inheritedDirectives, Directives *newDirectives);
 
     Node unaryOpExpr(ParseNodeKind kind, JSOp op, uint32_t begin);
 
@@ -575,6 +611,8 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                        FunctionSyntaxKind kind = Expression);
 
     TokenPos pos() const { return tokenStream.currentToken().pos; }
+
+    bool asmJS(Node list);
 
     friend class CompExprTransplanter;
     friend class GenexpGuard<ParseHandler>;

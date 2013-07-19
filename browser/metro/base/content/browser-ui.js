@@ -1180,6 +1180,9 @@ var StartUI = {
       // of the keyboard transition.
       ContentAreaObserver.navBarWillBlur();
     }
+
+    if (aEvent.button == 0)
+      ContextUI.dismissTabs();
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -1216,7 +1219,6 @@ var PanelUI = {
 
   views: {
     "bookmarks-container": "BookmarksPanelView",
-    "downloads-container": "DownloadsPanelView",
     "console-container": "ConsolePanelView",
     "remotetabs-container": "RemoteTabsPanelView",
     "history-container" : "HistoryPanelView"

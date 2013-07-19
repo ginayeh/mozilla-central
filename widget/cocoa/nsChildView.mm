@@ -327,8 +327,8 @@ public:
   virtual GLContext* gl() const MOZ_OVERRIDE { return mGLContext; }
   virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(aType == BGRARectLayerProgramType, "unexpected program type");
-    return mBGRARectProgram;
+    MOZ_ASSERT(aType == RGBARectLayerProgramType, "unexpected program type");
+    return mRGBARectProgram;
   }
   virtual void BindAndDrawQuad(ShaderProgramOGL *aProg) MOZ_OVERRIDE;
 
@@ -343,7 +343,7 @@ public:
 
 protected:
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
-  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mBGRARectProgram;
+  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mRGBARectProgram;
   GLuint mQuadVBO;
 };
 
@@ -2603,8 +2603,8 @@ GLPresenter::GLPresenter(GLContext* aContext)
 {
   mGLContext->SetFlipped(true);
   mGLContext->MakeCurrent();
-  mBGRARectProgram = new ShaderProgramOGL(mGLContext,
-    ProgramProfileOGL::GetProfileFor(BGRARectLayerProgramType, MaskNone));
+  mRGBARectProgram = new ShaderProgramOGL(mGLContext,
+    ProgramProfileOGL::GetProfileFor(RGBARectLayerProgramType, MaskNone));
 
   // Create mQuadVBO.
   mGLContext->fGenBuffers(1, &mQuadVBO);
@@ -2668,7 +2668,7 @@ GLPresenter::BeginFrame(nsIntSize aRenderSize)
   gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
-  mBGRARectProgram->CheckAndSetProjectionMatrix(matrix3d);
+  mRGBARectProgram->CheckAndSetProjectionMatrix(matrix3d);
 
   // Default blend function implements "OVER"
   mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
@@ -2808,7 +2808,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                              object:nil];
   // TODO: replace the string with the constant once we build with the 10.7 SDK
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemMetricsChanged)
+                                           selector:@selector(scrollbarSystemMetricChanged)
                                                name:@"NSPreferredScrollerStyleDidChangeNotification"
                                              object:nil];
   [[NSDistributedNotificationCenter defaultCenter] addObserver:self
@@ -2959,6 +2959,18 @@ NSEvent* gLastDragMouseDownEvent = nil;
 {
   if (mGeckoChild)
     mGeckoChild->NotifyThemeChanged();
+}
+
+- (void)scrollbarSystemMetricChanged
+{
+  [self systemMetricsChanged];
+
+  if (mGeckoChild) {
+    nsIWidgetListener* listener = mGeckoChild->GetWidgetListener();
+    if (listener) {
+      listener->GetPresShell()->ReconstructFrames();
+    }
+  }
 }
 
 - (void)setNeedsPendingDisplay
@@ -5195,10 +5207,18 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
-  if (mGeckoChild &&
-      mGeckoChild->GetInputContext().IsPasswordEditor() !=
-        TextInputHandler::IsSecureEventInputEnabled()) {
-    MOZ_CRASH("in wrong secure input mode");
+  if (mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
+    if (mIsPluginView) {
+      if (TextInputHandler::IsSecureEventInputEnabled()) {
+        MOZ_CRASH("While a plugin has focus, we must not be in secure mode");
+      }
+    } else if (mGeckoChild->GetInputContext().IsPasswordEditor() &&
+               !TextInputHandler::IsSecureEventInputEnabled()) {
+      MOZ_CRASH("A password editor has focus, but not in secure input mode");
+    } else if (!mGeckoChild->GetInputContext().IsPasswordEditor() &&
+               TextInputHandler::IsSecureEventInputEnabled()) {
+      MOZ_CRASH("A non-password editor has focus, but in secure input mode");
+    }
   }
 #endif // #if !defined(RELEASE_BUILD) || defined(DEBUG)
 

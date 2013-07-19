@@ -221,11 +221,6 @@ this.Utils = {
     return doc.QueryInterface(Ci.nsIAccessibleDocument).virtualCursor;
   },
 
-  getPixelsPerCSSPixel: function getPixelsPerCSSPixel(aWindow) {
-    return aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindowUtils).screenPixelsPerCSSPixel;
-  },
-
   getBounds: function getBounds(aAccessible) {
       let objX = {}, objY = {}, objW = {}, objH = {};
       aAccessible.getBounds(objX, objY, objW, objH);
@@ -234,7 +229,8 @@ this.Utils = {
 
   inHiddenSubtree: function inHiddenSubtree(aAccessible) {
     for (let acc=aAccessible; acc; acc=acc.parent) {
-      if (JSON.parse(Utils.getAttributes(acc).hidden)) {
+      let hidden = Utils.getAttributes(acc).hidden;
+      if (hidden && JSON.parse(hidden)) {
         return true;
       }
     }

@@ -341,11 +341,6 @@ MacroAssemblerARM::ma_movPatchable(Imm32 imm_, Register dest,
                                    Assembler::Condition c, RelocStyle rs, Instruction *i)
 {
     int32_t imm = imm_.value;
-    if (i) {
-        // If the access goes through an iterator (which this doesn't) then
-        // all issues pertaining to reading guard instructions.
-        i = InstructionIterator(i).cur();
-    }
     switch(rs) {
       case L_MOVWT:
         as_movw(dest, Imm16(imm & 0xffff), c, i);
@@ -885,6 +880,13 @@ MacroAssemblerARM::ma_mod_mask(Register src, Register dest, Register hold, int32
     // Since the Zero flag is not set by the compare, we can *only* set the Zero flag
     // in the rsb, so Zero is set iff we negated zero (e.g. the result of the computation was -0.0).
 
+}
+
+void
+MacroAssemblerARM::ma_smod(Register num, Register div, Register dest)
+{
+    as_sdiv(ScratchRegister, num, div);
+    as_mls(dest, num, ScratchRegister, div);
 }
 
 // division

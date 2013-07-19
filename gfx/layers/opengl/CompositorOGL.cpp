@@ -896,6 +896,13 @@ CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
                               LOCAL_GL_UNSIGNED_BYTE,
                               buf);
     }
+    GLenum error = mGLContext->GetAndClearError();
+    if (error != LOCAL_GL_NO_ERROR) {
+      nsAutoCString msg;
+      msg.AppendPrintf("Texture initialization failed! -- error 0x%x, Source %d, Source format %d,  RGBA Compat %d",
+                       error, aSourceFrameBuffer, format, isFormatCompatibleWithRGBA);
+      NS_ERROR(msg.get());
+    }
   } else {
     mGLContext->fTexImage2D(mFBOTextureTarget,
                             0,
@@ -1021,7 +1028,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
   ShaderProgramType programType = GetProgramTypeForEffect(aEffectChain.mPrimaryEffect);
   ShaderProgramOGL *program = GetProgram(programType, maskType);
   program->Activate();
-  if (programType == RGBARectLayerProgramType) {
+  if (programType == RGBARectLayerProgramType ||
+      programType == RGBXRectLayerProgramType) {
     TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();

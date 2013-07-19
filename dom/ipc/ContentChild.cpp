@@ -636,7 +636,7 @@ ContentChild::DeallocPBrowserChild(PBrowserChild* iframe)
 PBlobChild*
 ContentChild::AllocPBlobChild(const BlobConstructorParams& aParams)
 {
-  return BlobChild::Create(aParams);
+  return BlobChild::Create(this, aParams);
 }
 
 bool
@@ -723,7 +723,7 @@ ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
     }
     }
 
-  BlobChild* actor = BlobChild::Create(aBlob);
+  BlobChild* actor = BlobChild::Create(this, aBlob);
   NS_ENSURE_TRUE(actor, nullptr);
 
   if (!SendPBlobConstructor(actor, params)) {
@@ -1181,10 +1181,13 @@ PreloadSlowThings()
 }
 
 bool
-ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
+ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID,
+                          const nsCString& name, const nsCString& UAName)
 {
     mAppInfo.version.Assign(version);
     mAppInfo.buildID.Assign(buildID);
+    mAppInfo.name.Assign(name);
+    mAppInfo.UAName.Assign(UAName);
     // If we're part of the mozbrowser machinery, go ahead and start
     // preloading things.  We can only do this for mozbrowser because
     // PreloadSlowThings() may set the docshell of the first TabChild
