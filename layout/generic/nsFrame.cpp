@@ -704,8 +704,7 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     nsIFrame* anonBlock = svgTextFrame->GetFirstPrincipalChild();
     // Just as in nsSVGTextFrame2::DidSetStyleContext, we need to ensure that
     // any non-display nsSVGTextFrame2s get reflowed when a child text frame
-    // gets new style.  We don't need to do this when the frame has not yet
-    // been reflowed, since that will happen soon anyway.
+    // gets new style.
     //
     // Note that we must check NS_FRAME_FIRST_REFLOW on our nsSVGTextFrame2's
     // anonymous block frame rather than our self, since NS_FRAME_FIRST_REFLOW
@@ -713,7 +712,8 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     // document's first reflow. (In which case this DidSetStyleContext call may
     // be happening under frame construction under a Reflow() call.)
     if (anonBlock && !(anonBlock->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
-        (svgTextFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+        (svgTextFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) &&
+        !(svgTextFrame->GetStateBits() & NS_STATE_SVG_TEXT_IN_REFLOW)) {
       svgTextFrame->ScheduleReflowSVGNonDisplayText();
     }
   }
@@ -2554,15 +2554,14 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   // frame, or something else is already capturing the mouse, there's no
   // reason to capture.
   if (!nsIPresShell::GetCapturingContent()) {
-    nsIFrame* checkFrame = this;
-    nsIScrollableFrame *scrollFrame = nullptr;
-    while (checkFrame) {
-      scrollFrame = do_QueryFrame(checkFrame);
-      if (scrollFrame) {
-        nsIPresShell::SetCapturingContent(checkFrame->GetContent(), CAPTURE_IGNOREALLOWED);
-        break;
-      }
-      checkFrame = checkFrame->GetParent();
+    nsIScrollableFrame* scrollFrame =
+      nsLayoutUtils::GetNearestScrollableFrame(this,
+        nsLayoutUtils::SCROLLABLE_SAME_DOC |
+        nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN);
+    if (scrollFrame) {
+      nsIFrame* capturingFrame = do_QueryFrame(scrollFrame);
+      nsIPresShell::SetCapturingContent(capturingFrame->GetContent(),
+                                        CAPTURE_IGNOREALLOWED);
     }
   }
 
@@ -2925,15 +2924,10 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
   }
 
   // get the nearest scrollframe
-  nsIFrame* checkFrame = this;
-  nsIScrollableFrame *scrollFrame = nullptr;
-  while (checkFrame) {
-    scrollFrame = do_QueryFrame(checkFrame);
-    if (scrollFrame) {
-      break;
-    }
-    checkFrame = checkFrame->GetParent();
-  }
+  nsIScrollableFrame* scrollFrame =
+    nsLayoutUtils::GetNearestScrollableFrame(this,
+        nsLayoutUtils::SCROLLABLE_SAME_DOC |
+        nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN);
 
   if (scrollFrame) {
     nsIFrame* capturingFrame = scrollFrame->GetScrolledFrame();

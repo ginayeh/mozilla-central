@@ -104,7 +104,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JS::Handle<JSObject*> obj,
   // down on the proto chain.
   JS::Rooted<JSObject*> base(cx, obj);
   while (JS_GetClass(base) != &nsXBLDocGlobalObject::gSharedGlobalClass) {
-    if (!::JS_GetPrototype(cx, base, base.address())) {
+    if (!::JS_GetPrototype(cx, base, &base)) {
       return JS_FALSE;
     }
     if (!base) {
@@ -211,37 +211,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXBLDocGlobalObject)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXBLDocGlobalObject)
 
-void
-XBL_ProtoErrorReporter(JSContext *cx,
-                       const char *message,
-                       JSErrorReport *report)
-{
-  // Make an nsIScriptError and populate it with information from
-  // this error.
-  nsCOMPtr<nsIScriptError>
-    errorObject(do_CreateInstance("@mozilla.org/scripterror;1"));
-  nsCOMPtr<nsIConsoleService>
-    consoleService(do_GetService("@mozilla.org/consoleservice;1"));
-
-  if (errorObject && consoleService) {
-    uint32_t column = report->uctokenptr - report->uclinebuf;
-
-    const PRUnichar* ucmessage =
-      static_cast<const PRUnichar*>(report->ucmessage);
-    const PRUnichar* uclinebuf =
-      static_cast<const PRUnichar*>(report->uclinebuf);
-
-    errorObject->Init
-         (ucmessage ? nsDependentString(ucmessage) : EmptyString(),
-          NS_ConvertUTF8toUTF16(report->filename),
-          uclinebuf ? nsDependentString(uclinebuf) : EmptyString(),
-          report->lineno, column, report->flags,
-          "xbl javascript"
-          );
-    consoleService->LogMessage(errorObject);
-  }
-}
-
 //----------------------------------------------------------------------
 //
 // nsIScriptGlobalObject methods
@@ -280,10 +249,7 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
 
   AutoPushJSContext cx(mScriptContext->GetNativeContext());
 
-  // nsJSEnvironment set the error reporter to NS_ScriptErrorReporter so
-  // we must apparently override that with our own (although it isn't clear 
-  // why - see bug 339647)
-  JS_SetErrorReporter(cx, XBL_ProtoErrorReporter);
+  JS_SetErrorReporter(cx, xpc::SystemErrorReporter);
 
   JS::CompartmentOptions options;
   options.setZone(JS::SystemZone);
