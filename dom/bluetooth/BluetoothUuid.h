@@ -22,12 +22,14 @@ BEGIN_BLUETOOTH_NAMESPACE
  */
 enum BluetoothServiceClass
 {
+  UNKNOWN       = 0x0000,
   HEADSET       = 0x1108,
   HEADSET_AG    = 0x1112,
   HANDSFREE     = 0x111E,
   HANDSFREE_AG  = 0x111F,
   OBJECT_PUSH   = 0x1105,
   HID           = 0x1124,
+  A2DP          = 0x110D
 };
 
 class BluetoothUuidHelper
@@ -42,6 +44,15 @@ public:
    */
   static void
   GetString(BluetoothServiceClass aServiceClassUuid, nsAString& aRetUuidStr);
+
+  /**
+   * Convert a 128-bit uuid string to a value of BluetoothServiceClass
+   *
+   * @param aUuidStr  128-bit uuid string
+   * @return  a value of BluetoothServiceClass
+   */
+  static BluetoothServiceClass
+  GetBluetoothServiceClass(const nsAString& aUuidStr);
 };
 
 // TODO/qdot: Move these back into gonk and make the service handler deal with

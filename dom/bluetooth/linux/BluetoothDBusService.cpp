@@ -34,6 +34,7 @@
 #include "nsThreadUtils.h"
 #include "nsDebug.h"
 #include "nsDataHashtable.h"
+#include "nsPrintfCString.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/Hal.h"
@@ -351,29 +352,36 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
   if (aErr && dbus_error_is_set(aErr)) {
     aErrorStr = NS_ConvertUTF8toUTF16(aErr->message);
     LOG_AND_FREE_DBUS_ERROR(aErr);
+    LOG("111");
     return true;
   }
 
   DBusError err;
   dbus_error_init(&err);
   if (dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_ERROR) {
+    LOG("222");
     const char* error_msg;
     if (!dbus_message_get_args(aMsg, &err, DBUS_TYPE_STRING,
                                &error_msg, DBUS_TYPE_INVALID) ||
         !error_msg) {
+      LOG("333");
       if (dbus_error_is_set(&err)) {
         aErrorStr = NS_ConvertUTF8toUTF16(err.message);
         LOG_AND_FREE_DBUS_ERROR(&err);
+        LOG("444");
         return true;
       } else {
         aErrorStr.AssignLiteral("Unknown Error");
+        LOG("555");
         return true;
       }
     } else {
+      LOG("666");
       aErrorStr = NS_ConvertUTF8toUTF16(error_msg);
       return true;
     }
   }
+  LOG("777");
   return false;
 }
 
@@ -515,10 +523,12 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN &&
       !dbus_message_get_args(aMsg, &err, DBUS_TYPE_INVALID)) {
     if (dbus_error_is_set(&err)) {
+      LOG("aaa");
       aErrorStr = NS_ConvertUTF8toUTF16(err.message);
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
   }
+  LOG("error string: %s", NS_ConvertUTF16toUTF8(aErrorStr).get());
   aValue = aErrorStr.IsEmpty();
 }
 
@@ -653,15 +663,9 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
   }
 
   if ((receivedType != expectedType) && !convert) {
-    NS_WARNING("Iterator not type we expect!");
-    nsCString str;
-    str.AppendLiteral("Property Name: ");
-    str.Append(NS_ConvertUTF16toUTF8(propertyName));
-    str.AppendLiteral(", Property Type Expected: ");
-    str.AppendInt(expectedType);
-    str.AppendLiteral(", Property Type Received: ");
-    str.AppendInt(receivedType);
-    NS_WARNING(str.get());
+    NS_WARNING(nsPrintfCString("Iterator not type we expect! Property name: %s,
+      Property Type Expected: %d, Property Type Received: %d",
+      NS_ConvertUTF16toUTF8(propertyName).get(), expectedType, receivedType).get());
     return false;
   }
 
@@ -1064,30 +1068,39 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_STRING, &uuid,
                                DBUS_TYPE_INVALID)) {
-      BT_WARNING("%s: Invalid arguments for Authorize() method", __FUNCTION__);
       errorStr.AssignLiteral("Invalid arguments for Authorize() method");
       goto handle_error;
     }
 
-    nsString deviceAddress =
-      GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
+    DBusMessage *reply = dbus_message_new_method_return(msg);
+    if (!reply) {
+      errorStr.AssignLiteral("Memory can't be allocated for the message.");
+    } else {
+      nsAutoString uuidStr = NS_ConvertUTF8toUTF16(uuid);
+      BluetoothServiceClass serviceClass =
+        BluetoothUuidHelper::GetBluetoothServiceClass(uuidStr);
+      if (serviceClass == BluetoothServiceClass::UNKNOWN) {
+        errorStr.AssignLiteral("Failed to get service class");
+        goto handle_error;
+      }
 
-    parameters.AppendElement(
-      BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
-    parameters.AppendElement(
-      BluetoothNamedValue(NS_LITERAL_STRING("uuid"),
-                          NS_ConvertUTF8toUTF16(uuid)));
+      int i;
+      for (i = 0; i < sAuthorizedServiceClass.Length(); i++) {
+        if (serviceClass == sAuthorizedServiceClass[i]) {
+          dbus_connection_send(conn, reply, NULL);
+          break;
+        }
+      }
 
-    // Because we may have authorization request and pairing request from the
-    // same remote device at the same time, we need two tables to keep these
-    // messages.
-    sAuthorizeReqTable.Put(deviceAddress, msg);
+      if (i == sAuthorizedServiceClass.Length()) {
+        errorStr = NS_ConvertUTF8toUTF16(
+          nsPrintfCString("Uuid (%s) isn't authorized.", uuid));
+      }
 
-    // Increase ref count here because we need this message later.
-    // It'll be unrefed when setAuthorizationInternal() is called.
-    dbus_message_ref(msg);
+      dbus_message_unref(reply);
+    }
 
-    v = parameters;
+    return DBUS_HANDLER_RESULT_HANDLED;
   } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE,
                                          "RequestConfirmation")) {
     // This method gets called when the service daemon needs to confirm a
@@ -1097,7 +1110,6 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_UINT32, &passkey,
                                DBUS_TYPE_INVALID)) {
-      BT_WARNING("%s: Invalid arguments: RequestConfirmation()", __FUNCTION__);
       errorStr.AssignLiteral("Invalid arguments: RequestConfirmation()");
       goto handle_error;
     }
@@ -1121,8 +1133,6 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     if (!dbus_message_get_args(msg, NULL,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_INVALID)) {
-      BT_WARNING("%s: Invalid arguments for RequestPinCode() method",
-                 __FUNCTION__);
       errorStr.AssignLiteral("Invalid arguments for RequestPinCode() method");
       goto handle_error;
     }
@@ -1144,8 +1154,6 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     if (!dbus_message_get_args(msg, NULL,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_INVALID)) {
-      BT_WARNING("%s: Invalid arguments for RequestPasskey() method",
-                 __FUNCTION__);
       errorStr.AssignLiteral("Invalid arguments for RequestPasskey() method");
       goto handle_error;
     }
@@ -1184,7 +1192,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
   }
 
   if (!errorStr.IsEmpty()) {
-    NS_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
+    BT_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
   }
 
@@ -1269,6 +1277,8 @@ public:
     if (!aReply || (dbus_message_get_type(aReply) == DBUS_MESSAGE_TYPE_ERROR)) {
       return;
     }
+
+    sAuthorizedServiceClass.AppendElement(BluetoothServiceClass::A2DP);
 
     // TODO/qdot: This needs to be held for the life of the bluetooth connection
     // so we could clean it up. For right now though, we can throw it away.
@@ -1783,10 +1793,6 @@ BluetoothDBusService::StartInternal()
     sPairingReqTable.Init();
   }
 
-  if (!sAuthorizeReqTable.IsInitialized()) {
-    sAuthorizeReqTable.Init();
-  }
-
   BluetoothValue v;
   nsAutoString replyError;
   if (!GetDefaultAdapterPath(v, replyError)) {
@@ -1863,11 +1869,10 @@ BluetoothDBusService::StopInternal()
   sPairingReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
   sPairingReqTable.Clear();
 
-  sAuthorizeReqTable.EnumerateRead(UnrefDBusMessages, nullptr);
-  sAuthorizeReqTable.Clear();
-
   sIsPairing = 0;
   sConnectedDeviceCount = 0;
+
+  sAuthorizedServiceClass.Clear();
 
   StopDBus();
   return NS_OK;
@@ -2586,53 +2591,6 @@ BluetoothDBusService::SetPairingConfirmationInternal(
   dbus_message_unref(reply);
 
   sPairingReqTable.Remove(aDeviceAddress);
-  DispatchBluetoothReply(aRunnable, v, errorStr);
-  return result;
-}
-
-bool
-BluetoothDBusService::SetAuthorizationInternal(
-                                              const nsAString& aDeviceAddress,
-                                              bool aAllow,
-                                              BluetoothReplyRunnable* aRunnable)
-{
-  nsAutoString errorStr;
-  LOG("[B] %s", __FUNCTION__);
-  BluetoothValue v = true;
-  DBusMessage *msg;
-
-  if (!sAuthorizeReqTable.Get(aDeviceAddress, &msg)) {
-    BT_WARNING("%s: Couldn't get original request message.", __FUNCTION__);
-    errorStr.AssignLiteral("Couldn't get original request message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return false;
-  }
-
-  DBusMessage *reply;
-
-  if (aAllow) {
-    reply = dbus_message_new_method_return(msg);
-  } else {
-    reply = dbus_message_new_error(msg, "org.bluez.Error.Rejected",
-                                   "User rejected authorization");
-  }
-
-  if (!reply) {
-    BT_WARNING("%s: Memory can't be allocated for the message.", __FUNCTION__);
-    dbus_message_unref(msg);
-    errorStr.AssignLiteral("Memory can't be allocated for the message.");
-    DispatchBluetoothReply(aRunnable, v, errorStr);
-    return false;
-  }
-
-  bool result = dbus_func_send(mConnection, nullptr, reply);
-  if (!result) {
-    errorStr.AssignLiteral("Can't send message!");
-  }
-  dbus_message_unref(msg);
-  dbus_message_unref(reply);
-
-  sAuthorizeReqTable.Remove(aDeviceAddress);
   DispatchBluetoothReply(aRunnable, v, errorStr);
   return result;
 }
