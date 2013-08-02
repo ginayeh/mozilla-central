@@ -8,6 +8,15 @@
 
 USING_BLUETOOTH_NAMESPACE
 
+#undef LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+#else
+#define BTDEBUG true
+#define LOG(args...) if (BTDEBUG) printf(args);
+#endif
+
 void
 BluetoothUuidHelper::GetString(BluetoothServiceClass aServiceClassUuid,
                                nsAString& aRetUuidStr)
@@ -32,11 +41,13 @@ BluetoothUuidHelper::GetBluetoothServiceClass(const nsAString& aUuidStr)
    */
   BluetoothServiceClass retValue = BluetoothServiceClass::UNKNOWN;
   nsString uuid(Substring(aUuidStr, 4, 4));
+  LOG("[Uuid] uuid: %s", NS_ConvertUTF16toUTF8(uuid).get());
 
   nsresult rv;
   int32_t integer = uuid.ToInteger(&rv, 16);
   NS_ENSURE_SUCCESS(rv, retValue);
 
+  LOG("[Uuid] integer: %X", integer);
   switch (integer) {
     case BluetoothServiceClass::A2DP:
     case BluetoothServiceClass::HANDSFREE:

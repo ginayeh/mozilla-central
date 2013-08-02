@@ -352,29 +352,36 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
   if (aErr && dbus_error_is_set(aErr)) {
     aErrorStr = NS_ConvertUTF8toUTF16(aErr->message);
     LOG_AND_FREE_DBUS_ERROR(aErr);
+    LOG("111");
     return true;
   }
 
   DBusError err;
   dbus_error_init(&err);
   if (dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_ERROR) {
+    LOG("222");
     const char* error_msg;
     if (!dbus_message_get_args(aMsg, &err, DBUS_TYPE_STRING,
                                &error_msg, DBUS_TYPE_INVALID) ||
         !error_msg) {
+      LOG("333");
       if (dbus_error_is_set(&err)) {
         aErrorStr = NS_ConvertUTF8toUTF16(err.message);
         LOG_AND_FREE_DBUS_ERROR(&err);
+        LOG("444");
         return true;
       } else {
         aErrorStr.AssignLiteral("Unknown Error");
+        LOG("555");
         return true;
       }
     } else {
+      LOG("666");
       aErrorStr = NS_ConvertUTF8toUTF16(error_msg);
       return true;
     }
   }
+  LOG("777");
   return false;
 }
 
@@ -516,10 +523,12 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN &&
       !dbus_message_get_args(aMsg, &err, DBUS_TYPE_INVALID)) {
     if (dbus_error_is_set(&err)) {
+      LOG("aaa");
       aErrorStr = NS_ConvertUTF8toUTF16(err.message);
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
   }
+  LOG("error string: %s", NS_ConvertUTF16toUTF8(aErrorStr).get());
   aValue = aErrorStr.IsEmpty();
 }
 
@@ -1230,6 +1239,8 @@ public:
     if (!aReply || (dbus_message_get_type(aReply) == DBUS_MESSAGE_TYPE_ERROR)) {
       return;
     }
+
+    sAuthorizedServiceClass.AppendElement(BluetoothServiceClass::A2DP);
 
     // TODO/qdot: This needs to be held for the life of the bluetooth connection
     // so we could clean it up. For right now though, we can throw it away.
