@@ -728,29 +728,6 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
   return NS_OK;
 }
 
-nsresult
-BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
-                                   nsIDOMDOMRequest** aRequest)
-{
-  LOG("[A] %s", __FUNCTION__);
-  nsCOMPtr<nsIDOMDOMRequest> req;
-  nsresult rv = PrepareDOMRequest(GetOwner(), getter_AddRefs(req));
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-
-  nsRefPtr<BluetoothVoidReplyRunnable> results =
-    new BluetoothVoidReplyRunnable(req);
-
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-  if(!bs->SetAuthorizationInternal(aDeviceAddress, aAllow, results)) {
-    NS_WARNING("SetAuthorization failed!");
-    return NS_ERROR_FAILURE;
-  }
-
-  req.forget(aRequest);
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
                           uint16_t aProfileId,

@@ -34,9 +34,6 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-dialer-command": {
     "telephony": []
   },
-  "bluetooth-authorize": {
-    "bluetooth": []
-  },
   "bluetooth-cancel": {
     "bluetooth": []
   },
@@ -71,6 +68,7 @@ this.SystemMessagePermissionsTable = {
   "icc-stkcommand": {
     "settings": ["read", "write"]
   },
+  "media-button": { },
   "notification": {
     "desktop-notification": []
   },

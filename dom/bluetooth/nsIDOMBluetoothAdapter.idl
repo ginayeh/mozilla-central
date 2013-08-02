@@ -43,7 +43,7 @@ interface nsIDOMDOMRequest;
 interface nsIDOMBlob;
 interface nsIDOMBluetoothDevice;
 
-[scriptable, builtinclass, uuid(1a0c6c90-23e3-4f4c-8076-98e4341c2024)]
+[scriptable, builtinclass, uuid(4b72da53-8947-4c46-ab2d-ce3ad53a3cdd)]
 interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
 {
   readonly attribute DOMString address;
@@ -73,7 +73,6 @@ interface nsIDOMBluetoothAdapter : nsIDOMEventTarget
   nsIDOMDOMRequest setPinCode(in DOMString aDeviceAddress, in DOMString aPinCode);
   nsIDOMDOMRequest setPasskey(in DOMString aDeviceAddress, in unsigned long aPasskey);
   nsIDOMDOMRequest setPairingConfirmation(in DOMString aDeviceAddress, in bool aConfirmation);
-  nsIDOMDOMRequest setAuthorization(in DOMString aDeviceAddress, in bool aAllow);
 
   /** 
    * Connect/Disconnect to a specific service of a target remote device. 
