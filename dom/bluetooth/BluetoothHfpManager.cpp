@@ -1048,7 +1048,12 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
     BluetoothUuidHelper::GetString(BluetoothServiceClass::HEADSET, uuid);
   }
 
-  if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
+  // XXX
+  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(a2dp);
+  a2dp->Connect(aDeviceAddress);
+
+/*  if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     return;
@@ -1069,7 +1074,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
 
   mRunnable = aRunnable;
   mSocket =
-    new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
+    new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);*/
 }
 
 bool
@@ -1522,9 +1527,9 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
 
   ListenSco();
 
-  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
   NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Connect(mDeviceAddress);
+  a2dp->Connect(mDeviceAddress);*/
 }
 
 void
