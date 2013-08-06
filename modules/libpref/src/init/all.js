@@ -4073,6 +4073,8 @@ pref("layers.acceleration.force-enabled", false);
 pref("layers.acceleration.draw-fps", false);
 
 pref("layers.draw-borders", false);
+pref("layers.draw-tile-borders", false);
+pref("layers.draw-bigimage-borders", false);
 pref("layers.frame-counter", false);
 
 #ifdef XP_MACOSX
@@ -4087,6 +4089,8 @@ pref("layers.offmainthreadcomposition.testing.enabled", false);
 pref("layers.offmainthreadcomposition.async-animations", false);
 // Whether to prefer normal memory over shared memory. Ignored with cross-process compositing
 pref("layers.prefer-memory-over-shmem", true);
+
+pref("layers.bufferrotation.enabled", true);
 
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2

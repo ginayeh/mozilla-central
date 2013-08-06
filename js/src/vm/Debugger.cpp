@@ -378,7 +378,7 @@ Debugger::~Debugger()
     JS_ASSERT(debuggees.empty());
 
     /* This always happens in the GC thread, so no locking is required. */
-    JS_ASSERT(object->compartment()->rt->isHeapBusy());
+    JS_ASSERT(object->runtimeFromMainThread()->isHeapBusy());
 
     /*
      * Since the inactive state for this link is a singleton cycle, it's always
@@ -1643,7 +1643,10 @@ Debugger::findCompartmentEdges(Zone *zone, js::gc::ComponentFinder<Zone> &finder
      * This ensure that debuggers and their debuggees are finalized in the same
      * group.
      */
-    for (Debugger *dbg = zone->rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
+    for (Debugger *dbg = zone->runtimeFromMainThread()->debuggerList.getFirst();
+         dbg;
+         dbg = dbg->getNext())
+    {
         Zone *w = dbg->object->zone();
         if (w == zone || !w->isGCMarking())
             continue;
@@ -2214,7 +2217,7 @@ Debugger::removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
                                GlobalObjectSet::Enum *compartmentEnum,
                                GlobalObjectSet::Enum *debugEnum)
 {
-    AutoDebugModeGC dmgc(global->compartment()->rt);
+    AutoDebugModeGC dmgc(fop->runtime());
     return removeDebuggeeGlobal(fop, global, dmgc, compartmentEnum, debugEnum);
 }
 
@@ -4516,11 +4519,19 @@ DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseInitializedLength(cx, 0, fun->nargs);
 
     if (fun->isInterpreted()) {
-        JS_ASSERT(fun->nargs == fun->nonLazyScript()->bindings.numArgs());
+        RootedScript script(cx);
+
+        {
+            AutoCompartment ac(cx, fun);
+            script = fun->getOrCreateScript(cx);
+            if (!script)
+                return false;
+        }
+
+        JS_ASSERT(fun->nargs == script->bindings.numArgs());
 
         if (fun->nargs > 0) {
             BindingVector bindings(cx);
-            RootedScript script(cx, fun->nonLazyScript());
             if (!FillBindingVector(script, &bindings))
                 return false;
             for (size_t i = 0; i < fun->nargs; i++) {
@@ -4557,7 +4568,16 @@ DebuggerObject_getScript(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    RootedScript script(cx, fun->nonLazyScript());
+    RootedScript script(cx);
+
+    {
+        AutoCompartment ac(cx, obj);
+
+        script = fun->getOrCreateScript(cx);
+        if (!script)
+            return false;
+    }
+
     RootedObject scriptObject(cx, dbg->wrapScript(cx, script));
     if (!scriptObject)
         return false;

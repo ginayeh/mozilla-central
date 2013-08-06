@@ -7,6 +7,8 @@
 #define MOZILLA_LAYERS_COMPOSITORTYPES_H
 
 #include "LayersTypes.h"
+#include "nsXULAppAPI.h"
+
 
 namespace mozilla {
 namespace layers {
@@ -67,10 +69,51 @@ const TextureFlags TEXTURE_DEALLOCATE_HOST    = 1 << 26;
 // modified, it can only be read. It is safe to not Lock/Unlock immutable
 // textures.
 const TextureFlags TEXTURE_IMMUTABLE          = 1 << 27;
+// The contents of the texture must be uploaded or copied immediately
+// during the transaction, because the producer may want to write
+// to it again.
+const TextureFlags TEXTURE_IMMEDIATE_UPLOAD   = 1 << 28;
+// The texture is going to be used as part of a double
+// buffered pair, and so we can guarantee that the producer/consumer
+// won't be racing to access its contents.
+const TextureFlags TEXTURE_DOUBLE_BUFFERED    = 1 << 29;
 
 // the default flags
 const TextureFlags TEXTURE_FLAGS_DEFAULT = TEXTURE_DEALLOCATE_HOST
                                          | TEXTURE_FRONT;
+
+static inline bool
+TextureRequiresLocking(TextureFlags aFlags)
+{
+  // If we're not double buffered, or uploading
+  // within a transaction, then we need to support
+  // locking correctly.
+  return !(aFlags & (TEXTURE_IMMEDIATE_UPLOAD |
+                     TEXTURE_DOUBLE_BUFFERED |
+                     TEXTURE_IMMUTABLE));
+}
+
+/**
+ * The type of debug diagnostic to enable.
+ */
+typedef uint32_t DiagnosticTypes;
+const DiagnosticTypes DIAGNOSTIC_NONE             = 0;
+const DiagnosticTypes DIAGNOSTIC_TILE_BORDERS     = 1 << 0;
+const DiagnosticTypes DIAGNOSTIC_LAYER_BORDERS    = 1 << 1;
+const DiagnosticTypes DIAGNOSTIC_BIGIMAGE_BORDERS = 1 << 2;
+
+/**
+ * Information about the object that is being diagnosed.
+ */
+typedef uint32_t DiagnosticFlags;
+const DiagnosticFlags DIAGNOSTIC_IMAGE      = 1 << 0;
+const DiagnosticFlags DIAGNOSTIC_CONTENT    = 1 << 1;
+const DiagnosticFlags DIAGNOSTIC_CANVAS     = 1 << 2;
+const DiagnosticFlags DIAGNOSTIC_COLOR      = 1 << 3;
+const DiagnosticFlags DIAGNOSTIC_CONTAINER  = 1 << 4;
+const DiagnosticFlags DIAGNOSTIC_TILE       = 1 << 5;
+const DiagnosticFlags DIAGNOSTIC_BIGIMAGE   = 1 << 6;
+const DiagnosticFlags DIAGNOSTIC_COMPONENT_ALPHA = 1 << 7;
 
 /**
  * See gfx/layers/Effects.h
@@ -104,7 +147,8 @@ enum DeprecatedTextureClientType
   TEXTURE_SHARED_GL_EXTERNAL, // GLContext::SharedTextureHandle, the ownership of
                               // the SurfaceDescriptor passed to the texture
                               // remains with whoever passed it.
-  TEXTURE_STREAM_GL           // WebGL streaming buffer
+  TEXTURE_STREAM_GL,          // WebGL streaming buffer
+  TEXTURE_FALLBACK            // A fallback path appropriate for the platform
 };
 
 /**
@@ -147,15 +191,18 @@ enum DeprecatedTextureHostFlags
 struct TextureFactoryIdentifier
 {
   LayersBackend mParentBackend;
+  GeckoProcessType mParentProcessId;
   int32_t mMaxTextureSize;
   bool mSupportsTextureBlitting;
   bool mSupportsPartialUploads;
 
   TextureFactoryIdentifier(LayersBackend aLayersBackend = LAYERS_NONE,
+                           GeckoProcessType aParentProcessId = GeckoProcessType_Default,
                            int32_t aMaxTextureSize = 0,
                            bool aSupportsTextureBlitting = false,
                            bool aSupportsPartialUploads = false)
     : mParentBackend(aLayersBackend)
+    , mParentProcessId(aParentProcessId)
     , mMaxTextureSize(aMaxTextureSize)
     , mSupportsTextureBlitting(aSupportsTextureBlitting)
     , mSupportsPartialUploads(aSupportsPartialUploads)

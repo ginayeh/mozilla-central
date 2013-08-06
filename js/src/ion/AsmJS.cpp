@@ -9,7 +9,7 @@
 #include "mozilla/Move.h"
 
 #ifdef MOZ_VTUNE
-# include "jitprofiling.h"
+# include "vtune/VTuneWrapper.h"
 #endif
 
 #include "jsmath.h"
@@ -359,9 +359,9 @@ static TokenKind
 PeekToken(AsmJSParser &parser)
 {
     TokenStream &ts = parser.tokenStream;
-    while (ts.peekToken(TSF_OPERAND) == TOK_SEMI)
-        ts.getToken(TSF_OPERAND);
-    return ts.peekToken(TSF_OPERAND);
+    while (ts.peekToken(TokenStream::Operand) == TOK_SEMI)
+        ts.consumeKnownToken(TOK_SEMI);
+    return ts.peekToken(TokenStream::Operand);
 }
 
 static bool
@@ -1763,7 +1763,7 @@ class FunctionCompiler
         JS_ASSERT(locals_.count() == argTypes.length() + varInitializers_.length());
 
         alloc_  = lifo_.new_<TempAllocator>(&lifo_);
-        ionContext_.construct(m_.cx()->compartment(), alloc_);
+        ionContext_.construct(m_.cx()->runtime(), m_.cx()->compartment(), alloc_);
 
         graph_  = lifo_.new_<MIRGraph>(alloc_);
         info_   = lifo_.new_<CompileInfo>(locals_.count(), SequentialExecution);
@@ -4585,7 +4585,7 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     DebugOnly<TokenKind> tk = tokenStream.getToken();
     JS_ASSERT(tk == TOK_FUNCTION);
 
-    if (tokenStream.getToken(TSF_KEYWORD_IS_NAME) != TOK_NAME)
+    if (tokenStream.getToken(TokenStream::KeywordIsName) != TOK_NAME)
         return false;  // This will throw a SyntaxError, no need to m.fail.
 
     RootedPropertyName name(m.cx(), tokenStream.currentToken().name());
@@ -4710,10 +4710,8 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
     }
 
 #ifdef MOZ_VTUNE
-    if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
-        if (!m.trackProfiledFunction(func, m.masm().size()))
-            return false;
-    }
+    if (IsVTuneProfilingActive() && !m.trackProfiledFunction(func, m.masm().size()))
+        return false;
 #endif
 
 #ifdef JS_ION_PERF
@@ -4845,7 +4843,7 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
 
     {
         // Perform code generation on the main thread.
-        IonContext ionContext(m.cx()->compartment(), &task->mir->temp());
+        IonContext ionContext(m.cx()->runtime(), m.cx()->compartment(), &task->mir->temp());
         if (!GenerateCode(m, func, *task->mir, *task->lir))
             return false;
     }
@@ -5118,7 +5116,7 @@ CheckModuleReturn(ModuleCompiler &m)
         return m.fail(NULL, "invalid asm.js statement");
     }
 
-    ParseNode *returnStmt = m.parser().statement(TSF_OPERAND);
+    ParseNode *returnStmt = m.parser().statement();
     if (!returnStmt)
         return false;
 
@@ -5154,7 +5152,7 @@ static const RegisterSet NonVolatileRegs =
 static void
 LoadAsmJSActivationIntoRegister(MacroAssembler &masm, Register reg)
 {
-    masm.movePtr(ImmWord(GetIonContext()->compartment->rt), reg);
+    masm.movePtr(ImmWord(GetIonContext()->runtime), reg);
     size_t offset = offsetof(JSRuntime, mainThread) +
                     PerThreadData::offsetOfAsmJSActivationStackReadOnly();
     masm.loadPtr(Address(reg, offset), reg);
@@ -6206,7 +6204,7 @@ FinishModule(ModuleCompiler &m,
              ScopedJSFreePtr<char> *compilationTimeReport)
 {
     TempAllocator alloc(&m.cx()->tempLifoAlloc());
-    IonContext ionContext(m.cx()->compartment(), &alloc);
+    IonContext ionContext(m.cx()->runtime(), m.cx()->compartment(), &alloc);
 
     if (!GenerateStubs(m))
         return false;

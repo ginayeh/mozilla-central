@@ -211,7 +211,7 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
     }
 
     JSContextCallback cxCallback = rt->cxCallback;
-    if (cxCallback && !cxCallback(cx, JSCONTEXT_NEW)) {
+    if (cxCallback && !cxCallback(cx, JSCONTEXT_NEW, rt->cxCallbackData)) {
         DestroyContext(cx, DCM_NEW_FAILED);
         return NULL;
     }
@@ -241,7 +241,8 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
              * JSCONTEXT_DESTROY callback is not allowed to fail and must
              * return true.
              */
-            JS_ALWAYS_TRUE(cxCallback(cx, JSCONTEXT_DESTROY));
+            JS_ALWAYS_TRUE(cxCallback(cx, JSCONTEXT_DESTROY,
+                                      rt->cxCallbackData));
         }
     }
 
@@ -1303,7 +1304,7 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(JSContext *cx)
     : cx(cx)
 {
     JS_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
-    cx->runtime()->assertValidThread();
+    JS_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
     cx->runtime()->checkRequestDepth++;
 }
 
@@ -1312,7 +1313,7 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(ContextFriendFields *cxArg)
 {
     if (cx) {
         JS_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());
-        cx->runtime()->assertValidThread();
+        JS_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
         cx->runtime()->checkRequestDepth++;
     }
 }
