@@ -43,7 +43,8 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothUuid.cpp',
         'BluetoothSocket.cpp',
         'MediaMetaData.cpp',
-        'MediaPlayStatus.cpp'
+        'MediaPlayStatus.cpp',
+				'BluetoothProfileController.cpp'
     ]
 
     if CONFIG['MOZ_B2G_RIL']:
