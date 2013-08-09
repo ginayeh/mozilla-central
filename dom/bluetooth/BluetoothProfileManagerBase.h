@@ -18,9 +18,11 @@
 #define ERR_SERVICE_CHANNEL_NOT_FOUND   "DeviceChannelRetrievalError"
 
 #include "BluetoothCommon.h"
+//#include "BluetoothProfileController.h"
 #include "nsIObserver.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
+class BluetoothProfileController;
 
 class BluetoothProfileManagerBase : public nsIObserver
 {
@@ -31,6 +33,9 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) = 0;
   virtual void GetAddress(nsAString& aDeviceAddress) = 0;
   virtual bool IsConnected() = 0;
+  virtual bool Connect(const nsAString& aDeviceAddress,
+                       const BluetoothProfileController* aController) = 0;
+  virtual void Disconnect(const BluetoothProfileController* aController) = 0;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -9,6 +9,7 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothProfileManagerBase.h"
+#include "BluetoothProfileController.h"
 #include "BluetoothSocketObserver.h"
 #include "BluetoothTelephonyListener.h"
 #include "mozilla/ipc/UnixSocket.h"
@@ -73,10 +74,14 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
-  void Connect(const nsAString& aDeviceAddress,
-               const bool aIsHandsfree,
-               BluetoothReplyRunnable* aRunnable);
-  void Disconnect();
+  virtual bool Connect(const nsAString& aDeviceAddress,
+                       const BluetoothProfileController* aController)
+                       MOZ_OVERRIDE;
+//               const bool aIsHandsfree,
+//               BluetoothReplyRunnable* aRunnable);
+  virtual void Disconnect(const BluetoothProfileController* aController)
+                          MOZ_OVERRIDE;
+
   bool Listen();
   bool ConnectSco(BluetoothReplyRunnable* aRunnable = nullptr);
   bool DisconnectSco();
@@ -148,6 +153,7 @@ private:
   nsTArray<Call> mCurrentCallArray;
   nsAutoPtr<BluetoothTelephonyListener> mListener;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  BluetoothProfileController* mController;
   nsRefPtr<BluetoothReplyRunnable> mScoRunnable;
 
   // If a connection has been established, mSocket will be the socket

@@ -2646,16 +2646,16 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
 
   if (aProfileId == BluetoothServiceClass::HANDSFREE) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    hfp->Connect(aDeviceAddress, true, aRunnable);
+//    hfp->Connect(aDeviceAddress, true, aRunnable);
   } else if (aProfileId == BluetoothServiceClass::HEADSET) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    hfp->Connect(aDeviceAddress, false, aRunnable);
+//    hfp->Connect(aDeviceAddress, false, aRunnable);
   } else if (aProfileId == BluetoothServiceClass::HID) {
     BluetoothHidManager* hid = BluetoothHidManager::Get();
-    hid->Connect(aDeviceAddress, aRunnable);
+//    hid->Connect(aDeviceAddress, aRunnable);
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
-    opp->Connect(aDeviceAddress, aRunnable);
+//    opp->Connect(aDeviceAddress, aRunnable);
   } else {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
@@ -2671,13 +2671,13 @@ BluetoothDBusService::Disconnect(const uint16_t aProfileId,
   if (aProfileId == BluetoothServiceClass::HANDSFREE ||
       aProfileId == BluetoothServiceClass::HEADSET) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
-    hfp->Disconnect();
+//    hfp->Disconnect();
   } else if (aProfileId == BluetoothServiceClass::HID) {
     BluetoothHidManager* hid = BluetoothHidManager::Get();
-    hid->Disconnect();
+//    hid->Disconnect();
   } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
     BluetoothOppManager* opp = BluetoothOppManager::Get();
-    opp->Disconnect();
+//    opp->Disconnect();
   } else {
     BT_WARNING(ERR_UNKNOWN_PROFILE);
     return;
