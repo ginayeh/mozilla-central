@@ -25,7 +25,13 @@ BluetoothProfileController::BluetoothProfileController(
                                               uint32_t aCod,
                                               BluetoothReplyRunnable* aRunnable)
 {
+/*  switch ((aCod & 0x1f00) >> 8) {
+    case 0x04: // Audio
 
+      break;
+
+    case 0x05: // Peripheral
+  }*/
 }
 
 BluetoothProfileController::BluetoothProfileController(
@@ -80,7 +86,7 @@ BluetoothProfileController::ConnectNext()
 }
 
 void
-BluetoothProfileController::OnConnectCallback()
+BluetoothProfileController::OnConnectReply()
 {
   mProfilesIndex++;
   ConnectNext();
@@ -109,15 +115,9 @@ BluetoothProfileController::DisconnectNext()
 }
 
 void
-BluetoothProfileController::OnDisconnectCallback()
+BluetoothProfileController::OnDisconnectReply()
 {
   mProfilesIndex++;
   DisconnectNext();
 }
 
-void
-BluetoothProfileController::SetErrorString(const char* aErrorString)
-{
-  // XXX
-  mErrorString.AssignLiteral("test");
-}

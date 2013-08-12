@@ -157,7 +157,7 @@ BluetoothA2dpManager::HandleShutdown()
   sBluetoothA2dpManager = nullptr;
 }
 
-bool
+void
 BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
                               BluetoothProfileController* aController)
 {
@@ -172,11 +172,9 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
   mController = aController;
 
   BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, false);
-  nsresult rv = bs->SendSinkMessage(aDeviceAddress,
-                                    NS_LITERAL_STRING("Connect"));
-
-  return NS_SUCCEEDED(rv);
+  NS_ENSURE_TRUE_VOID(bs);
+  bs->SendSinkMessage(aDeviceAddress,
+                      NS_LITERAL_STRING("Connect"));
 }
 
 void
@@ -215,9 +213,9 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     NotifyConnectionStatusChanged();
     DispatchConnectionStatusChanged();
     if (mA2dpConnected) {
-      mController->OnConnectCallback();
+      mController->OnConnectReply();
     } else {
-      mController->OnDisconnectCallback();
+      mController->OnDisconnectReply();
     }
   } else if (name.EqualsLiteral("Playing")) {
     // Indicates if a stream is active to a A2DP sink on the remote device.

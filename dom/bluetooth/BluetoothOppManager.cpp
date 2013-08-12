@@ -241,7 +241,7 @@ BluetoothOppManager::Get()
   return sBluetoothOppManager;
 }
 
-bool
+void
 BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
                              BluetoothProfileController* aController)
 //                             BluetoothReplyRunnable* aRunnable)
@@ -253,21 +253,20 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
   if (!bs || sInShutdown) {
 /*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));*/
-    aController->SetErrorString(ERR_NO_AVAILABLE_RESOURCE);
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   if (mSocket) {
     if (mConnectedDeviceAddress == aDeviceAddress) {
 /*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));*/
-      aController->SetErrorString(ERR_ALREADY_CONNECTED);
     } else {
 /*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));*/
-      aController->SetErrorString(ERR_REACHED_CONNECTION_LIMIT);
     }
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   mNeedsUpdatingSdpRecords = true;
@@ -278,8 +277,8 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
 /*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));*/
-    aController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   // Stop listening because currently we only support one connection at a time.
@@ -299,7 +298,6 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
   mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
-  return true;
 }
 
 void
@@ -310,6 +308,8 @@ BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
     mSocket->Disconnect();
     mController = aController;
     mSocket = nullptr;
+  } else {
+    aController->OnDisconnectReply();
   }
 }
 
@@ -1434,7 +1434,7 @@ BluetoothOppManager::OnConnectSuccess(BluetoothSocket* aSocket)
     mRunnable = nullptr;
   }*/
   if (mController) {
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
   }
 
@@ -1453,7 +1453,7 @@ BluetoothOppManager::OnConnectError(BluetoothSocket* aSocket)
     mRunnable = nullptr;
   }*/
   if (mController) {
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
   }
 
@@ -1476,7 +1476,7 @@ BluetoothOppManager::OnDisconnect(BluetoothSocket* aSocket)
   }
 
   if (mController) {
-    mController->OnDisconnectCallback();
+    mController->OnDisconnectReply();
     mController = nullptr;
   }
 
@@ -1523,8 +1523,7 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*      DispatchBluetoothReply(mRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
       mRunnable = nullptr;*/
-      mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-      mController->OnConnectCallback();
+      mController->OnConnectReply();
       mController = nullptr;
       mSocket = nullptr;
       Listen();
@@ -1537,8 +1536,7 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING("SocketConnectionError"));
     mRunnable = nullptr;*/
-    mController->SetErrorString("SocketConnectionError");
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
     mSocket = nullptr;
     Listen();
@@ -1563,8 +1561,7 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
 /*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     mRunnable = nullptr;*/
-    mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
     mSocket = nullptr;
     Listen();

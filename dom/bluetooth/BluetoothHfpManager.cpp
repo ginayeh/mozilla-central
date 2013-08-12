@@ -1023,7 +1023,7 @@ respond_with_ok:
   SendLine("OK");
 }
 
-bool
+void
 BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
                              BluetoothProfileController* aController)
 //                             const bool aIsHandsfree,
@@ -1036,22 +1036,20 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   if (!bs || sInShutdown) {
 /*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));*/
-    aController->SetErrorString(ERR_NO_AVAILABLE_RESOURCE);
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   if (mSocket) {
     if (mDeviceAddress == aDeviceAddress) {
 /*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));*/
-      aController->SetErrorString(ERR_ALREADY_CONNECTED);
     } else {
 /*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));*/
-      aController->SetErrorString(ERR_REACHED_CONNECTION_LIMIT);
     }
-
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   mNeedsUpdatingSdpRecords = true;
@@ -1067,8 +1065,8 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
 /*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));*/
-    mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   // Stop listening because currently we only support one connection at a time.
@@ -1088,7 +1086,6 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
-  return true;
 }
 
 bool
@@ -1144,6 +1141,8 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
     mSocket->Disconnect();
     mController = aController;
     mSocket = nullptr;
+  } else {
+    aController->OnDisconnectReply();
   }
 
 /*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
@@ -1534,7 +1533,7 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
     mRunnable = nullptr;
   }*/
   if (mController) {
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
   }
 
@@ -1572,8 +1571,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
     mRunnable = nullptr;
   }*/
   if (mController) {
-    mController->SetErrorString("Failed to connect with a bluetooth headset!");
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
   }
 
@@ -1602,7 +1600,7 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   }
 
   if (mController) {
-    mController->OnDisconnectCallback();
+    mController->OnDisconnectReply();
     mController = nullptr;
   }
 
@@ -1640,8 +1638,7 @@ BluetoothHfpManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
 /*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     mRunnable = nullptr;*/
-    mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
     mSocket = nullptr;
     Listen();
@@ -1671,8 +1668,7 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*      DispatchBluetoothReply(mRunnable, v,
                              NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
       mRunnable = nullptr;*/
-      mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-      mController->OnConnectCallback();
+      mController->OnConnectReply();
       mController = nullptr;
       mSocket = nullptr;
       Listen();
@@ -1691,8 +1687,7 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*    DispatchBluetoothReply(mRunnable, v,
                            NS_LITERAL_STRING("SocketConnectionError"));
     mRunnable = nullptr;*/
-    mController->SetErrorString("SocketConnectionError");
-    mController->OnConnectCallback();
+    mController->OnConnectReply();
     mController = nullptr;
     mSocket = nullptr;
     Listen();

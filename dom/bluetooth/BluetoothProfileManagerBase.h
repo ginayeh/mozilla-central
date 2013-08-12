@@ -33,7 +33,7 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) = 0;
   virtual void GetAddress(nsAString& aDeviceAddress) = 0;
   virtual bool IsConnected() = 0;
-  virtual bool Connect(const nsAString& aDeviceAddress,
+  virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController) = 0;
   virtual void Disconnect(BluetoothProfileController* aController) = 0;
 };

@@ -40,7 +40,7 @@ public:
   virtual bool IsConnected() MOZ_OVERRIDE;
 
   // A2DP member functions
-  virtual bool Connect(const nsAString& aDeviceAddress,
+  virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
