@@ -56,9 +56,12 @@ BluetoothProfileController::BluetoothProfileController(
 }
 
 void
-BluetoothProfileController::Connect()
+BluetoothProfileController::Connect(const nsAString& aDeviceAddress)
 {
   MOZ_ASSERT(mProfilesIndex < mProfiles.Length());
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+
+  mDeviceAddress = aDeviceAddress;
 
   ConnectNext();
 }
@@ -67,9 +70,12 @@ void
 BluetoothProfileController::ConnectNext()
 {
   if (mProfilesIndex < mProfiles.Length()) {
-    mProfiles[mProfilesIndex]->Connect();
+    mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
   } else {
     // All profiles has been tried
+    mDeviceAddress.Truncate();
+    mProfilesIndex = -1;
+    mProfiles.Clear();
   }
 }
 
@@ -81,28 +87,37 @@ BluetoothProfileController::OnConnectCallback()
 }
 
 void
-BluetoothProfileController::Disconnect()
+BluetoothProfileController::Disconnect(const nsAString& aDeviceAddress)
 {
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
+  mDeviceAddress = aDeviceAddress;
+
+  DisconnectNext();
 }
 
 void
 BluetoothProfileController::DisconnectNext()
 {
   if (mProfilesIndex < mProfiles.Length()) {
-    mProfiles[mProfilesIndex]->Disconnect();
+    mProfiles[mProfilesIndex]->Disconnect(this);
   } else {
-  
+    mDeviceAddress.Truncate();
+    mProfilesIndex = -1;
+    mProfiles.Clear();
   }
 }
 
 void
 BluetoothProfileController::OnDisconnectCallback()
+{
+  mProfilesIndex++;
   DisconnectNext();
 }
 
 void
 BluetoothProfileController::SetErrorString(const char* aErrorString)
 {
-  mErrorString.AssignLiteral(aErrorString);
+  // XXX
+  mErrorString.AssignLiteral("test");
 }

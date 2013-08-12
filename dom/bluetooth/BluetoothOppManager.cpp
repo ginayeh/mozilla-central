@@ -7,6 +7,7 @@
 #include "base/basictypes.h"
 #include "BluetoothOppManager.h"
 
+#include "BluetoothProfileController.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
@@ -243,29 +244,33 @@ BluetoothOppManager::Get()
   return sBluetoothOppManager;
 }
 
-void
+bool
 BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
-                             BluetoothReplyRunnable* aRunnable)
+                             BluetoothProfileController* aController)
+//                             BluetoothReplyRunnable* aRunnable)
 {
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
+/*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));*/
+    aController->SetErrorString(ERR_NO_AVAILABLE_RESOURCE);
+    return false;
   }
 
   if (mSocket) {
     if (mConnectedDeviceAddress == aDeviceAddress) {
-      DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                             NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+/*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                             NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));*/
+      aController->SetErrorString(ERR_ALREADY_CONNECTED);
     } else {
-      DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                             NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
+/*      DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                             NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));*/
+      aController->SetErrorString(ERR_REACHED_CONNECTION_LIMIT);
     }
-    return;
+    return false;
   }
 
   mNeedsUpdatingSdpRecords = true;
@@ -274,9 +279,10 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
   BluetoothUuidHelper::GetString(BluetoothServiceClass::OBJECT_PUSH, uuid);
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
-    return;
+/*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));*/
+    aController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
+    return false;
   }
 
   // Stop listening because currently we only support one connection at a time.
@@ -290,19 +296,22 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
     mL2capSocket = nullptr;
   }
 
-  MOZ_ASSERT(!mRunnable);
+//  MOZ_ASSERT(!mRunnable);
 
-  mRunnable = aRunnable;
+//  mRunnable = aRunnable;
+  mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
+  return true;
 }
 
 void
-BluetoothOppManager::Disconnect()
+BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[O] %s", __FUNCTION__);
   if (mSocket) {
     mSocket->Disconnect();
+    mController = aController;
     mSocket = nullptr;
   }
 }
@@ -313,7 +322,7 @@ BluetoothOppManager::HandleShutdown()
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   sInShutdown = true;
-  Disconnect();
+  Disconnect(nullptr);
   sBluetoothOppManager = nullptr;
 }
 
@@ -473,7 +482,7 @@ BluetoothOppManager::AfterOppConnected()
     // If we fail to get a mount lock, abort this transaction
     // Directly sending disconnect-request is better than abort-request
     NS_WARNING("BluetoothOPPManager couldn't get a mount lock!");
-    Disconnect();
+    Disconnect(nullptr);
   }
 }
 
@@ -1422,13 +1431,17 @@ BluetoothOppManager::OnConnectSuccess(BluetoothSocket* aSocket)
     mRfcommSocket = nullptr;
   }
 
-  if (mRunnable) {
+/*  if (mRunnable) {
     BluetoothReply* reply = new BluetoothReply(BluetoothReplySuccess(true));
     mRunnable->SetReply(reply);
     if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
       NS_WARNING("Failed to dispatch to main thread!");
     }
     mRunnable = nullptr;
+  }*/
+  if (mController) {
+    mController->OnConnectCallback();
+    mController = nullptr;
   }
 
   // Cache device address since we can't get socket address when a remote
@@ -1440,10 +1453,14 @@ void
 BluetoothOppManager::OnConnectError(BluetoothSocket* aSocket)
 {
   LOG("[O] %s", __FUNCTION__);
-  if (mRunnable) {
+/*  if (mRunnable) {
     DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING("OnConnectError:no runnable"));
     mRunnable = nullptr;
+  }*/
+  if (mController) {
+    mController->OnConnectCallback();
+    mController = nullptr;
   }
 
   mSocket = nullptr;
@@ -1462,6 +1479,11 @@ BluetoothOppManager::OnDisconnect(BluetoothSocket* aSocket)
   if (aSocket != mSocket) {
     // Do nothing when a listening server socket is closed.
     return;
+  }
+
+  if (mController) {
+    mController->OnDisconnectCallback();
+    mController = nullptr;
   }
 
   /**
@@ -1494,7 +1516,7 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  MOZ_ASSERT(mRunnable);
+//  MOZ_ASSERT(mRunnable);
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
@@ -1504,9 +1526,12 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
       mNeedsUpdatingSdpRecords = false;
       bs->UpdateSdpRecords(aDeviceAddress, this);
     } else {
-      DispatchBluetoothReply(mRunnable, BluetoothValue(),
+/*      DispatchBluetoothReply(mRunnable, BluetoothValue(),
                              NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
-      mRunnable = nullptr;
+      mRunnable = nullptr;*/
+      mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
+      mController->OnConnectCallback();
+      mController = nullptr;
       mSocket = nullptr;
       Listen();
     }
@@ -1515,9 +1540,12 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
   }
 
   if (!mSocket->Connect(NS_ConvertUTF16toUTF8(aDeviceAddress), aChannel)) {
-    DispatchBluetoothReply(mRunnable, BluetoothValue(),
+/*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING("SocketConnectionError"));
-    mRunnable = nullptr;
+    mRunnable = nullptr;*/
+    mController->SetErrorString("SocketConnectionError");
+    mController->OnConnectCallback();
+    mController = nullptr;
     mSocket = nullptr;
     Listen();
   }
@@ -1529,7 +1557,7 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  MOZ_ASSERT(mRunnable);
+//  MOZ_ASSERT(mRunnable);
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
@@ -1538,9 +1566,12 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
   BluetoothUuidHelper::GetString(BluetoothServiceClass::OBJECT_PUSH, uuid);
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
-    DispatchBluetoothReply(mRunnable, BluetoothValue(),
+/*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
-    mRunnable = nullptr;
+    mRunnable = nullptr;*/
+    mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
+    mController->OnConnectCallback();
+    mController = nullptr;
     mSocket = nullptr;
     Listen();
   }

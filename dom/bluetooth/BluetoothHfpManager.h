@@ -75,11 +75,11 @@ public:
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
   virtual bool Connect(const nsAString& aDeviceAddress,
-                       const BluetoothProfileController* aController)
+                       BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
 //               const bool aIsHandsfree,
 //               BluetoothReplyRunnable* aRunnable);
-  virtual void Disconnect(const BluetoothProfileController* aController)
+  virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
 
   bool Listen();

@@ -9,6 +9,7 @@
 #include "BluetoothA2dpManager.h"
 
 #include "BluetoothCommon.h"
+#include "BluetoothProfileController.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
 #include "BluetoothUtils.h"
@@ -155,12 +156,13 @@ BluetoothA2dpManager::HandleShutdown()
   LOG("[A2dp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   sInShutdown = true;
-  Disconnect();
+  Disconnect(nullptr);
   sBluetoothA2dpManager = nullptr;
 }
 
 bool
-BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
+BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
+                              BluetoothProfileController* aController)
 {
   LOG("[A2dp] %s, mA2dpConnected: %d", __FUNCTION__, mA2dpConnected);
   MOZ_ASSERT(NS_IsMainThread());
@@ -177,6 +179,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
   }
 
   mDeviceAddress = aDeviceAddress;
+  mController = aController;
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
@@ -187,7 +190,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 }
 
 void
-BluetoothA2dpManager::Disconnect()
+BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[A2dp] %s, mA2dpConnected: %d, mDeviceAddress: %s", __FUNCTION__, mA2dpConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
   if (!mA2dpConnected) {
@@ -196,6 +199,7 @@ BluetoothA2dpManager::Disconnect()
   }
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
+  mController = aController;
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
@@ -221,6 +225,11 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     mA2dpConnected = value.get_bool();
     NotifyConnectionStatusChanged();
     DispatchConnectionStatusChanged();
+    if (mA2dpConnected) {
+      mController->OnConnectCallback();
+    } else {
+      mController->OnDisconnectCallback();
+    }
   } else if (name.EqualsLiteral("Playing")) {
     // Indicates if a stream is active to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);

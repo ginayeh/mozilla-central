@@ -34,8 +34,8 @@ public:
   virtual void GetAddress(nsAString& aDeviceAddress) = 0;
   virtual bool IsConnected() = 0;
   virtual bool Connect(const nsAString& aDeviceAddress,
-                       const BluetoothProfileController* aController) = 0;
-  virtual void Disconnect(const BluetoothProfileController* aController) = 0;
+                       BluetoothProfileController* aController) = 0;
+  virtual void Disconnect(BluetoothProfileController* aController) = 0;
 };
 
 END_BLUETOOTH_NAMESPACE
