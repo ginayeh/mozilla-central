@@ -22,12 +22,10 @@ public:
   BluetoothProfileController(BluetoothServiceClass aClass, BluetoothReplyRunnable* aRunnable);
 
   void Connect(const nsAString& aDeviceAddress);
-  void OnConnectCallback();
+  void OnConnectReply();
 
   void Disconnect(const nsAString& aDeviceAddress);
-  void OnDisconnectCallback();
-
-  void SetErrorString(const char* aErrorString);
+  void OnDisconnectReply();
 
 private:
   void ConnectNext();

@@ -74,7 +74,7 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
 
-  virtual bool Connect(const nsAString& aDeviceAddress,
+  virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
 //               const bool aIsHandsfree,

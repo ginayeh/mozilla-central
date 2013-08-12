@@ -160,7 +160,7 @@ BluetoothA2dpManager::HandleShutdown()
   sBluetoothA2dpManager = nullptr;
 }
 
-bool
+void
 BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
                               BluetoothProfileController* aController)
 {
@@ -170,23 +170,23 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
 
   if (sInShutdown) {
     NS_WARNING("Connect called while in shutdown!");
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   if (mA2dpConnected) {
     NS_WARNING("BluetoothA2dpManager is connected");
-    return false;
+    aController->OnConnectReply();
+    return;
   }
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
 
   BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, false);
-  nsresult rv = bs->SendSinkMessage(aDeviceAddress,
-                                    NS_LITERAL_STRING("Connect"));
-
-  return NS_SUCCEEDED(rv);
+  NS_ENSURE_TRUE_VOID(bs);
+  bs->SendSinkMessage(aDeviceAddress,
+                      NS_LITERAL_STRING("Connect"));
 }
 
 void
@@ -195,6 +195,7 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   LOG("[A2dp] %s, mA2dpConnected: %d, mDeviceAddress: %s", __FUNCTION__, mA2dpConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
   if (!mA2dpConnected) {
     NS_WARNING("BluetoothA2dpManager has been disconnected");
+    aController->OnDisconnectReply();
     return;
   }
 
@@ -226,9 +227,9 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     NotifyConnectionStatusChanged();
     DispatchConnectionStatusChanged();
     if (mA2dpConnected) {
-      mController->OnConnectCallback();
+      mController->OnConnectReply();
     } else {
-      mController->OnDisconnectCallback();
+      mController->OnDisconnectReply();
     }
   } else if (name.EqualsLiteral("Playing")) {
     // Indicates if a stream is active to a A2DP sink on the remote device.

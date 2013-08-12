@@ -59,7 +59,7 @@ public:
 /*  void Connect(const nsAString& aDeviceAddress,
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();*/
-  virtual bool Connect(const nsAString& aDeviceAddress,
+  virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
