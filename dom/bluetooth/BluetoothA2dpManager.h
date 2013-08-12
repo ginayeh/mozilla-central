@@ -40,8 +40,13 @@ public:
   virtual bool IsConnected() MOZ_OVERRIDE;
 
   // A2DP member functions
-  bool Connect(const nsAString& aDeviceAddress);
-  void Disconnect();
+  virtual bool Connect(const nsAString& aDeviceAddress,
+                       BluetoothProfileController* aController)
+                       MOZ_OVERRIDE;
+  virtual void Disconnect(BluetoothProfileController* aController)
+                          MOZ_OVERRIDE;
+//  bool Connect(const nsAString& aDeviceAddress);
+//  void Disconnect();
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
 
   // AVRCP member functions
@@ -73,6 +78,9 @@ private:
   void DispatchConnectionStatusChanged();
   void NotifyConnectionStatusChanged();
 
+  nsString mDeviceAddress;
+
+  BluetoothProfileController* mController;
   nsString mDeviceAddress;
 
   // A2DP data member

@@ -21,10 +21,10 @@ public:
   BluetoothProfileController(uint32_t aCod, BluetoothReplyRunnable* aRunnable);
   BluetoothProfileController(BluetoothServiceClass aClass, BluetoothReplyRunnable* aRunnable);
 
-  void Connect();
+  void Connect(const nsAString& aDeviceAddress);
   void OnConnectCallback();
 
-  void Disconnect();
+  void Disconnect(const nsAString& aDeviceAddress);
   void OnDisconnectCallback();
 
   void SetErrorString(const char* aErrorString);
@@ -35,7 +35,8 @@ private:
 
   nsTArray<BluetoothProfileManagerBase*> mProfiles;
   BluetoothReplyRunnable* mRunnable;
-  uint8_t mProfilesIndex;
+  int8_t mProfilesIndex;
+  nsString mDeviceAddress;
   nsString mErrorString;
 };
 

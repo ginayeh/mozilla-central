@@ -1088,6 +1088,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
+  return true;
 }
 
 bool
@@ -1533,7 +1534,8 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
     mRunnable = nullptr;
   }*/
   if (mController) {
-    mController->ConnectNext();
+    mController->OnConnectCallback();
+    mController = nullptr;
   }
 
   mFirstCKPD = true;
@@ -1571,7 +1573,8 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
   }*/
   if (mController) {
     mController->SetErrorString("Failed to connect with a bluetooth headset!");
-    mController->ConnectNext();
+    mController->OnConnectCallback();
+    mController = nullptr;
   }
 
   mSocket = nullptr;
@@ -1599,7 +1602,8 @@ BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
   }
 
   if (mController) {
-    mController->DisconnectNext();
+    mController->OnDisconnectCallback();
+    mController = nullptr;
   }
 
   LOG("[Hfp] %s", __FUNCTION__);
@@ -1637,7 +1641,8 @@ BluetoothHfpManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     mRunnable = nullptr;*/
     mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-    mController->ConnectNext();
+    mController->OnConnectCallback();
+    mController = nullptr;
     mSocket = nullptr;
     Listen();
   }
@@ -1667,7 +1672,8 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
                              NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
       mRunnable = nullptr;*/
       mController->SetErrorString(ERR_SERVICE_CHANNEL_NOT_FOUND);
-      mController->ConnectNext();
+      mController->OnConnectCallback();
+      mController = nullptr;
       mSocket = nullptr;
       Listen();
 
@@ -1686,7 +1692,8 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
                            NS_LITERAL_STRING("SocketConnectionError"));
     mRunnable = nullptr;*/
     mController->SetErrorString("SocketConnectionError");
-    mController->ConnectNext();
+    mController->OnConnectCallback();
+    mController = nullptr;
     mSocket = nullptr;
     Listen();
   }

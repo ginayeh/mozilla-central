@@ -56,9 +56,14 @@ public:
    * either call Disconnect() to close RFCOMM connection or start another
    * file-sending thread via calling SendFile() again.
    */
-  void Connect(const nsAString& aDeviceAddress,
+/*  void Connect(const nsAString& aDeviceAddress,
                BluetoothReplyRunnable* aRunnable);
-  void Disconnect();
+  void Disconnect();*/
+  virtual bool Connect(const nsAString& aDeviceAddress,
+                       BluetoothProfileController* aController)
+                       MOZ_OVERRIDE;
+  virtual void Disconnect(BluetoothProfileController* aController)
+                          MOZ_OVERRIDE;
   bool Listen();
 
   bool SendFile(const nsAString& aDeviceAddress, BlobParent* aBlob);
@@ -211,6 +216,7 @@ private:
   nsCOMPtr<nsIInputStream> mInputStream;
   nsCOMPtr<nsIVolumeMountLock> mMountLock;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  BluetoothProfileController* mController;
   nsRefPtr<DeviceStorageFile> mDsFile;
 
   // If a connection has been established, mSocket will be the socket
