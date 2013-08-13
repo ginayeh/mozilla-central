@@ -295,6 +295,8 @@ this.PushService = {
         // online, it is likely that these statements will be no-ops.
         if (this._udpServer) {
           this._udpServer.close();
+          // Set to null since this is checked in _listenForUDPWakeup()
+          this._udpServer = null;
         }
 
         this._shutdownWS();
@@ -504,6 +506,7 @@ this.PushService = {
 
     if (this._udpServer) {
       this._udpServer.close();
+      this._udpServer = null;
     }
 
     // All pending requests (ideally none) are dropped at this point. We
@@ -1304,14 +1307,17 @@ this.PushService = {
   _wsOnStop: function(context, statusCode) {
     debug("wsOnStop()");
 
-    this._shutdownWS();
-
     if (statusCode != Cr.NS_OK &&
         !(statusCode == Cr.NS_BASE_STREAM_CLOSED && this._willBeWokenUpByUDP)) {
       debug("Socket error " + statusCode);
       this._reconnectAfterBackoff();
     }
 
+    // Bug 896919. We always shutdown the WebSocket, even if we need to
+    // reconnect. This works because _reconnectAfterBackoff() is "async"
+    // (there is a minimum delay of the pref retryBaseInterval, which by default
+    // is 5000ms), so that function will open the WebSocket again.
+    this._shutdownWS();
   },
 
   _wsOnMessageAvailable: function(context, message) {

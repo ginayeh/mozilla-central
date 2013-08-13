@@ -105,7 +105,8 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:ReadIccContacts",
   "RIL:UpdateIccContact",
   "RIL:SetRoamingPreference",
-  "RIL:GetRoamingPreference"
+  "RIL:GetRoamingPreference",
+  "RIL:CdmaCallWaiting"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
@@ -921,20 +922,24 @@ RILContentHelper.prototype = {
     // Parsing nsDOMContact to Icc Contact format
     let iccContact = {};
 
-    if (contact.name) {
+    if (Array.isArray(contact.name) && contact.name[0]) {
       iccContact.alphaId = contact.name[0];
     }
 
-    if (contact.tel) {
-      iccContact.number = contact.tel[0].value;
+    if (Array.isArray(contact.tel)) {
+      iccContact.number = contact.tel[0] && contact.tel[0].value;
+      let telArray = contact.tel.slice(1);
+      let length = telArray.length;
+      if (length > 0) {
+        iccContact.anr = [];
+      }
+      for (let i = 0; i < telArray.length; i++) {
+        iccContact.anr.push(telArray[i].value);
+      }
     }
 
-    if (contact.email) {
+    if (Array.isArray(contact.email) && contact.email[0]) {
       iccContact.email = contact.email[0].value;
-    }
-
-    if (contact.tel.length > 1) {
-      iccContact.anr = contact.tel.slice(1);
     }
 
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {
@@ -1530,10 +1535,11 @@ RILContentHelper.prototype = {
         this._deliverEvent("_iccListeners", "notifyStkSessionEnd", null);
         break;
       case "RIL:IccOpenChannel":
-        this.handleIccOpenChannel(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.channel);
         break;
       case "RIL:IccCloseChannel":
-        this.handleIccCloseChannel(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:IccExchangeAPDU":
         this.handleIccExchangeAPDU(msg.json);
@@ -1542,7 +1548,7 @@ RILContentHelper.prototype = {
         this.handleReadIccContacts(msg.json);
         break;
       case "RIL:UpdateIccContact":
-        this.handleUpdateIccContact(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:DataError": {
         let data = msg.json.data;
@@ -1555,19 +1561,20 @@ RILContentHelper.prototype = {
         this.handleGetCallForwardingOption(msg.json);
         break;
       case "RIL:SetCallForwardingOption":
-        this.handleSetCallForwardingOption(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetCallBarringOption":
         this.handleGetCallBarringOption(msg.json);
         break;
       case "RIL:SetCallBarringOption":
-        this.handleSetCallBarringOption(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetCallWaitingOption":
-        this.handleGetCallWaitingOption(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.enabled);
         break;
       case "RIL:SetCallWaitingOption":
-        this.handleSetCallWaitingOption(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:CfStateChanged": {
         let data = msg.json.data;
@@ -1582,7 +1589,7 @@ RILContentHelper.prototype = {
         this.handleGetCallingLineIdRestriction(msg.json);
         break;
       case "RIL:SetCallingLineIdRestriction":
-        this.handleSetCallingLineIdRestriction(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:CellBroadcastReceived": {
         let message = new CellBroadcastMessage(msg.json.data);
@@ -1592,10 +1599,16 @@ RILContentHelper.prototype = {
         break;
       }
       case "RIL:SetRoamingPreference":
-        this.handleSetRoamingPreference(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg, null);
         break;
       case "RIL:GetRoamingPreference":
-        this.handleGetRoamingPreference(msg.json);
+        this.handleSimpleRequest(msg.json.requestId, msg.json.errorMsg,
+                                 msg.json.mode);
+        break;
+      case "RIL:CdmaCallWaiting":
+        this._deliverEvent("_telephonyListeners",
+                           "notifyCdmaCallWaiting",
+                           [msg.json.data]);
         break;
     }
   },
@@ -1629,19 +1642,19 @@ RILContentHelper.prototype = {
     callback.enumerateCallStateComplete();
   },
 
+  handleSimpleRequest: function handleSimpleRequest(requestId, errorMsg, result) {
+    if (errorMsg) {
+      this.fireRequestError(requestId, errorMsg);
+    } else {
+      this.fireRequestSuccess(requestId, result);
+    }
+  },
+
   handleGetAvailableNetworks: function handleGetAvailableNetworks(message) {
     debug("handleGetAvailableNetworks: " + JSON.stringify(message));
-
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      debug("no DOMRequest found with request ID: " + requestId);
-      return;
-    }
-
     if (message.errorMsg) {
       debug("Received error from getAvailableNetworks: " + message.errorMsg);
-      Services.DOMRequest.fireError(request, message.errorMsg);
+      this.fireRequestError(message.requestId, message.errorMsg);
       return;
     }
 
@@ -1653,29 +1666,13 @@ RILContentHelper.prototype = {
       networks[i] = info;
     }
 
-    Services.DOMRequest.fireSuccess(request, networks);
+    this.fireRequestSuccess(message.requestId, networks);
   },
 
   handleSelectNetwork: function handleSelectNetwork(message, mode) {
     this._selectingNetwork = null;
     this.rilContext.networkSelectionMode = mode;
 
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
-  },
-
-  handleIccOpenChannel: function handleIccOpenChannel(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, message.channel);
-    }
-  },
-
-  handleIccCloseChannel: function handleIccCloseChannel(message) {
     if (message.errorMsg) {
       this.fireRequestError(message.requestId, message.errorMsg);
     } else {
@@ -1721,14 +1718,6 @@ RILContentHelper.prototype = {
 
     this.fireRequestSuccess(message.requestId,
                             ObjectWrapper.wrap(result, window));
-  },
-
-  handleUpdateIccContact: function handleUpdateIccContact(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
   },
 
   handleVoicemailNotification: function handleVoicemailNotification(message) {
@@ -1777,33 +1766,13 @@ RILContentHelper.prototype = {
   },
 
   handleGetCallForwardingOption: function handleGetCallForwardingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
+    if (message.errorMsg) {
+      this.fireRequestError(message.requestId, message.errorMsg);
       return;
     }
 
     this._cfRulesToMobileCfInfo(message.rules);
-    Services.DOMRequest.fireSuccess(request, message.rules);
-  },
-
-  handleSetCallForwardingOption: function handleSetCallForwardingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, null);
+    this.fireRequestSuccess(message.requestId, message.rules);
   },
 
   handleGetCallBarringOption: function handleGetCallBarringOption(message) {
@@ -1815,72 +1784,15 @@ RILContentHelper.prototype = {
     }
   },
 
-  handleSetCallBarringOption: function handleSetCallBarringOption(message) {
-    if (!message.success) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
-  },
-
-  handleGetCallWaitingOption: function handleGetCallWaitingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, message.enabled);
-  },
-
-  handleSetCallWaitingOption: function handleSetCallWaitingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, null);
-  },
-
   handleGetCallingLineIdRestriction:
     function handleGetCallingLineIdRestriction(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
+    if (message.errorMsg) {
+      this.fireRequestError(message.requestId, message.errorMsg);
       return;
     }
 
     let status = new DOMCLIRStatus(message);
-    Services.DOMRequest.fireSuccess(request, status);
-  },
-
-  handleSetCallingLineIdRestriction:
-    function handleSetCallingLineIdRestriction(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, null);
+    this.fireRequestSuccess(message.requestId, status);
   },
 
   handleSendCancelMMI: function handleSendCancelMMI(message) {
@@ -1930,22 +1842,6 @@ RILContentHelper.prototype = {
 
   _getRandomId: function _getRandomId() {
     return gUUIDGenerator.generateUUID().toString();
-  },
-
-  handleSetRoamingPreference: function handleSetRoamingPreference(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, null);
-    }
-  },
-
-  handleGetRoamingPreference: function handleGetRoamingPreference(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-    } else {
-      this.fireRequestSuccess(message.requestId, message.mode);
-    }
   },
 
   _deliverEvent: function _deliverEvent(listenerType, name, args) {

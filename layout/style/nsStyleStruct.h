@@ -1281,7 +1281,6 @@ struct nsStyleTextReset {
   nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, calc, enum (see nsStyleConsts.h)
   nsStyleTextOverflow mTextOverflow;    // [reset] enum, string
 
-  uint8_t mTextBlink;                   // [reset] see nsStyleConsts.h
   uint8_t mTextDecorationLine;          // [reset] see nsStyleConsts.h
   uint8_t mUnicodeBidi;                 // [reset] see nsStyleConsts.h
 protected:
@@ -1620,6 +1619,7 @@ struct nsStyleDisplay {
   uint8_t mResize;              // [reset] see nsStyleConsts.h
   uint8_t mClipFlags;           // [reset] see nsStyleConsts.h
   uint8_t mOrient;              // [reset] see nsStyleConsts.h
+  uint8_t mMixBlendMode;        // [reset] see nsStyleConsts.h
 
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or
@@ -2289,42 +2289,27 @@ struct nsStyleFilter {
 
   bool operator==(const nsStyleFilter& aOther) const;
 
-  enum Type {
-    eNull,
-    eURL,
-    eBlur,
-    eBrightness,
-    eContrast,
-    eDropShadow,
-    eGrayscale,
-    eHueRotate,
-    eInvert,
-    eOpacity,
-    eSaturate,
-    eSepia,
-  };
-
-  Type GetType() const {
+  int32_t GetType() const {
     return mType;
   }
 
   const nsStyleCoord& GetFilterParameter() const {
-    NS_ASSERTION(mType != eDropShadow &&
-                 mType != eURL &&
-                 mType != eNull, "wrong filter type");
+    NS_ASSERTION(mType != NS_STYLE_FILTER_DROP_SHADOW &&
+                 mType != NS_STYLE_FILTER_URL &&
+                 mType != NS_STYLE_FILTER_NONE, "wrong filter type");
     return mFilterParameter;
   }
   void SetFilterParameter(const nsStyleCoord& aFilterParameter,
-                          Type aType);
+                          int32_t aType);
 
   nsIURI* GetURL() const {
-    NS_ASSERTION(mType == eURL, "wrong filter type");
+    NS_ASSERTION(mType == NS_STYLE_FILTER_URL, "wrong filter type");
     return mURL;
   }
   void SetURL(nsIURI* aURL);
 
   nsCSSShadowArray* GetDropShadow() const {
-    NS_ASSERTION(mType == eDropShadow, "wrong filter type");
+    NS_ASSERTION(mType == NS_STYLE_FILTER_DROP_SHADOW, "wrong filter type");
     return mDropShadow;
   }
   void SetDropShadow(nsCSSShadowArray* aDropShadow);
@@ -2332,7 +2317,7 @@ struct nsStyleFilter {
 private:
   void ReleaseRef();
 
-  Type mType;
+  int32_t mType; // see NS_STYLE_FILTER_* constants in nsStyleConsts.h
   nsStyleCoord mFilterParameter; // coord, percent, factor, angle
   union {
     nsIURI* mURL;
@@ -2367,7 +2352,7 @@ struct nsStyleSVGReset {
   // filter functions.
   nsIURI* SingleFilter() const {
     return (mFilters.Length() == 1 &&
-            mFilters[0].GetType() == nsStyleFilter::Type::eURL) ?
+            mFilters[0].GetType() == NS_STYLE_FILTER_URL) ?
             mFilters[0].GetURL() : nullptr;
   }
 

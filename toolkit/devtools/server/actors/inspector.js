@@ -60,6 +60,7 @@ const object = require("sdk/util/object");
 const events = require("sdk/event/core");
 const { Unknown } = require("sdk/platform/xpcom");
 const { Class } = require("sdk/core/heritage");
+const {PageStyleActor} = require("devtools/server/actors/styles");
 
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
 
@@ -138,6 +139,10 @@ var NodeActor = protocol.ActorClass({
 
   // Returns the JSON representation of this object over the wire.
   form: function(detail) {
+    if (detail === "actorid") {
+      return this.actorID;
+    }
+
     let parentNode = this.walker.parentNode(this);
 
     // Estimate the number of children.
@@ -152,7 +157,7 @@ var NodeActor = protocol.ActorClass({
       actor: this.actorID,
       parent: parentNode ? parentNode.actorID : undefined,
       nodeType: this.rawNode.nodeType,
-      namespaceURI: this.namespaceURI,
+      namespaceURI: this.rawNode.namespaceURI,
       nodeName: this.rawNode.nodeName,
       numChildren: numChildren,
 
@@ -308,6 +313,10 @@ let NodeFront = protocol.FrontClass(NodeActor, {
 
   // Update the object given a form representation off the wire.
   form: function(form, detail, ctx) {
+    if (detail === "actorid") {
+      this.actorID = form;
+      return;
+    }
     // Shallow copy of the form.  We could just store a reference, but
     // eventually we'll want to update some of the data.
     this._form = object.merge(form);
@@ -2072,7 +2081,8 @@ var InspectorActor = protocol.ActorClass({
     var domReady = () => {
       let tabActor = this.tabActor;
       window.removeEventListener("DOMContentLoaded", domReady, true);
-      deferred.resolve(WalkerActor(this.conn, window.document, tabActor._tabbrowser, options));
+      this.walker = WalkerActor(this.conn, window.document, tabActor._tabbrowser, options);
+      deferred.resolve(this.walker);
     };
 
     if (window.document.readyState === "loading") {
@@ -2087,6 +2097,20 @@ var InspectorActor = protocol.ActorClass({
     response: {
       walker: RetVal("domwalker")
     }
+  }),
+
+  getPageStyle: method(function() {
+    if (this._pageStylePromise) {
+      return this._pageStylePromise;
+    }
+
+    this._pageStylePromise = this.getWalker().then(walker => {
+      return PageStyleActor(this);
+    });
+    return this._pageStylePromise;
+  }, {
+    request: {},
+    response: { pageStyle: RetVal("pagestyle") }
   })
 });
 
@@ -2103,7 +2127,31 @@ var InspectorFront = exports.InspectorFront = protocol.FrontClass(InspectorActor
     // library, so we're going to self-own on the client side for now.
     client.addActorPool(this);
     this.manage(this);
-  }
+  },
+
+  getWalker: protocol.custom(function() {
+    return this._getWalker().then(walker => {
+      this.walker = walker;
+      return walker;
+    });
+  }, {
+    impl: "_getWalker"
+  }),
+
+  getPageStyle: protocol.custom(function() {
+    return this._getPageStyle().then(pageStyle => {
+      // We need a walker to understand node references from the
+      // node style.
+      if (this.walker) {
+        return pageStyle;
+      }
+      return this.getWalker().then(() => {
+        return pageStyle;
+      });
+    });
+  }, {
+    impl: "_getPageStyle"
+  })
 });
 
 function documentWalker(node, whatToShow=Ci.nsIDOMNodeFilter.SHOW_ALL) {
