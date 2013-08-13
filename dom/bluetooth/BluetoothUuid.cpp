@@ -48,7 +48,14 @@ BluetoothUuidHelper::GetBluetoothServiceClass(const nsAString& aUuidStr)
   NS_ENSURE_SUCCESS(rv, retValue);
 
   LOG("[Uuid] integer: %X", integer);
-  switch (integer) {
+  return GetBluetoothServiceClass(integer);
+}
+
+BluetoothServiceClass
+BluetoothUuidHelper::GetBluetoothServiceClass(uint16_t aProfileId)
+{
+  BluetoothServiceClass retValue = BluetoothServiceClass::UNKNOWN;
+  switch (aProfileId) {
     case BluetoothServiceClass::A2DP:
     case BluetoothServiceClass::HANDSFREE:
     case BluetoothServiceClass::HANDSFREE_AG:
@@ -56,7 +63,7 @@ BluetoothUuidHelper::GetBluetoothServiceClass(const nsAString& aUuidStr)
     case BluetoothServiceClass::HEADSET_AG:
     case BluetoothServiceClass::HID:
     case BluetoothServiceClass::OBJECT_PUSH:
-      retValue = (BluetoothServiceClass)integer;
+      retValue = (BluetoothServiceClass)aProfileId;
   }
   return retValue;
 }
