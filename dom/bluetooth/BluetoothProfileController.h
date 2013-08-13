@@ -27,6 +27,8 @@ public:
   void Disconnect(const nsAString& aDeviceAddress);
   void OnDisconnectReply();
 
+  uint32_t GetCod();
+
 private:
   void ConnectNext();
   void DisconnectNext();
@@ -34,6 +36,7 @@ private:
   nsTArray<BluetoothProfileManagerBase*> mProfiles;
   BluetoothReplyRunnable* mRunnable;
   int8_t mProfilesIndex;
+  uint32_t mCod;
   nsString mDeviceAddress;
   nsString mErrorString;
 };
