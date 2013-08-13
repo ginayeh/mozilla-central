@@ -25,13 +25,59 @@ BluetoothProfileController::BluetoothProfileController(
                                               uint32_t aCod,
                                               BluetoothReplyRunnable* aRunnable)
 {
-/*  switch ((aCod & 0x1f00) >> 8) {
-    case 0x04: // Audio
+  MOZ_ASSERT(!aRunnable);
 
-      break;
+  /**
+   * Class of Device(CoD): 32-bit
+   * bit 2 - bit 7: minor device class
+   * bit 8 - bit 12: major device class
+   * bit 13 - bit 23: major service class
+   */
 
-    case 0x05: // Peripheral
-  }*/
+  // Extract major service class
+  uint16_t serviceClass = ((aCod & 0xffe000) >> 12);
+  bool hasAudio = false;
+  bool hasObjectTransfer = false;
+  bool hasRendering = false;
+
+  // bit 21: Audio
+  // bit 20: Object Transfer
+  // bit 18: Rendering
+  hasAudio = ((serviceClass & 0x100) >> 8);
+  hasObjectTransfer = ((serviceClass & 0x80) >> 7);
+  hasRendering = ((serviceClass & 0x20) >> 5);
+
+  mProfilesIndex = 0;
+  if (!hasAudio && !hasObjectTransfer && !hasRendering) {
+    return;
+  }
+
+  mProfilesIndex = 0;
+  mRunnable = aRunnable;
+  mCod = aCod;
+
+  /**
+   * We connect HFP/HSP first. Then, connect A2DP if Rendering bit is set.
+   * It's almost impossible to send file to a remote device which is a Audio
+   * device or a Rendering device, so we won't connect OPP in that case.
+   */
+  if (hasAudio) {
+    // bit 10: Audio/Video
+    uint8_t deviceClass = ((aCod & 0x1ffc) >> 2);
+    if (((deviceClass & 0x80) >> 7) && (deviceClass & 0x1)) {
+      // HSP
+      mProfiles.AppendElement(BluetoothHfpManager::Get());
+    } else {
+      // HFP
+      mProfiles.AppendElement(BluetoothHfpManager::Get());
+    }
+  }
+  if (hasRendering) {
+    mProfiles.AppendElement(BluetoothA2dpManager::Get());
+  }
+  if (hasObjectTransfer && !hasAudio && !hasRendering) {
+    mProfiles.AppendElement(BluetoothOppManager::Get());
+  }
 }
 
 BluetoothProfileController::BluetoothProfileController(
@@ -55,9 +101,9 @@ BluetoothProfileController::BluetoothProfileController(
   }
 
   if (profile) {
-    mProfiles.AppendElement(profile);
-    mRunnable = aRunnable;
     mProfilesIndex = 0;
+    mRunnable = aRunnable;
+    mProfiles.AppendElement(profile);
   }
 }
 
