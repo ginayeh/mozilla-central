@@ -22,6 +22,7 @@
 #include "BluetoothHfpManager.h"
 #include "BluetoothHidManager.h"
 #include "BluetoothOppManager.h"
+#include "BluetoothProfileController.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUnixSocketConnector.h"
 #include "BluetoothUtils.h"
@@ -197,6 +198,7 @@ static nsString sAdapterPath;
 static Atomic<int32_t> sIsPairing(0);
 static int sConnectedDeviceCount = 0;
 static Monitor sStopBluetoothMonitor("BluetoothService.sStopBluetoothMonitor");
+static BluetoothProfileController sController(EmptyString());
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 typedef bool (*FilterFunc)(const BluetoothValue&);
@@ -2603,7 +2605,7 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (aProfileId == BluetoothServiceClass::HANDSFREE) {
+/*  if (aProfileId == BluetoothServiceClass::HANDSFREE) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
 //    hfp->Connect(aDeviceAddress, true, aRunnable);
   } else if (aProfileId == BluetoothServiceClass::HEADSET) {
@@ -2618,7 +2620,12 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
   } else {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
-  }
+  }*/
+  BluetoothServiceClass serviceClass =
+    BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
+  
+  sController = BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable);
+  sController.Connect();
 }
 
 void
@@ -2764,8 +2771,9 @@ public:
     MOZ_ASSERT(!aObjectPath.IsEmpty());
     MOZ_ASSERT(!aServiceUuid.IsEmpty());
     MOZ_ASSERT(aManager);
-
+    LOG("[B] object path: %s", NS_ConvertUTF16toUTF8(aObjectPath).get());
     mDeviceAddress = GetAddressFromObjectPath(aObjectPath);
+    LOG("[B] mDeviceAddress: %s", NS_ConvertUTF16toUTF8(mDeviceAddress).get());
   }
 
   NS_IMETHOD Run()
@@ -2801,7 +2809,7 @@ public:
   void Handle(DBusMessage* aReply)
   {
     MOZ_ASSERT(!NS_IsMainThread()); // DBus thread
-    LOG("[B] [ct] GetServiceChannelRunnable::Run");
+    LOG("[B] GetServiceChannelRunnable::Run");
 
     // The default channel is an invalid value of -1. We
     // update it if we have received a correct reply. Both

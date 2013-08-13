@@ -10,6 +10,9 @@
 #include "BluetoothHfpManager.h"
 #include "BluetoothOppManager.h"
 
+#include "BluetoothUtils.h"
+#include "mozilla/dom/bluetooth/BluetoothTypes.h"
+
 USING_BLUETOOTH_NAMESPACE
 
 #undef LOG
@@ -22,32 +25,18 @@ USING_BLUETOOTH_NAMESPACE
 #endif
 
 BluetoothProfileController::BluetoothProfileController(
+                                              const nsAString& aDeviceAddress,
                                               uint32_t aCod,
                                               BluetoothReplyRunnable* aRunnable)
 {
+  LOG("[C] %s", __FUNCTION__);
   MOZ_ASSERT(!aRunnable);
 
-  /**
-   * Class of Device(CoD): 32-bit
-   * bit 2 - bit 7: minor device class
-   * bit 8 - bit 12: major device class
-   * bit 13 - bit 23: major service class
-   */
-
-  // Extract major service class
-  uint16_t serviceClass = ((aCod & 0xffe000) >> 12);
-  bool hasAudio = false;
-  bool hasObjectTransfer = false;
-  bool hasRendering = false;
-
-  // bit 21: Audio
-  // bit 20: Object Transfer
-  // bit 18: Rendering
-  hasAudio = ((serviceClass & 0x100) >> 8);
-  hasObjectTransfer = ((serviceClass & 0x80) >> 7);
-  hasRendering = ((serviceClass & 0x20) >> 5);
-
   mProfilesIndex = 0;
+  bool hasAudio = BluetoothCodHelper::HasAudio(aCod);
+  bool hasObjectTransfer = BluetoothCodHelper::HasObjectTransfer(aCod);
+  bool hasRendering = BluetoothCodHelper::HasRendering(aCod);
+
   if (!hasAudio && !hasObjectTransfer && !hasRendering) {
     return;
   }
@@ -58,19 +47,11 @@ BluetoothProfileController::BluetoothProfileController(
 
   /**
    * We connect HFP/HSP first. Then, connect A2DP if Rendering bit is set.
-   * It's almost impossible to send file to a remote device which is a Audio
+   * It's almost impossible to send file to a remote device which is an Audio
    * device or a Rendering device, so we won't connect OPP in that case.
    */
   if (hasAudio) {
-    // bit 10: Audio/Video
-    uint8_t deviceClass = ((aCod & 0x1ffc) >> 2);
-    if (((deviceClass & 0x80) >> 7) && (deviceClass & 0x1)) {
-      // HSP
-      mProfiles.AppendElement(BluetoothHfpManager::Get());
-    } else {
-      // HFP
-      mProfiles.AppendElement(BluetoothHfpManager::Get());
-    }
+    mProfiles.AppendElement(BluetoothHfpManager::Get());
   }
   if (hasRendering) {
     mProfiles.AppendElement(BluetoothA2dpManager::Get());
@@ -81,10 +62,11 @@ BluetoothProfileController::BluetoothProfileController(
 }
 
 BluetoothProfileController::BluetoothProfileController(
+                                              const nsAString& aDeviceAddress,
                                               BluetoothServiceClass aClass,
                                               BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(aRunnable);
+  LOG("[C] %s", __FUNCTION__);
 
   BluetoothProfileManagerBase* profile;
   switch (aClass) {
@@ -104,53 +86,55 @@ BluetoothProfileController::BluetoothProfileController(
     mProfilesIndex = 0;
     mRunnable = aRunnable;
     mProfiles.AppendElement(profile);
+    mDeviceAddress = aDeviceAddress;
   }
 }
 
 void
-BluetoothProfileController::Connect(const nsAString& aDeviceAddress)
+BluetoothProfileController::Connect()
 {
-  MOZ_ASSERT(mProfilesIndex < mProfiles.Length());
-  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-
-  mDeviceAddress = aDeviceAddress;
-
+  LOG("[C] %s", __FUNCTION__);
+  mProfilesIndex = 0;
   ConnectNext();
 }
 
 void
 BluetoothProfileController::ConnectNext()
 {
+  LOG("[C] %s", __FUNCTION__);
   if (mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
   } else {
+    LOG("[C] all profiles connect complete.");
     // All profiles has been tried
     mDeviceAddress.Truncate();
     mProfilesIndex = -1;
     mProfiles.Clear();
+
+    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
   }
 }
 
 void
 BluetoothProfileController::OnConnectReply()
 {
+  LOG("[C] %s", __FUNCTION__);
   mProfilesIndex++;
   ConnectNext();
 }
 
 void
-BluetoothProfileController::Disconnect(const nsAString& aDeviceAddress)
+BluetoothProfileController::Disconnect()
 {
-  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-
-  mDeviceAddress = aDeviceAddress;
-
+  LOG("[C] %s", __FUNCTION__);
+  mProfilesIndex = 0;
   DisconnectNext();
 }
 
 void
 BluetoothProfileController::DisconnectNext()
 {
+  LOG("[C] %s", __FUNCTION__);
   if (mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Disconnect(this);
   } else {
@@ -163,7 +147,14 @@ BluetoothProfileController::DisconnectNext()
 void
 BluetoothProfileController::OnDisconnectReply()
 {
+  LOG("[C] %s", __FUNCTION__);
   mProfilesIndex++;
   DisconnectNext();
 }
 
+uint32_t
+BluetoothProfileController::GetCod()
+{
+  LOG("[C] %s", __FUNCTION__);
+  return mCod;
+}

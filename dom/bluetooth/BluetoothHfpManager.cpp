@@ -1056,14 +1056,14 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   }
 
   mNeedsUpdatingSdpRecords = true;
-//  mIsHandsfree = aIsHandsfree;
+  mIsHandsfree = !BluetoothCodHelper::IsHeadset(aController->GetCod());    
 
   nsString uuid;
-//  if (aIsHandsfree) {
+  if (mIsHandsfree) {
     BluetoothUuidHelper::GetString(BluetoothServiceClass::HANDSFREE, uuid);
-/*  } else {
+  } else {
     BluetoothUuidHelper::GetString(BluetoothServiceClass::HEADSET, uuid);
-  }*/
+  }
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
 /*    DispatchBluetoothReply(aRunnable, BluetoothValue(),
@@ -1656,7 +1656,7 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
   LOG("[Hfp] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  MOZ_ASSERT(mRunnable);
+//  MOZ_ASSERT(mRunnable);
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
