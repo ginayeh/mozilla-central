@@ -115,7 +115,7 @@ public:
                      ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Connect(const nsAString& aDeviceAddress, uint16_t aProfile,
+    Connect(BluetoothDevice& aDevice, uint16_t aProfile,
             ErrorResult& aRv);
   already_AddRefed<DOMRequest>
     Disconnect(uint16_t aProfile, ErrorResult& aRv);

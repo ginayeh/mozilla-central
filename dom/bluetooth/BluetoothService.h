@@ -234,6 +234,7 @@ public:
 
   virtual void
   Connect(const nsAString& aDeviceAddress,
+          uint32_t aCod,
           uint16_t aProfileId,
           BluetoothReplyRunnable* aRunnable) = 0;
 

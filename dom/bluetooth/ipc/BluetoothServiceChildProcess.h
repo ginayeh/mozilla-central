@@ -113,7 +113,8 @@ public:
 
   virtual void
   Connect(const nsAString& aDeviceAddress,
-          const uint16_t aProfileId,
+          uint32_t aCod,
+          uint16_t aProfileId,
           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void

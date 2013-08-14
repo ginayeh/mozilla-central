@@ -30,7 +30,7 @@ BluetoothProfileController::BluetoothProfileController(
                                               BluetoothReplyRunnable* aRunnable)
 {
   LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(!aRunnable);
+  MOZ_ASSERT(aRunnable);
 
   mProfilesIndex = 0;
   bool hasAudio = BluetoothCodHelper::HasAudio(aCod);
@@ -44,6 +44,7 @@ BluetoothProfileController::BluetoothProfileController(
   mProfilesIndex = 0;
   mRunnable = aRunnable;
   mCod = aCod;
+  mDeviceAddress = aDeviceAddress;
 
   /**
    * We connect HFP/HSP first. Then, connect A2DP if Rendering bit is set.
@@ -102,6 +103,8 @@ void
 BluetoothProfileController::ConnectNext()
 {
   LOG("[C] %s", __FUNCTION__);
+  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
+
   if (mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
   } else {

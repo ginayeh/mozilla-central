@@ -192,6 +192,24 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
 }
 
 void
+BluetoothA2dpManager::OnConnect()
+{
+  MOZ_ASSERT(mController);
+  NS_ENSURE_TRUE_VOID(mController);
+
+  mController->OnConnectReply();
+}
+
+void
+BluetoothA2dpManager::OnDisconnect()
+{
+  MOZ_ASSERT(mController);
+  NS_ENSURE_TRUE_VOID(mController);
+
+  mController->OnDisconnectReply();
+}
+
+void
 BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 {
   LOG("[A2dp] %s", __FUNCTION__);

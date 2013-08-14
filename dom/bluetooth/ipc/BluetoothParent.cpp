@@ -474,6 +474,7 @@ BluetoothRequestParent::DoRequest(const ConnectRequest& aRequest)
   MOZ_ASSERT(mRequestType == Request::TConnectRequest);
 
   mService->Connect(aRequest.address(),
+                    aRequest.cod(),
                     aRequest.profileId(),
                     mReplyRunnable.get());
 

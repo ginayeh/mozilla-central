@@ -38,8 +38,6 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual bool IsConnected() MOZ_OVERRIDE;
-
-  // A2DP member functions
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
@@ -47,7 +45,11 @@ public:
                           MOZ_OVERRIDE;
 //  bool Connect(const nsAString& aDeviceAddress);
 //  void Disconnect();
+
+  // A2DP member functions
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
+  void OnConnect();
+  void OnDisconnect();
 
   // AVRCP member functions
   void SetAvrcpConnected(bool aConnected);
