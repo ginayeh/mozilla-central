@@ -567,6 +567,41 @@ CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
 }
 #endif
 
+class ConnectDisconnectCallback : public nsRunnable
+{
+public:
+  ConnectDisconnectCallback(BluetoothServiceClass aServiceClass,
+                            bool aIsConnectRequest)
+    : mServiceClass(aServiceClass)
+    , mIsConnectRequest(aIsConnectRequest)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  nsresult Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    
+    if (mServiceClass == BluetoothServiceClass::A2DP) {
+      BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
+      if (mIsConnectRequest) {
+        a2dp->OnConnect();
+      } else {
+        a2dp->OnDisconnect();
+      }
+    } else {
+      BT_WARNING("Invalid BluetoothServiceClass");
+      return NS_ERROR_FAILURE;
+    }
+
+    return NS_OK;
+  }
+
+private:
+  BluetoothServiceClass mServiceClass;
+  bool mIsConnectRequest;
+};
+
 static void
 InputDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
@@ -584,6 +619,9 @@ SinkConnectCallback(DBusMessage* aMsg, void* aParam)
   NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect sink");
   CheckForError(aMsg, aParam, errorStr);
 #endif
+
+  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, true));
 }
 
 static void
@@ -594,6 +632,9 @@ SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
   NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect sink");
   CheckForError(aMsg, aParam, errorStr);
 #endif
+
+  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, false));
 }
 
 static bool
@@ -2599,11 +2640,13 @@ BluetoothDBusService::SetPairingConfirmationInternal(
 
 void
 BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
-                              const uint16_t aProfileId,
+                              uint32_t aCod,
+                              uint16_t aProfileId,
                               BluetoothReplyRunnable* aRunnable)
 {
-  LOG("[B] %s", __FUNCTION__);
+  LOG("[B] %s, aCod: %X, aProfileId: %X", __FUNCTION__, aCod, aProfileId);
   MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aRunnable);
 
 /*  if (aProfileId == BluetoothServiceClass::HANDSFREE) {
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
@@ -2623,8 +2666,13 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
   }*/
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
-  
-  sController = BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable);
+
+  if (aProfileId) {
+    sController = BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable);
+  } else {
+    sController = BluetoothProfileController(aDeviceAddress, aCod, aRunnable);
+  }
+
   sController.Connect();
 }
 

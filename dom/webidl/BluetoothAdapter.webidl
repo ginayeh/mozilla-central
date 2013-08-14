@@ -103,7 +103,7 @@ interface BluetoothAdapter : EventTarget {
    * @param profile 2-octets service UUID
    */
   [Creator, Throws]
-  DOMRequest connect(DOMString deviceAddress, unsigned short profile);
+  DOMRequest connect(BluetoothDevice device, unsigned short profile);
   [Creator, Throws]
   DOMRequest disconnect(unsigned short profile);
 

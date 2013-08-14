@@ -752,7 +752,7 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
+BluetoothAdapter::Connect(BluetoothDevice& aDevice,
                           uint16_t aProfileId, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
@@ -765,12 +765,18 @@ BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
+  nsAutoString address;
+  aDevice.GetAddress(address);
+  uint32_t deviceClass;
+  aDevice.GetDeviceClass(&deviceClass);
+  LOG("[A] Connect, address: %s, deviceClass: %X, aProfileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, aProfileId);
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Connect(aDeviceAddress, aProfileId, results);
+  bs->Connect(address, deviceClass, aProfileId, results);
 
   return request.forget();
 }

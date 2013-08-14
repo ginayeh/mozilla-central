@@ -253,11 +253,13 @@ BluetoothServiceChildProcess::SetPairingConfirmationInternal(
 void
 BluetoothServiceChildProcess::Connect(
   const nsAString& aDeviceAddress,
-  const uint16_t aProfileId,
+  uint32_t aCod,
+  uint16_t aProfileId,
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
               ConnectRequest(nsString(aDeviceAddress),
+                             aCod,
                              aProfileId));
 }
 

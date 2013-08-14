@@ -102,14 +102,15 @@ public:
 
   virtual void
   Connect(const nsAString& aDeviceAddress,
-          const uint16_t aProfileId,
-          BluetoothReplyRunnable* aRunnable);
+          uint32_t aCod,
+          uint16_t aProfileId,
+          BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
   IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable);
+  Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
