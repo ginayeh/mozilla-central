@@ -23,24 +23,21 @@ public:
   static BluetoothHidManager* Get();
   ~BluetoothHidManager();
 
+  // The following functions are inherited from BluetoothProfileManagerBase
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual bool IsConnected() MOZ_OVERRIDE;
-
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
-/*  bool Connect(const nsAString& aDeviceAddress,
-               BluetoothReplyRunnable* aRunnable);
-  void Disconnect();*/
+  virtual void OnConnect();
+  virtual void OnDisconnect();
   void HandleInputPropertyChanged(const BluetoothSignal& aSignal);
-  void OnConnect();
-  void OnDisconnect();
 
 private:
   BluetoothHidManager();

@@ -1399,7 +1399,7 @@ BluetoothOppManager::NotifyAboutFileChange()
 }
 
 void
-BluetoothOppManager::OnConnectSuccess(BluetoothSocket* aSocket)
+BluetoothOppManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
 {
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket);
@@ -1444,7 +1444,7 @@ BluetoothOppManager::OnConnectSuccess(BluetoothSocket* aSocket)
 }
 
 void
-BluetoothOppManager::OnConnectError(BluetoothSocket* aSocket)
+BluetoothOppManager::OnSocketConnectError(BluetoothSocket* aSocket)
 {
   LOG("[O] %s", __FUNCTION__);
 /*  if (mRunnable) {
@@ -1465,7 +1465,7 @@ BluetoothOppManager::OnConnectError(BluetoothSocket* aSocket)
 }
 
 void
-BluetoothOppManager::OnDisconnect(BluetoothSocket* aSocket)
+BluetoothOppManager::OnSocketDisconnect(BluetoothSocket* aSocket)
 {
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(aSocket);
@@ -1581,4 +1581,16 @@ BluetoothOppManager::AcquireSdcardMountLock()
                                   getter_AddRefs(mMountLock));
   NS_ENSURE_SUCCESS(rv, false);
   return true;
+}
+
+void
+BluetoothOppManager::OnConnect()
+{
+
+}
+
+void
+BluetoothOppManager::OnDisconnect()
+{
+
 }
