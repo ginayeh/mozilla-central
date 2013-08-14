@@ -30,10 +30,17 @@ public:
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual bool IsConnected() MOZ_OVERRIDE;
 
-  bool Connect(const nsAString& aDeviceAddress,
+  virtual void Connect(const nsAString& aDeviceAddress,
+                       BluetoothProfileController* aController)
+                       MOZ_OVERRIDE;
+  virtual void Disconnect(BluetoothProfileController* aController)
+                          MOZ_OVERRIDE;
+/*  bool Connect(const nsAString& aDeviceAddress,
                BluetoothReplyRunnable* aRunnable);
-  void Disconnect();
+  void Disconnect();*/
   void HandleInputPropertyChanged(const BluetoothSignal& aSignal);
+  void OnConnect();
+  void OnDisconnect();
 
 private:
   BluetoothHidManager();
@@ -46,6 +53,7 @@ private:
   // data member
   bool mConnected;
   nsString mDeviceAddress;
+  BluetoothProfileController* mController;
 };
 
 END_BLUETOOTH_NAMESPACE

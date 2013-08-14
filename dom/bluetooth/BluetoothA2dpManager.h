@@ -81,9 +81,7 @@ private:
   void NotifyConnectionStatusChanged();
 
   nsString mDeviceAddress;
-
   BluetoothProfileController* mController;
-  nsString mDeviceAddress;
 
   // A2DP data member
   bool mA2dpConnected;
