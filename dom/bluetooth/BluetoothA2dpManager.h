@@ -33,7 +33,7 @@ public:
   void ResetA2dp();
   void ResetAvrcp();
 
-  // Member functions inherited from parent class BluetoothProfileManagerBase
+  // The following functions are inherited from BluetoothProfileManagerBase
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
@@ -45,13 +45,11 @@ public:
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
-//  bool Connect(const nsAString& aDeviceAddress);
-//  void Disconnect();
+  virtual void OnConnect() MOZ_OVERRIDE;
+  virtual void OnDisconnect() MOZ_OVERRIDE;
 
   // A2DP member functions
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
-  void OnConnect();
-  void OnDisconnect();
 
   // AVRCP member functions
   void SetAvrcpConnected(bool aConnected);

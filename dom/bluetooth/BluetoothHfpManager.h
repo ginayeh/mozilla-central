@@ -62,25 +62,27 @@ public:
   static BluetoothHfpManager* Get();
   ~BluetoothHfpManager();
 
+  // The following functions are inherited from BluetoothSocketObserver
   virtual void ReceiveSocketData(
     BluetoothSocket* aSocket,
     nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage) MOZ_OVERRIDE;
-  virtual void OnConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  virtual void OnSocketConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  virtual void OnSocketConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+
+  // The following functions are inherited from BluetoothProfileManagerBase
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,
                                    const nsAString& aServiceUuid,
                                    int aChannel) MOZ_OVERRIDE;
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
-
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
-//               const bool aIsHandsfree,
-//               BluetoothReplyRunnable* aRunnable);
   virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
+  virtual void OnConnect() MOZ_OVERRIDE;
+  virtual void OnDisconnect() MOZ_OVERRIDE;
 
   bool Listen();
   bool ConnectSco(BluetoothReplyRunnable* aRunnable = nullptr);

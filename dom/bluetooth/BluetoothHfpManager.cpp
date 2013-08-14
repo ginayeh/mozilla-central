@@ -1490,7 +1490,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 }
 
 void
-BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
+BluetoothHfpManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
 {
   MOZ_ASSERT(aSocket);
 
@@ -1556,7 +1556,7 @@ BluetoothHfpManager::OnConnectSuccess(BluetoothSocket* aSocket)
 }
 
 void
-BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
+BluetoothHfpManager::OnSocketConnectError(BluetoothSocket* aSocket)
 {
   // Failed to create a SCO socket
   if (aSocket == mScoSocket) {
@@ -1587,7 +1587,7 @@ BluetoothHfpManager::OnConnectError(BluetoothSocket* aSocket)
 }
 
 void
-BluetoothHfpManager::OnDisconnect(BluetoothSocket* aSocket)
+BluetoothHfpManager::OnSocketDisconnect(BluetoothSocket* aSocket)
 {
   MOZ_ASSERT(aSocket);
 
@@ -1849,6 +1849,18 @@ BluetoothHfpManager::IsScoConnected()
            SocketConnectionStatus::SOCKET_CONNECTED;
   }
   return false;
+}
+
+void
+BluetoothHfpManager::OnConnect()
+{
+
+}
+
+void
+BluetoothHfpManager::OnDisconnect()
+{
+
 }
 
 NS_IMPL_ISUPPORTS1(BluetoothHfpManager, nsIObserver)
