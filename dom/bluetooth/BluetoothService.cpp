@@ -513,11 +513,11 @@ BluetoothService::StartStopBluetooth(bool aStart, bool aIsStartup)
   }
 
   if (!aStart) {
-    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
+/*    BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     hfp->Disconnect();
 
     BluetoothOppManager* opp = BluetoothOppManager::Get();
-    opp->Disconnect();
+    opp->Disconnect();*/
   }
 
   nsCOMPtr<nsIRunnable> runnable = new ToggleBtTask(aStart, aIsStartup);

@@ -589,6 +589,13 @@ public:
       } else {
         a2dp->OnDisconnect();
       }
+    } else if (mServiceClass == BluetoothServiceClass::HID) {
+      BluetoothHidManager* hid = BluetoothHidManager::Get();
+      if (mIsConnectRequest) {
+        hid->OnConnect();
+      } else {
+        hid->OnDisconnect();
+      }
     } else {
       BT_WARNING("Invalid BluetoothServiceClass");
       return NS_ERROR_FAILURE;
@@ -603,12 +610,29 @@ private:
 };
 
 static void
+InputConnectCallback(DBusMessage* aMsg, void* aParam)
+{
+  LOG("[B] %s", __FUNCTION__);
+#ifdef DEBUG
+  NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect input device");
+  CheckForError(aMsg, aParam, errorStr);
+#endif
+
+  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::HID, true));
+}
+
+static void
 InputDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
+  LOG("[B] %s", __FUNCTION__);
 #ifdef DEBUG
   NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect input device");
   CheckForError(aMsg, aParam, errorStr);
 #endif
+
+  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::HID, false));
 }
 
 static void
@@ -1127,7 +1151,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
         goto handle_error;
       }
 
-      int i;
+/*      int i;
       for (i = 0; i < sAuthorizedServiceClass.Length(); i++) {
         if (serviceClass == sAuthorizedServiceClass[i]) {
           dbus_connection_send(conn, reply, NULL);
@@ -1139,7 +1163,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
         errorStr = NS_ConvertUTF8toUTF16(
           nsPrintfCString("Uuid (%s) isn't authorized.", uuid));
       }
-
+*/
       dbus_message_unref(reply);
     }
 
@@ -1321,7 +1345,7 @@ public:
       return;
     }
 
-    sAuthorizedServiceClass.AppendElement(BluetoothServiceClass::A2DP);
+//    sAuthorizedServiceClass.AppendElement(BluetoothServiceClass::A2DP);
 
     // TODO/qdot: This needs to be held for the life of the bluetooth connection
     // so we could clean it up. For right now though, we can throw it away.
@@ -1915,7 +1939,7 @@ BluetoothDBusService::StopInternal()
   sIsPairing = 0;
   sConnectedDeviceCount = 0;
 
-  sAuthorizedServiceClass.Clear();
+//  sAuthorizedServiceClass.Clear();
 
   StopDBus();
   return NS_OK;
@@ -2054,7 +2078,7 @@ BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
 
   DBusCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
-    callback = GetVoidCallback;
+    callback = InputConnectCallback;
   } else if (aMessage.EqualsLiteral("Disconnect")) {
     callback = InputDisconnectCallback;
   }

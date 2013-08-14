@@ -742,11 +742,11 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  if (!bs->SetAuthorizationInternal(aDeviceAddress, aAllow, results)) {
+/*  if (!bs->SetAuthorizationInternal(aDeviceAddress, aAllow, results)) {
     NS_WARNING("SetAuthorization failed!");
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
-  }
+  }*/
 
   return request.forget();
 }
@@ -767,8 +767,7 @@ BluetoothAdapter::Connect(BluetoothDevice& aDevice,
 
   nsAutoString address;
   aDevice.GetAddress(address);
-  uint32_t deviceClass;
-  aDevice.GetDeviceClass(&deviceClass);
+  uint32_t deviceClass = aDevice.Class();
   LOG("[A] Connect, address: %s, deviceClass: %X, aProfileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, aProfileId);
 
   BluetoothService* bs = BluetoothService::Get();
@@ -973,10 +972,6 @@ BluetoothAdapter::SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorRe
   nsRefPtr<BluetoothReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
-  LOG("[Media] mTitle: %s, mArtist: %s, mAlbum: %s, mMediaNumber: %lld, mTotalMediaCount: %lld, mDuration: %lld", metadata.mTitle, metadata.mArtist, metadata.mAlbum, metadata.mMediaNumber, metadata.mTotalMediaCount, metadata.mDuration);
-
-  LOG("[Media] mTitle: %s, mArtist: %s, mAlbum: %s, mMediaNumber: %lld, mTotalMediaCount: %lld, mDuration: %lld", metadata.mTitle, metadata.mArtist, metadata.mAlbum, metadata.mMediaNumber, metadata.mTotalMediaCount, metadata.mDuration);
-
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -1006,10 +1001,6 @@ BluetoothAdapter::SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, E
   nsRefPtr<DOMRequest> request = new DOMRequest(win);
   nsRefPtr<BluetoothReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
-
-  LOG("[Media] mDuration: %lld, mPosition: %lld, mPlayStatus: %s", status.mDuration, status.mPosition, status.mPlayStatus);
-
-  LOG("[Media] mDuration: %lld, mPosition: %lld, mPlayStatus: %s", status.mDuration, status.mPosition, status.mPlayStatus);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
