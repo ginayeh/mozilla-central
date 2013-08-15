@@ -293,8 +293,7 @@ public:
 
   virtual nsresult
   SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage,
-                   BluetoothReplyRunnable* aRunnable) = 0;
+                   const nsAString& aMessage) = 0;
 
   bool
   IsEnabled() const
