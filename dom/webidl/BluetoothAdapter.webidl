@@ -49,23 +49,23 @@ interface BluetoothAdapter : EventTarget {
   readonly attribute any            uuids;
 
   [SetterThrows]
-           attribute EventHandler   ondevicefound;
+  attribute EventHandler   ondevicefound;
 
   // Fired when pairing process is completed
   [SetterThrows]
-           attribute EventHandler   onpairedstatuschanged;
+  attribute EventHandler   onpairedstatuschanged;
 
   // Fired when a2dp connection status changed
   [SetterThrows]
-           attribute EventHandler   ona2dpstatuschanged;
+  attribute EventHandler   ona2dpstatuschanged;
 
   // Fired when handsfree connection status changed
   [SetterThrows]
-           attribute EventHandler   onhfpstatuschanged;
+  attribute EventHandler   onhfpstatuschanged;
 
   // Fired when sco connection status changed
   [SetterThrows]
-           attribute EventHandler   onscostatuschanged;
+  attribute EventHandler   onscostatuschanged;
 
   [Creator, Throws]
   DOMRequest setName(DOMString name);
@@ -101,7 +101,7 @@ interface BluetoothAdapter : EventTarget {
    * @param profile 2-octets service UUID
    */
   [Creator, Throws]
-  DOMRequest connect(BluetoothDevice device, unsigned short profile);
+  DOMRequest connect(BluetoothDevice device, optional unsigned short profile);
   [Creator, Throws]
   DOMRequest disconnect(unsigned short profile);
 

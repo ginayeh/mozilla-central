@@ -724,7 +724,7 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
 
 already_AddRefed<DOMRequest>
 BluetoothAdapter::Connect(BluetoothDevice& aDevice,
-                          uint16_t aProfileId, ErrorResult& aRv)
+                          const Optional<short unsigned int>& aProfileId, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -739,14 +739,20 @@ BluetoothAdapter::Connect(BluetoothDevice& aDevice,
   nsAutoString address;
   aDevice.GetAddress(address);
   uint32_t deviceClass = aDevice.Class();
-  LOG("[A] Connect, address: %s, deviceClass: %X, aProfileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, aProfileId);
+  uint16_t profileId = 0;
+  if (aProfileId.WasPassed()) {
+    LOG("[A] aProfileId was passed.");
+    profileId = aProfileId.Value();
+  }
+
+  LOG("[A] Connect, address: %s, deviceClass: %X, profileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, profileId);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Connect(address, deviceClass, aProfileId, results);
+  bs->Connect(address, deviceClass, profileId, results);
 
   return request.forget();
 }
