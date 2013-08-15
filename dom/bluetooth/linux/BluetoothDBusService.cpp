@@ -581,24 +581,21 @@ public:
   nsresult Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    
+   
+    BluetoothProfileManagerBase* profile; 
     if (mServiceClass == BluetoothServiceClass::A2DP) {
-      BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-      if (mIsConnectRequest) {
-        a2dp->OnConnect();
-      } else {
-        a2dp->OnDisconnect();
-      }
+      profile = BluetoothA2dpManager::Get();
     } else if (mServiceClass == BluetoothServiceClass::HID) {
-      BluetoothHidManager* hid = BluetoothHidManager::Get();
-      if (mIsConnectRequest) {
-        hid->OnConnect();
-      } else {
-        hid->OnDisconnect();
-      }
+      profile = BluetoothHidManager::Get();
     } else {
       BT_WARNING("Invalid BluetoothServiceClass");
       return NS_ERROR_FAILURE;
+    }
+
+    if (mIsConnectRequest) {
+      profile->OnConnectReply();
+    } else {
+      profile->OnDisconnectReply();
     }
 
     return NS_OK;
@@ -2066,8 +2063,8 @@ BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
 
 nsresult
 BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
-                                       const nsAString& aMessage,
-                                       BluetoothReplyRunnable* aRunnable)
+                                       const nsAString& aMessage)
+//                                       BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mConnection);
@@ -2081,22 +2078,25 @@ BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
     callback = InputConnectCallback;
   } else if (aMessage.EqualsLiteral("Disconnect")) {
     callback = InputDisconnectCallback;
+  } else {
+    BT_WARNING("Unknown sink message");
+    return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
+//  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
 
   nsString objectPath = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
                                   callback,
-                                  static_cast<void*>(runnable.get()),
+                                  nullptr,
                                   NS_ConvertUTF16toUTF8(objectPath).get(),
                                   DBUS_INPUT_IFACE,
                                   NS_ConvertUTF16toUTF8(aMessage).get(),
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE(ret, NS_ERROR_FAILURE);
 
-  runnable.forget();
+//  runnable.forget();
 
   return NS_OK;
 }

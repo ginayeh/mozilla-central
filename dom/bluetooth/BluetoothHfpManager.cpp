@@ -1140,17 +1140,13 @@ void
 BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[Hfp] %s", __FUNCTION__);
+  mController = aController;
   if (mSocket) {
     mSocket->Disconnect();
-    mController = aController;
     mSocket = nullptr;
   } else {
-    aController->OnDisconnectReply();
+    OnDisconnectReply();
   }
-
-/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Disconnect();*/
 }
 
 bool
@@ -1535,10 +1531,6 @@ BluetoothHfpManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
 
     mRunnable = nullptr;
   }*/
-  if (mController) {
-    mController->OnConnectReply();
-    mController = nullptr;
-  }
 
   mFirstCKPD = true;
 
@@ -1550,9 +1542,7 @@ BluetoothHfpManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
 
   ListenSco();
 
-/*  BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-  NS_ENSURE_TRUE_VOID(a2dp);
-  a2dp->Connect(mDeviceAddress);*/
+  OnConnectReply();
 }
 
 void
@@ -1573,10 +1563,6 @@ BluetoothHfpManager::OnSocketConnectError(BluetoothSocket* aSocket)
 
     mRunnable = nullptr;
   }*/
-  if (mController) {
-    mController->OnConnectReply();
-    mController = nullptr;
-  }
 
   mSocket = nullptr;
   mHandsfreeSocket = nullptr;
@@ -1584,6 +1570,7 @@ BluetoothHfpManager::OnSocketConnectError(BluetoothSocket* aSocket)
 
   // If connecting for some reason didn't work, restart listening
   Listen();
+  OnConnectReply();
 }
 
 void
@@ -1641,10 +1628,9 @@ BluetoothHfpManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
 /*    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     mRunnable = nullptr;*/
-    mController->OnConnectReply();
-    mController = nullptr;
     mSocket = nullptr;
     Listen();
+    OnConnectReply();
   }
 }
 
@@ -1671,16 +1657,9 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*      DispatchBluetoothReply(mRunnable, v,
                              NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
       mRunnable = nullptr;*/
-      mController->OnConnectReply();
-      mController = nullptr;
       mSocket = nullptr;
       Listen();
-
-      LOG("[Hfp] %s, %s", ERR_SERVICE_CHANNEL_NOT_FOUND, NS_ConvertUTF16toUTF8(aDeviceAddress).get());
-
-/*      BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
-      NS_ENSURE_TRUE_VOID(a2dp);
-      a2dp->Connect(aDeviceAddress);*/
+      OnConnectReply();
     }
 
     return;
@@ -1690,10 +1669,9 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
 /*    DispatchBluetoothReply(mRunnable, v,
                            NS_LITERAL_STRING("SocketConnectionError"));
     mRunnable = nullptr;*/
-    mController->OnConnectReply();
-    mController = nullptr;
     mSocket = nullptr;
     Listen();
+    OnConnectReply();
   }
 }
 
@@ -1852,15 +1830,21 @@ BluetoothHfpManager::IsScoConnected()
 }
 
 void
-BluetoothHfpManager::OnConnect()
+BluetoothHfpManager::OnConnectReply()
 {
+  NS_ENSURE_TRUE_VOID(mController);
 
+  mController->OnConnectReply();
+  mController = nullptr;
 }
 
 void
-BluetoothHfpManager::OnDisconnect()
+BluetoothHfpManager::OnDisconnectReply()
 {
+  NS_ENSURE_TRUE_VOID(mController);
 
+  mController->OnDisconnectReply();
+  mController = nullptr;
 }
 
 NS_IMPL_ISUPPORTS1(BluetoothHfpManager, nsIObserver)

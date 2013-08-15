@@ -35,8 +35,9 @@ public:
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
-  virtual void OnConnect();
-  virtual void OnDisconnect();
+  virtual void OnConnectReply() MOZ_OVERRIDE;
+  virtual void OnDisconnectReply() MOZ_OVERRIDE;
+
   void HandleInputPropertyChanged(const BluetoothSignal& aSignal);
 
 private:

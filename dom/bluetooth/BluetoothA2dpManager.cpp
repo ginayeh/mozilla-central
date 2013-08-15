@@ -208,7 +208,7 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
 }
 
 void
-BluetoothA2dpManager::OnConnect()
+BluetoothA2dpManager::OnConnectReply()
 {
   NS_ENSURE_TRUE_VOID(mController);
 
@@ -216,7 +216,7 @@ BluetoothA2dpManager::OnConnect()
 }
 
 void
-BluetoothA2dpManager::OnDisconnect()
+BluetoothA2dpManager::OnDisconnectReply()
 {
   NS_ENSURE_TRUE_VOID(mController);
 

@@ -81,8 +81,8 @@ public:
                        MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController)
                           MOZ_OVERRIDE;
-  virtual void OnConnect() MOZ_OVERRIDE;
-  virtual void OnDisconnect() MOZ_OVERRIDE;
+  virtual void OnConnectReply() MOZ_OVERRIDE;
+  virtual void OnDisconnectReply() MOZ_OVERRIDE;
 
   bool Listen();
   bool ConnectSco(BluetoothReplyRunnable* aRunnable = nullptr);

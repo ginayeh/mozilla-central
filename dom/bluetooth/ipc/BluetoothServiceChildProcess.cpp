@@ -403,8 +403,7 @@ BluetoothServiceChildProcess::SendSinkMessage(const nsAString& aDeviceAddresses,
 
 nsresult
 BluetoothServiceChildProcess::SendInputMessage(const nsAString& aDeviceAddresses,
-                                               const nsAString& aMessage,
-                                               BluetoothReplyRunnable* aRunnable)
+                                               const nsAString& aMessage)
 {
   MOZ_CRASH("This should never be called!");
 }

@@ -35,8 +35,8 @@ public:
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController) = 0;
   virtual void Disconnect(BluetoothProfileController* aController) = 0;
-  virtual void OnConnect() = 0;
-  virtual void OnDisconnect() = 0;
+  virtual void OnConnectReply() = 0;
+  virtual void OnDisconnectReply() = 0;
 };
 
 END_BLUETOOTH_NAMESPACE
