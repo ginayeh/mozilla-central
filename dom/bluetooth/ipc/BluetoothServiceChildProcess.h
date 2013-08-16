@@ -118,7 +118,8 @@ public:
           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const uint16_t aProfileId,
+  Disconnect(const nsAString& aDeviceAddress,
+             uint16_t aProfileId,
              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool

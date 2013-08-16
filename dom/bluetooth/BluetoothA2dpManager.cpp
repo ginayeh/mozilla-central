@@ -197,6 +197,7 @@ BluetoothA2dpManager::OnConnectReply()
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnConnectReply();
+  mController = nullptr;
 }
 
 void
@@ -205,6 +206,7 @@ BluetoothA2dpManager::OnDisconnectReply()
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnDisconnectReply();
+  mController = nullptr;
 }
 
 void

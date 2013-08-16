@@ -239,7 +239,8 @@ public:
           BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual void
-  Disconnect(uint16_t aProfileId, BluetoothReplyRunnable* aRunnable) = 0;
+  Disconnect(const nsAString& aDeviceAddress, uint16_t aProfileId,
+             BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual bool
   IsConnected(uint16_t aProfileId) = 0;

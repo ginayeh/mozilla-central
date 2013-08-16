@@ -97,6 +97,7 @@ struct ConnectRequest
 
 struct DisconnectRequest
 {
+  nsString address;
   uint16_t profileId;
 };
 
