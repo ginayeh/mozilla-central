@@ -111,6 +111,8 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
 
   NS_ENSURE_FALSE_VOID(sInShutdown);
   NS_ENSURE_FALSE_VOID(mConnected);
+  
+  MOZ_ASSERT(aController && !mController);
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
@@ -130,6 +132,7 @@ BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
   NS_ENSURE_TRUE_VOID(mConnected);
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aController && !mController);
 
   mController = aController;
 
@@ -146,6 +149,7 @@ BluetoothHidManager::OnConnectReply()
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnConnectReply();
+  mController = nullptr;
 }
 
 void
@@ -154,6 +158,7 @@ BluetoothHidManager::OnDisconnectReply()
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnDisconnectReply();
+  mController = nullptr;
 }
 
 bool

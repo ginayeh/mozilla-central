@@ -753,7 +753,8 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
 
 already_AddRefed<DOMRequest>
 BluetoothAdapter::Connect(BluetoothDevice& aDevice,
-                          const Optional<short unsigned int>& aProfileId, ErrorResult& aRv)
+                          const Optional<short unsigned int>& aProfile,
+                          ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -769,9 +770,9 @@ BluetoothAdapter::Connect(BluetoothDevice& aDevice,
   aDevice.GetAddress(address);
   uint32_t deviceClass = aDevice.Class();
   uint16_t profileId = 0;
-  if (aProfileId.WasPassed()) {
+  if (aProfile.WasPassed()) {
     LOG("[A] aProfileId was passed.");
-    profileId = aProfileId.Value();
+    profileId = aProfile.Value();
   }
 
   LOG("[A] Connect, address: %s, deviceClass: %X, profileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, profileId);
@@ -787,7 +788,9 @@ BluetoothAdapter::Connect(BluetoothDevice& aDevice,
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Disconnect(uint16_t aProfileId, ErrorResult& aRv)
+BluetoothAdapter::Disconnect(BluetoothDevice& aDevice,
+                             const Optional<short unsigned int>& aProfile,
+                             ErrorResult& aRv)
 {
   LOG("[A] %s", __FUNCTION__);
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
@@ -800,12 +803,22 @@ BluetoothAdapter::Disconnect(uint16_t aProfileId, ErrorResult& aRv)
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
+  nsAutoString address;
+  aDevice.GetAddress(address);
+  uint16_t profileId = 0;
+  if (aProfile.WasPassed()) {
+    LOG("[A] aProfileId was passed.");
+    profileId = aProfile.Value();
+  }
+
+  LOG("[A] Disconnect, address: %s, profileId: %X", NS_ConvertUTF16toUTF8(address).get(), profileId);
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Disconnect(aProfileId, results);
+  bs->Disconnect(address, profileId, results);
 
   return request.forget();
 }

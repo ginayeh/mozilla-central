@@ -8,6 +8,7 @@
 
 #include "BluetoothA2dpManager.h"
 #include "BluetoothHfpManager.h"
+#include "BluetoothHidManager.h"
 #include "BluetoothOppManager.h"
 
 #include "BluetoothUtils.h"
@@ -32,7 +33,6 @@ BluetoothProfileController::BluetoothProfileController(
   LOG("[C] %s", __FUNCTION__);
   MOZ_ASSERT(aRunnable);
 
-  mProfilesIndex = 0;
   bool hasAudio = BluetoothCodHelper::HasAudio(aCod);
   bool hasObjectTransfer = BluetoothCodHelper::HasObjectTransfer(aCod);
   bool hasRendering = BluetoothCodHelper::HasRendering(aCod);
@@ -68,6 +68,7 @@ BluetoothProfileController::BluetoothProfileController(
                                               BluetoothReplyRunnable* aRunnable)
 {
   LOG("[C] %s", __FUNCTION__);
+  MOZ_ASSERT(aRunnable);
 
   BluetoothProfileManagerBase* profile;
   switch (aClass) {
@@ -81,6 +82,9 @@ BluetoothProfileController::BluetoothProfileController(
     case BluetoothServiceClass::OBJECT_PUSH:
       profile = BluetoothOppManager::Get();
       break;
+    case BluetoothServiceClass::HID:
+      profile = BluetoothHidManager::Get();
+      break;
   }
 
   if (profile) {
@@ -88,6 +92,36 @@ BluetoothProfileController::BluetoothProfileController(
     mRunnable = aRunnable;
     mProfiles.AppendElement(profile);
     mDeviceAddress = aDeviceAddress;
+  }
+}
+
+BluetoothProfileController::BluetoothProfileController(
+                                              const nsAString& aDeviceAddress,
+                                              BluetoothReplyRunnable* aRunnable)
+{
+  LOG("[C] %s", __FUNCTION__);
+  MOZ_ASSERT(aRunnable);
+
+  mProfilesIndex = 0;
+  mRunnable = aRunnable;
+  mDeviceAddress = aDeviceAddress;
+
+  BluetoothProfileManagerBase* profile;
+  profile = BluetoothHfpManager::Get();
+  if (profile->IsConnected()) {
+    mProfiles.AppendElement(BluetoothHfpManager::Get());
+  }
+  profile = BluetoothOppManager::Get();
+  if (profile->IsConnected()) {
+    mProfiles.AppendElement(BluetoothOppManager::Get());
+  }
+  profile = BluetoothHidManager::Get();
+  if (profile->IsConnected()) {
+    mProfiles.AppendElement(BluetoothHidManager::Get());
+  }
+  profile = BluetoothA2dpManager::Get();
+  if (profile->IsConnected()) {
+    mProfiles.AppendElement(BluetoothA2dpManager::Get());
   }
 }
 
@@ -141,9 +175,12 @@ BluetoothProfileController::DisconnectNext()
   if (mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Disconnect(this);
   } else {
+    LOG("[C] all profiles disconnect complete.");
     mDeviceAddress.Truncate();
     mProfilesIndex = -1;
     mProfiles.Clear();
+
+    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
   }
 }
 

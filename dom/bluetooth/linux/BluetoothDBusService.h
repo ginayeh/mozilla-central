@@ -110,7 +110,8 @@ public:
   IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  Disconnect(const nsAString& aDeviceAddress, uint16_t aProfileId,
+             BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
@@ -194,9 +195,6 @@ private:
                                   BluetoothReplyRunnable* aRunnable);
 
   void UpdateNotification(ControlEventId aEventId, uint64_t aData);
-
-  void DisconnectAllAcls(const nsAString& aAdapterPath);
-
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -312,7 +312,7 @@ BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
     mSocket->Disconnect();
     mSocket = nullptr;
   } else {
-    aController->OnDisconnectReply();
+    OnDisconnectReply();
   }
 }
 

@@ -83,12 +83,15 @@ public:
 class BluetoothProfileController
 {
 public:
-  BluetoothProfileController(const nsAString& aDeviceAddress,
-                             uint32_t aCod, BluetoothReplyRunnable* aRunnable);
   BluetoothProfileController(
                   const nsAString& aDeviceAddress,
                   BluetoothServiceClass aClass = BluetoothServiceClass::UNKNOWN,
                   BluetoothReplyRunnable* aRunnable = nullptr);
+  BluetoothProfileController(const nsAString& aDeviceAddress,
+                             uint32_t aCod,
+                             BluetoothReplyRunnable* aRunnable);
+  BluetoothProfileController(const nsAString& aDeviceAddress,
+                             BluetoothReplyRunnable* aRunnable);
 
   void Connect();
   void OnConnectReply();

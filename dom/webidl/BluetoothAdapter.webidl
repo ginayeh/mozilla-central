@@ -105,7 +105,7 @@ interface BluetoothAdapter : EventTarget {
   [Creator, Throws]
   DOMRequest connect(BluetoothDevice device, optional unsigned short profile);
   [Creator, Throws]
-  DOMRequest disconnect(unsigned short profile);
+  DOMRequest disconnect(BluetoothDevice device, optional unsigned short profile);
 
   // One device can only send one file at a time
   [Creator, Throws]

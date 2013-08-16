@@ -487,7 +487,8 @@ BluetoothRequestParent::DoRequest(const DisconnectRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TDisconnectRequest);
 
-  mService->Disconnect(aRequest.profileId(),
+  mService->Disconnect(aRequest.address(),
+                       aRequest.profileId(),
                        mReplyRunnable.get());
 
   return true;

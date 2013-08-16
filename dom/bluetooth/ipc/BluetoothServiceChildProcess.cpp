@@ -265,10 +265,12 @@ BluetoothServiceChildProcess::Connect(
 
 void
 BluetoothServiceChildProcess::Disconnect(
-  const uint16_t aProfileId,
+  const nsAString& aDeviceAddress,
+  uint16_t aProfileId,
   BluetoothReplyRunnable* aRunnable)
 {
-  SendRequest(aRunnable, DisconnectRequest(aProfileId));
+  SendRequest(aRunnable,
+              DisconnectRequest(nsString(aDeviceAddress), aProfileId));
 }
 
 void

@@ -1589,11 +1589,6 @@ BluetoothHfpManager::OnSocketDisconnect(BluetoothSocket* aSocket)
     return;
   }
 
-  if (mController) {
-    mController->OnDisconnectReply();
-    mController = nullptr;
-  }
-
   LOG("[Hfp] %s", __FUNCTION__);
   mSocket = nullptr;
   DisconnectSco();
@@ -1602,6 +1597,8 @@ BluetoothHfpManager::OnSocketDisconnect(BluetoothSocket* aSocket)
   NotifyConnectionStatusChanged(NS_LITERAL_STRING(BLUETOOTH_HFP_STATUS_CHANGED_ID));
   DispatchConnectionStatusChanged(NS_LITERAL_STRING(HFP_STATUS_CHANGED_ID));
   Reset();
+
+  OnDisconnectReply();
 }
 
 void
