@@ -24,10 +24,10 @@
 #include "jsscript.h"
 #include "jswrapper.h"
 
-#include "js/MemoryMetrics.h"
 #include "jit/AsmJSSignalHandlers.h"
 #include "jit/IonCompartment.h"
 #include "jit/PcScriptCache.h"
+#include "js/MemoryMetrics.h"
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jscntxtinlines.h"
@@ -99,6 +99,7 @@ PerThreadData::removeFromThreadList()
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : mainThread(this),
     interrupt(0),
+    handlingSignal(false),
     operationCallback(NULL),
 #ifdef JS_THREADSAFE
     operationCallbackLock(NULL),
@@ -215,8 +216,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcCallback(NULL),
     gcSliceCallback(NULL),
     gcFinalizeCallback(NULL),
-    analysisPurgeCallback(NULL),
-    analysisPurgeTriggerBytes(0),
     gcMallocBytes(0),
     scriptAndCountsVector(NULL),
     NaNValue(UndefinedValue()),
@@ -460,45 +459,9 @@ JSRuntime::~JSRuntime()
     JS_ASSERT(oldCount > 0);
 
 #ifdef JS_THREADSAFE
-    clearOwnerThread();
-#endif
-}
-
-#ifdef JS_THREADSAFE
-void
-JSRuntime::setOwnerThread()
-{
-    JS_ASSERT(ownerThread_ == (void *)0xc1ea12);  /* "clear" */
-    JS_ASSERT(requestDepth == 0);
-    JS_ASSERT(js::TlsPerThreadData.get() == NULL);
-    ownerThread_ = PR_GetCurrentThread();
-    js::TlsPerThreadData.set(&mainThread);
-    nativeStackBase = GetNativeStackBase();
-    if (nativeStackQuota)
-        JS_SetNativeStackQuota(this, nativeStackQuota);
-#ifdef XP_MACOSX
-    asmJSMachExceptionHandler.setCurrentThread();
-#endif
-}
-
-void
-JSRuntime::clearOwnerThread()
-{
-    JS_ASSERT(CurrentThreadCanAccessRuntime(this));
-    JS_ASSERT(requestDepth == 0);
-    ownerThread_ = (void *)0xc1ea12;  /* "clear" */
     js::TlsPerThreadData.set(NULL);
-    nativeStackBase = 0;
-#if JS_STACK_GROWTH_DIRECTION > 0
-    mainThread.nativeStackLimit = UINTPTR_MAX;
-#else
-    mainThread.nativeStackLimit = 0;
-#endif
-#ifdef XP_MACOSX
-    asmJSMachExceptionHandler.clearCurrentThread();
 #endif
 }
-#endif /* JS_THREADSAFE */
 
 void
 NewObjectCache::clearNurseryObjects(JSRuntime *rt)
@@ -537,6 +500,16 @@ JSRuntime::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSi
     if (execAlloc_)
         execAlloc_->sizeOfCode(&rtSizes->code);
 
+#ifdef JS_ION
+    {
+        AutoLockForOperationCallback lock(this);
+        if (ionRuntime()) {
+            if (JSC::ExecutableAllocator *ionAlloc = ionRuntime()->ionAlloc(this))
+                ionAlloc->sizeOfCode(&rtSizes->code);
+        }
+    }
+#endif
+
     rtSizes->regexpData = bumpAlloc_ ? bumpAlloc_->sizeOfNonHeapData() : 0;
 
     rtSizes->interpreterStack = interpreterStack_.sizeOfExcludingThis(mallocSizeOf);
@@ -551,7 +524,7 @@ JSRuntime::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSi
 }
 
 void
-JSRuntime::triggerOperationCallback()
+JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
 {
     AutoLockForOperationCallback lock(this);
 
@@ -563,15 +536,15 @@ JSRuntime::triggerOperationCallback()
      */
     mainThread.setIonStackLimit(-1);
 
-    /*
-     * Use JS_ATOMIC_SET in the hope that it ensures the write will become
-     * immediately visible to other processors polling the flag.
-     */
-    JS_ATOMIC_SET(&interrupt, 1);
+    interrupt = 1;
 
 #ifdef JS_ION
-    /* asm.js code uses a separate mechanism to halt running code. */
+    /*
+     * asm.js and, optionally, normal Ion code use memory protection and signal
+     * handlers to halt running code.
+     */
     TriggerOperationCallbackForAsmJSCode(this);
+    ion::TriggerOperationCallbackForIonCode(this, trigger);
 #endif
 }
 
@@ -739,6 +712,22 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
 }
 
 #ifdef JS_THREADSAFE
+
+void
+JSRuntime::setUsedByExclusiveThread(Zone *zone)
+{
+    JS_ASSERT(!zone->usedByExclusiveThread);
+    zone->usedByExclusiveThread = true;
+    numExclusiveThreads++;
+}
+
+void
+JSRuntime::clearUsedByExclusiveThread(Zone *zone)
+{
+    JS_ASSERT(zone->usedByExclusiveThread);
+    zone->usedByExclusiveThread = false;
+    numExclusiveThreads--;
+}
 
 bool
 js::CurrentThreadCanAccessRuntime(JSRuntime *rt)

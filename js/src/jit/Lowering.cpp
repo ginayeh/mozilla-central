@@ -451,7 +451,7 @@ LIRGenerator::visitCall(MCall *call)
     // Call anything, using the most generic code.
     LCallGeneric *lir = new LCallGeneric(useFixed(call->getFunction(), CallTempReg0),
         argslot, tempFixed(ArgumentsRectifierReg), tempFixed(CallTempReg2));
-    return (assignSnapshot(lir) && defineReturn(lir, call) && assignSafepoint(lir, call));
+    return defineReturn(lir, call) && assignSafepoint(lir, call);
 }
 
 bool
@@ -1776,6 +1776,23 @@ LIRGenerator::visitGuardThreadLocalObject(MGuardThreadLocalObject *ins)
                                     tempFixed(CallTempReg2));
     lir->setMir(ins);
     return add(lir, ins);
+}
+
+bool
+LIRGenerator::visitInterruptCheck(MInterruptCheck *ins)
+{
+    // Implicit interrupt checks require asm.js signal handlers to be
+    // installed. ARM does not yet use implicit interrupt checks, see
+    // bug 864220.
+#ifndef JS_CPU_ARM
+    if (GetIonContext()->runtime->ionRuntime()->signalHandlersInstalled()) {
+        LInterruptCheckImplicit *lir = new LInterruptCheckImplicit();
+        return add(lir) && assignSafepoint(lir, ins);
+    }
+#endif
+
+    LInterruptCheck *lir = new LInterruptCheck();
+    return add(lir) && assignSafepoint(lir, ins);
 }
 
 bool

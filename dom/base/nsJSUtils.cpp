@@ -14,22 +14,17 @@
 #include "nsJSUtils.h"
 #include "jsapi.h"
 #include "jsdbgapi.h"
-#include "prprf.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsIServiceManager.h"
 #include "nsIXPConnect.h"
 #include "nsCOMPtr.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsPIDOMWindow.h"
 #include "GeckoProfiler.h"
-
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
-
-#include "nsContentUtils.h"
 #include "nsJSPrincipals.h"
-
-#include "mozilla/dom/BindingUtils.h"
+#include "xpcpublic.h"
+#include "nsContentUtils.h"
 
 bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
