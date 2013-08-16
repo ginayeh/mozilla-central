@@ -2090,14 +2090,8 @@ BluetoothDBusService::SendDiscoveryMessage(const char* aMessageName,
 nsresult
 BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
                                        const nsAString& aMessage)
-//                                       BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mConnection);
-  MOZ_ASSERT(aMessage.EqualsLiteral("Connect") ||
-             aMessage.EqualsLiteral("Disconnect"));
-
-  NS_ENSURE_TRUE(IsReady(), NS_ERROR_FAILURE);
+  LOG("[B] %s", __FUNCTION__);
 
   DBusCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
@@ -2109,20 +2103,32 @@ BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
     return NS_ERROR_FAILURE;
   }
 
-//  nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
-
   nsString objectPath = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
+  return SendAsyncDBusMessage(objectPath, DBUS_INPUT_IFACE, aMessage, callback);
+}
+
+nsresult
+BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
+                                           const char* aInterface,
+                                           const nsAString& aMessage,
+                                           DBusCallback aCallback)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(mConnection);
+  MOZ_ASSERT(IsEnabled());
+  MOZ_ASSERT(aCallback);
+  MOZ_ASSERT(!aObjectPath.IsEmpty());
+  MOZ_ASSERT(aInterface);
+
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
-                                  callback,
+                                  aCallback,
                                   nullptr,
-                                  NS_ConvertUTF16toUTF8(objectPath).get(),
-                                  DBUS_INPUT_IFACE,
+                                  NS_ConvertUTF16toUTF8(aObjectPath).get(),
+                                  aInterface,
                                   NS_ConvertUTF16toUTF8(aMessage).get(),
                                   DBUS_TYPE_INVALID);
   NS_ENSURE_TRUE(ret, NS_ERROR_FAILURE);
-
-//  runnable.forget();
 
   return NS_OK;
 }
@@ -2132,9 +2138,6 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
                                       const nsAString& aMessage)
 {
   LOG("[B] %s", __FUNCTION__);
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mConnection);
-  MOZ_ASSERT(IsEnabled());
 
   DBusCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
@@ -2147,17 +2150,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
   }
 
   nsString objectPath = GetObjectPathFromAddress(sAdapterPath, aDeviceAddress);
-  bool ret = dbus_func_args_async(mConnection,
-                                  -1,
-                                  callback,
-                                  nullptr,
-                                  NS_ConvertUTF16toUTF8(objectPath).get(),
-                                  DBUS_SINK_IFACE,
-                                  NS_ConvertUTF16toUTF8(aMessage).get(),
-                                  DBUS_TYPE_INVALID);
-  NS_ENSURE_TRUE(ret, NS_ERROR_FAILURE);
-
-  return NS_OK;
+  return SendAsyncDBusMessage(objectPath, DBUS_SINK_IFACE, aMessage, callback);
 }
 
 nsresult
