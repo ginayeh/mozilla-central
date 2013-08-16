@@ -388,6 +388,7 @@ BluetoothRequestParent::DoRequest(const PairedDevicePropertiesRequest& aRequest)
   NS_ENSURE_SUCCESS(rv, false);
   return true;
 }
+
 bool
 BluetoothRequestParent::DoRequest(const ConnectedDevicePropertiesRequest& aRequest)
 {

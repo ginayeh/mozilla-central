@@ -74,7 +74,6 @@ private:
   BluetoothA2dpManager();
   bool Init();
 
-  void HandleSinkStateChanged(SinkState aState);
   void HandleShutdown();
 
   void DispatchConnectionStatusChanged();
@@ -85,7 +84,6 @@ private:
 
   // A2DP data member
   bool mA2dpConnected;
-  bool mPlaying;
   SinkState mSinkState;
 
   // AVRCP data member

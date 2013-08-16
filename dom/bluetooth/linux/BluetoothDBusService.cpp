@@ -198,7 +198,9 @@ static nsString sAdapterPath;
 static Atomic<int32_t> sIsPairing(0);
 static int sConnectedDeviceCount = 0;
 static Monitor sStopBluetoothMonitor("BluetoothService.sStopBluetoothMonitor");
-static BluetoothProfileController sController(EmptyString());
+//static BluetoothProfileController sController(EmptyString());
+//static nsAutoPtr<BluetoothProfileController> sController;
+StaticAutoPtr<BluetoothProfileController> sController;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 typedef bool (*FilterFunc)(const BluetoothValue&);
@@ -550,7 +552,7 @@ CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
 }
 #endif
 
-class ConnectDisconnectCallback : public nsRunnable
+/*class ConnectDisconnectCallback : public nsRunnable
 {
 public:
   ConnectDisconnectCallback(BluetoothServiceClass aServiceClass,
@@ -587,7 +589,7 @@ public:
 private:
   BluetoothServiceClass mServiceClass;
   bool mIsConnectRequest;
-};
+};*/
 
 static void
 InputConnectCallback(DBusMessage* aMsg, void* aParam)
@@ -598,8 +600,8 @@ InputConnectCallback(DBusMessage* aMsg, void* aParam)
   CheckForError(aMsg, aParam, errorStr);
 #endif
 
-  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::HID, true));
+/*  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::HID, true));*/
 }
 
 static void
@@ -611,8 +613,8 @@ InputDisconnectCallback(DBusMessage* aMsg, void* aParam)
   CheckForError(aMsg, aParam, errorStr);
 #endif
 
-  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::HID, false));
+/*  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::HID, false));*/
 }
 
 static void
@@ -624,8 +626,8 @@ SinkConnectCallback(DBusMessage* aMsg, void* aParam)
   CheckForError(aMsg, aParam, errorStr);
 #endif
 
-  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, true));
+/*  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, true));*/
 }
 
 static void
@@ -637,8 +639,8 @@ SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
   CheckForError(aMsg, aParam, errorStr);
 #endif
 
-  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, false));
+/*  NS_DispatchToMainThread(
+    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, false));*/
 }
 
 static bool
@@ -2088,6 +2090,7 @@ nsresult
 BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
                                       const nsAString& aMessage)
 {
+  LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mConnection);
   MOZ_ASSERT(IsEnabled());
@@ -2645,6 +2648,13 @@ BluetoothDBusService::SetPairingConfirmationInternal(
   return result;
 }
 
+static void
+DestroyBluetoothProfileController()
+{
+  LOG("[B] %s", __FUNCTION__);
+  sController = nullptr;
+}
+
 void
 BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
                               uint32_t aCod,
@@ -2659,12 +2669,12 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
     BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
 
   if (aProfileId) {
-    sController = BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable);
+    sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
   } else {
-    sController = BluetoothProfileController(aDeviceAddress, aCod, aRunnable);
+    sController = new BluetoothProfileController(aDeviceAddress, aCod, aRunnable, DestroyBluetoothProfileController);
   }
 
-  sController.Connect();
+  sController->Connect();
 }
 
 void
@@ -2683,13 +2693,14 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
 
+  void (*callback)();
   if (aProfileId) {
-    sController = BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable);
+    sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
   } else {
-    sController = BluetoothProfileController(aDeviceAddress, aRunnable);
+    sController = new BluetoothProfileController(aDeviceAddress, aRunnable, DestroyBluetoothProfileController);
   }
 
-  sController.Disconnect();
+  sController->Disconnect();
 }
 
 bool
