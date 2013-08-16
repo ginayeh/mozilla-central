@@ -228,11 +228,6 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     mA2dpConnected = value.get_bool();
     NotifyConnectionStatusChanged();
     DispatchConnectionStatusChanged();
-    if (mA2dpConnected) {
-      mController->OnConnectReply();
-    } else {
-      mController->OnDisconnectReply();
-    }
   } else if (name.EqualsLiteral("Playing")) {
     // Indicates if a stream is active to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
