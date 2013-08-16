@@ -182,17 +182,17 @@ private:
     EVENT_UNKNOWN
   };
 
-  nsresult SendGetPropertyMessage(const nsAString& aPath,
-                                  const char* aInterface,
-                                  void (*aCB)(DBusMessage *, void *),
-                                  BluetoothReplyRunnable* aRunnable);
-
   nsresult SendDiscoveryMessage(const char* aMessageName,
                                 BluetoothReplyRunnable* aRunnable);
 
   nsresult SendSetPropertyMessage(const char* aInterface,
                                   const BluetoothNamedValue& aValue,
                                   BluetoothReplyRunnable* aRunnable);
+
+  nsresult SendAsyncDBusMessage(const nsAString& aObjectPath,
+                                const char* aInterface,
+                                const nsAString& aMessage,
+                                void (*aCallback)(DBusMessage*, void*));
 
   void UpdateNotification(ControlEventId aEventId, uint64_t aData);
 };
