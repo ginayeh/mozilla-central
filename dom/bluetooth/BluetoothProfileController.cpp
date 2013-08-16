@@ -28,23 +28,19 @@ USING_BLUETOOTH_NAMESPACE
 BluetoothProfileController::BluetoothProfileController(
                                               const nsAString& aDeviceAddress,
                                               uint32_t aCod,
-                                              BluetoothReplyRunnable* aRunnable)
+                                              BluetoothReplyRunnable* aRunnable,
+                                              Callback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(aRunnable);
 
   bool hasAudio = BluetoothCodHelper::HasAudio(aCod);
   bool hasObjectTransfer = BluetoothCodHelper::HasObjectTransfer(aCod);
   bool hasRendering = BluetoothCodHelper::HasRendering(aCod);
 
-  if (!hasAudio && !hasObjectTransfer && !hasRendering) {
-    return;
-  }
+  NS_ENSURE_FALSE_VOID(!hasAudio && !hasObjectTransfer && !hasRendering);
 
-  mProfilesIndex = 0;
-  mRunnable = aRunnable;
   mCod = aCod;
-  mDeviceAddress = aDeviceAddress;
+  Init(aDeviceAddress, aRunnable, aCallback);
 
   /**
    * We connect HFP/HSP first. Then, connect A2DP if Rendering bit is set.
@@ -65,10 +61,10 @@ BluetoothProfileController::BluetoothProfileController(
 BluetoothProfileController::BluetoothProfileController(
                                               const nsAString& aDeviceAddress,
                                               BluetoothServiceClass aClass,
-                                              BluetoothReplyRunnable* aRunnable)
+                                              BluetoothReplyRunnable* aRunnable,
+                                              Callback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(aRunnable);
 
   BluetoothProfileManagerBase* profile;
   switch (aClass) {
@@ -87,24 +83,19 @@ BluetoothProfileController::BluetoothProfileController(
       break;
   }
 
-  if (profile) {
-    mProfilesIndex = 0;
-    mRunnable = aRunnable;
-    mProfiles.AppendElement(profile);
-    mDeviceAddress = aDeviceAddress;
-  }
+  NS_ENSURE_TRUE_VOID(profile);
+  Init(aDeviceAddress, aRunnable, aCallback);
+  mProfiles.AppendElement(profile);
 }
 
 BluetoothProfileController::BluetoothProfileController(
                                               const nsAString& aDeviceAddress,
-                                              BluetoothReplyRunnable* aRunnable)
+                                              BluetoothReplyRunnable* aRunnable,
+                                              Callback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(aRunnable);
 
-  mProfilesIndex = 0;
-  mRunnable = aRunnable;
-  mDeviceAddress = aDeviceAddress;
+  Init(aDeviceAddress, aRunnable, aCallback);
 
   BluetoothProfileManagerBase* profile;
   profile = BluetoothHfpManager::Get();
@@ -123,6 +114,31 @@ BluetoothProfileController::BluetoothProfileController(
   if (profile->IsConnected()) {
     mProfiles.AppendElement(BluetoothA2dpManager::Get());
   }
+}
+
+BluetoothProfileController::~BluetoothProfileController()
+{
+  LOG("[C] %s", __FUNCTION__);
+  mProfiles.Clear();
+  mRunnable = nullptr;
+  mCallback = nullptr;
+}
+
+void
+BluetoothProfileController::Init(const nsAString& aDeviceAddress,
+                                 BluetoothReplyRunnable* aRunnable,
+                                 Callback aCallback)
+{
+  LOG("[C] %s", __FUNCTION__);
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aRunnable);
+  MOZ_ASSERT(aCallback);
+
+  mDeviceAddress = aDeviceAddress;
+  mRunnable = aRunnable;
+  mCallback = aCallback;
+  mProfilesIndex = 0;
+  mProfiles.Clear();
 }
 
 void
@@ -149,6 +165,7 @@ BluetoothProfileController::ConnectNext()
     mProfiles.Clear();
 
     DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
+    mCallback();
   }
 }
 
@@ -181,6 +198,7 @@ BluetoothProfileController::DisconnectNext()
     mProfiles.Clear();
 
     DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
+    mCallback();
   }
 }
 

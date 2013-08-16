@@ -15,6 +15,7 @@
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothProfileManagerBase;
+typedef void (*Callback)();
 
 class BluetoothCodHelper
 {
@@ -85,13 +86,17 @@ class BluetoothProfileController
 public:
   BluetoothProfileController(
                   const nsAString& aDeviceAddress,
-                  BluetoothServiceClass aClass = BluetoothServiceClass::UNKNOWN,
-                  BluetoothReplyRunnable* aRunnable = nullptr);
+                  BluetoothServiceClass aClass,
+                  BluetoothReplyRunnable* aRunnable,
+                  Callback aCallback);
   BluetoothProfileController(const nsAString& aDeviceAddress,
                              uint32_t aCod,
-                             BluetoothReplyRunnable* aRunnable);
+                             BluetoothReplyRunnable* aRunnable,
+                             Callback aCallback);
   BluetoothProfileController(const nsAString& aDeviceAddress,
-                             BluetoothReplyRunnable* aRunnable);
+                             BluetoothReplyRunnable* aRunnable,
+                             Callback aCallback);
+  ~BluetoothProfileController();
 
   void Connect();
   void OnConnectReply();
@@ -105,12 +110,17 @@ private:
   void ConnectNext();
   void DisconnectNext();
 
+  void Init(const nsAString& aDeviceAddress,
+            BluetoothReplyRunnable* aRunnable,
+            Callback aCallback);
+
   nsTArray<BluetoothProfileManagerBase*> mProfiles;
   BluetoothReplyRunnable* mRunnable;
   int8_t mProfilesIndex;
   uint32_t mCod;
   nsString mDeviceAddress;
   nsString mErrorString;
+  Callback mCallback;
 };
 
 END_BLUETOOTH_NAMESPACE
