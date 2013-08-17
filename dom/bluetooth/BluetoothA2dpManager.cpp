@@ -90,6 +90,7 @@ BluetoothA2dpManager::ResetA2dp()
 {
   mA2dpConnected = false;
   mSinkState = SinkState::SINK_DISCONNECTED;
+  mController = nullptr;
 }
 
 void
@@ -238,16 +239,26 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
   MOZ_ASSERT(aSignal.value().type() == BluetoothValue::TArrayOfBluetoothNamedValue);
 
   const nsString& address = aSignal.path();
-  LOG("[A2dp] address: %s, mDeviceAddress: %s", NS_ConvertUTF16toUTF8(address).get(), NS_ConvertUTF16toUTF8(mDeviceAddress).get());
-  NS_ENSURE_TRUE_VOID(address.Equals(mDeviceAddress));
+//  NS_ENSURE_TRUE_VOID(address.Equals(mDeviceAddress));
 
   const InfallibleTArray<BluetoothNamedValue>& arr =
     aSignal.value().get_ArrayOfBluetoothNamedValue();
   MOZ_ASSERT(arr.Length() == 1);
 
   const nsString& name = arr[0].name();
-  LOG("[A2dp] name: %s, address: %s, mDeviceAddress: %s", NS_ConvertUTF16toUTF8(name).get(), NS_ConvertUTF16toUTF8(address).get(), NS_ConvertUTF16toUTF8(mDeviceAddress).get());
+    LOG("[A2dp] address: %s, mDeviceAddress: %s", NS_ConvertUTF16toUTF8(address).get(), NS_ConvertUTF16toUTF8(mDeviceAddress).get());
 
+  if (name.EqualsLiteral("State")) {
+    LOG("[A2dp] State='%s'", NS_ConvertUTF16toUTF8(arr[0].value().get_nsString()).get());
+  } else if (name.EqualsLiteral("Connected")) {
+    LOG("[A2dp] Connected=%d", arr[0].value().get_bool());
+  } else if (name.EqualsLiteral("Playing")) {
+    LOG("[A2dp] Playing=%d", arr[0].value().get_bool());
+  } else {
+    LOG("[A2dp] %s", NS_ConvertUTF16toUTF8(name).get());
+  } 
+
+//  NS_ENSURE_TRUE_VOID(address.Equals(mDeviceAddress));
   NS_ENSURE_TRUE_VOID(name.EqualsLiteral("State"));
   const BluetoothValue& value = arr[0].value();
 
@@ -264,25 +275,29 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
   switch (state) {
     case SinkState::SINK_CONNECTED:
-      if (mSinkState == SinkState::SINK_CONNECTING) {
+      if (mSinkState == SinkState::SINK_PLAYING) {
+        break;
+      } else if (mSinkState == SinkState::SINK_CONNECTING) {
         // case 3
-        mA2dpConnected = true;
-        NotifyConnectionStatusChanged();
-        DispatchConnectionStatusChanged();
         OnConnectReply();
       }
+      mA2dpConnected = true;
+      mDeviceAddress = address;
+      NotifyConnectionStatusChanged();
+      DispatchConnectionStatusChanged();
       break;
     case SinkState::SINK_DISCONNECTED:
       if (mSinkState == SinkState::SINK_CONNECTING) {
         // case 2
         OnConnectReply();
+        break;
       } else if (mSinkState == SinkState::SINK_DISCONNECTING) {
         // case 7
-        mA2dpConnected = false;
-        NotifyConnectionStatusChanged();
-        DispatchConnectionStatusChanged();
         OnDisconnectReply();
       }
+      mA2dpConnected = false;
+      NotifyConnectionStatusChanged();
+      DispatchConnectionStatusChanged();
       mDeviceAddress.Truncate();
       break;
   }

@@ -379,6 +379,8 @@ BluetoothHfpManager::Reset()
   // Please see Bug 878728 for more information.
   mBSIR = false;
 
+  mController = nullptr;
+
   ResetCallArray();
 }
 

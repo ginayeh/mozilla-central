@@ -228,6 +228,7 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
                                            const nsCString aAddress)
 {
 #ifdef MOZ_B2G_BT
+  LOG("[Audio] topic: %s, address: %s", aTopic, aAddress.get());
   bool status;
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID)) {
     BluetoothHfpManager* hfp =
@@ -238,6 +239,8 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
       static_cast<BluetoothProfileManagerBase*>(aSubject);
     status = profile->IsConnected();
   }
+
+  LOG("[Audio] status: %d", status);
 
   audio_policy_dev_state_t audioState = status ?
     AUDIO_POLICY_DEVICE_STATE_AVAILABLE :
@@ -261,13 +264,13 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
     if (audioState == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
       String8 cmd("bluetooth_enabled=true");
       AudioSystem::setParameters(0, cmd);
-      cmd.setTo("A2dpSuspended=false");
-      AudioSystem::setParameters(0, cmd);
+/*      cmd.setTo("A2dpSuspended=false");
+      AudioSystem::setParameters(0, cmd);*/
     } else {
       String8 cmd("bluetooth_enabled=false");
       AudioSystem::setParameters(0, cmd);
-      cmd.setTo("A2dpSuspended=true");
-      AudioSystem::setParameters(0, cmd);
+/*      cmd.setTo("A2dpSuspended=true");
+      AudioSystem::setParameters(0, cmd);*/
     }
   } else if (!strcmp(aTopic, BLUETOOTH_HFP_STATUS_CHANGED_ID)) {
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,

@@ -44,6 +44,7 @@ BluetoothHidManager::Observe(nsISupports* aSubject,
 
 BluetoothHidManager::BluetoothHidManager()
   : mConnected(false)
+  , mController(nullptr)
 {
 }
 

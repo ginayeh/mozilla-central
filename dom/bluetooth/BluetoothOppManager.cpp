@@ -189,6 +189,7 @@ BluetoothOppManager::BluetoothOppManager() : mConnected(false)
                                            , mSentFileLength(0)
                                            , mWaitingToSendPutFinal(false)
                                            , mCurrentBlobIndex(-1)
+                                           , mController(nullptr)
 {
   LOG("[O] %s", __FUNCTION__);
   mConnectedDeviceAddress.AssignLiteral(BLUETOOTH_ADDRESS_NONE);
