@@ -164,8 +164,8 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
-  NS_ENSURE_FALSE(sInShutdown, false);
-  NS_ENSURE_FALSE(mA2dpConnected, false);
+  NS_ENSURE_FALSE_VOID(sInShutdown);
+  NS_ENSURE_FALSE_VOID(mA2dpConnected);
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
