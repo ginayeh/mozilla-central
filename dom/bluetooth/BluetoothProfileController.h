@@ -76,10 +76,10 @@ public:
   ~BluetoothProfileController();
 
   void Connect();
-  void OnConnectReply();
+  void OnConnect(const nsAString& aErrorStr);
 
   void Disconnect();
-  void OnDisconnectReply();
+  void OnDisconnect(const nsAString& aErrorStr);
 
   uint32_t GetCod()
   {

@@ -251,15 +251,15 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
-    aController->OnConnectReply(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
   if (mSocket) {
     if (mConnectedDeviceAddress == aDeviceAddress) {
-      aController->OnConnectReply(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+      aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
     } else {
-      aController->OnConnectReply(NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
+      aController->OnConnect(NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
     }
     return;
   }
@@ -270,7 +270,7 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
   BluetoothUuidHelper::GetString(BluetoothServiceClass::OBJECT_PUSH, uuid);
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
-    aController->OnConnectReply(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     return;
   }
 
@@ -297,8 +297,9 @@ BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[O] %s", __FUNCTION__);
   mController = aController;
+
   if (!mSocket) {
-    OnDisconnectReply();
+    OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     return;
   }
 
@@ -1421,7 +1422,7 @@ BluetoothOppManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
   // device disconnect with us.
   mSocket->GetAddress(mConnectedDeviceAddress);
 
-  OnConnectReply(EmptyString());
+  OnConnect(EmptyString());
 }
 
 void
@@ -1434,7 +1435,7 @@ BluetoothOppManager::OnSocketConnectError(BluetoothSocket* aSocket)
   mL2capSocket = nullptr;
 
   Listen();
-  OnConnectReply(NS_LITERAL_STRING("SocketConnectionError"));
+  OnConnect(NS_LITERAL_STRING("SocketConnectionError"));
 }
 
 void
@@ -1468,7 +1469,7 @@ BluetoothOppManager::OnSocketDisconnect(BluetoothSocket* aSocket)
 
   mSocket = nullptr;
   Listen();
-  OnDisconnectReply();
+  OnDisconnect(EmptyString());
 }
 
 void
@@ -1490,7 +1491,7 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
     } else {
       mSocket = nullptr;
       Listen();
-      OnConnectReply(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
+      OnConnect(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     }
 
     return;
@@ -1499,7 +1500,7 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
   if (!mSocket->Connect(NS_ConvertUTF16toUTF8(aDeviceAddress), aChannel)) {
     mSocket = nullptr;
     Listen();
-    OnConnectReply(NS_LITERAL_STRING("SocketConnectionError"));
+    OnConnect(NS_LITERAL_STRING("SocketConnectionError"));
   }
 }
 
@@ -1519,7 +1520,7 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
     mSocket = nullptr;
     Listen();
-    OnConnectReply(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
+    OnConnect(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
   }
 }
 
@@ -1539,7 +1540,7 @@ BluetoothOppManager::AcquireSdcardMountLock()
 }
 
 void
-BluetoothOppManager::OnConnectReply(const nsAString& aErrorStr)
+BluetoothOppManager::OnConnect(const nsAString& aErrorStr)
 {
   /**
    * On the one hand, notify the controller that we've done for outbound
@@ -1547,12 +1548,12 @@ BluetoothOppManager::OnConnectReply(const nsAString& aErrorStr)
    */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnConnectReply(aErrorStr);
+  mController->OnConnect(aErrorStr);
   mController = nullptr;
 }
 
 void
-BluetoothOppManager::OnDisconnectReply(const nsAString& aErrorStr)
+BluetoothOppManager::OnDisconnect(const nsAString& aErrorStr)
 {
   /**
    * On the one hand, notify the controller that we've done for outbound
@@ -1560,6 +1561,6 @@ BluetoothOppManager::OnDisconnectReply(const nsAString& aErrorStr)
    */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnDisconnectReply();
+  mController->OnDisconnect(aErrorStr);
   mController = nullptr;
 }

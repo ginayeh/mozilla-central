@@ -178,9 +178,13 @@ BluetoothProfileController::ConnectNext()
 }
 
 void
-BluetoothProfileController::OnConnectReply()
+BluetoothProfileController::OnConnect(const nsAString& aErrorStr)
 {
   LOG("[C] %s", __FUNCTION__);
+  if (!aErrorStr.IsEmpty()) {
+    BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
+  }
+
   mProfilesIndex++;
   ConnectNext();
 }
@@ -211,9 +215,13 @@ BluetoothProfileController::DisconnectNext()
 }
 
 void
-BluetoothProfileController::OnDisconnectReply()
+BluetoothProfileController::OnDisconnect(const nsAString& aErrorStr)
 {
   LOG("[C] %s", __FUNCTION__);
+  if (!aErrorStr.IsEmpty()) {
+    BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
+  }
+
   mProfilesIndex++;
   DisconnectNext();
 }
