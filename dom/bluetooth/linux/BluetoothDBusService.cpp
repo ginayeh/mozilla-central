@@ -535,9 +535,8 @@ GetIntCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
                   UnpackIntMessage);
 }
 
-#ifdef DEBUG
 static void
-CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
+CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
 {
   LOG("[B] %s", __FUNCTION__);
   NS_ENSURE_TRUE_VOID(aMsg);
@@ -545,102 +544,63 @@ CheckForError(DBusMessage* aMsg, void *aParam, const nsAString& aError)
   BluetoothValue v;
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
-  if (!v.get_bool()) {
-    BT_WARNING(NS_ConvertUTF16toUTF8(aError).get());
-    LOG(NS_ConvertUTF16toUTF8(aError).get());
+
+  BluetoothServiceClass* serviceClass =
+    static_cast<BluetoothServiceClass*>(aServiceClass);
+  LOG("[B] serviceClass: %X", *serviceClass);
+
+  if (replyError.IsEmpty()) {
+    delete serviceClass;
+    return;
+  }
+
+  // Error occured when sending message to DBus
+  BluetoothProfileManagerBase* profile;
+  if (*serviceClass == BluetoothServiceClass::HID) {
+    profile = BluetoothHidManager::Get();
+  } else if (*serviceClass == BluetoothServiceClass::A2DP) {
+    profile = BluetoothA2dpManager::Get();
+  } else {
+    BT_WARNING("Invalid profile");
+    delete serviceClass;
+    return;
+  }
+
+  delete serviceClass;
+
+  if (aConnect) {
+    profile->OnConnect(replyError);
+  } else {
+    profile->OnDisconnect(replyError);
   }
 }
-#endif
-
-/*class ConnectDisconnectCallback : public nsRunnable
-{
-public:
-  ConnectDisconnectCallback(BluetoothServiceClass aServiceClass,
-                            bool aIsConnectRequest)
-    : mServiceClass(aServiceClass)
-    , mIsConnectRequest(aIsConnectRequest)
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-  }
-
-  nsresult Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-   
-    BluetoothProfileManagerBase* profile; 
-    if (mServiceClass == BluetoothServiceClass::A2DP) {
-      profile = BluetoothA2dpManager::Get();
-    } else if (mServiceClass == BluetoothServiceClass::HID) {
-      profile = BluetoothHidManager::Get();
-    } else {
-      BT_WARNING("Invalid BluetoothServiceClass");
-      return NS_ERROR_FAILURE;
-    }
-
-    if (mIsConnectRequest) {
-      profile->OnConnectReply();
-    } else {
-      profile->OnDisconnectReply();
-    }
-
-    return NS_OK;
-  }
-
-private:
-  BluetoothServiceClass mServiceClass;
-  bool mIsConnectRequest;
-};*/
 
 static void
 InputConnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
-#ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect input device");
-  CheckForError(aMsg, aParam, errorStr);
-#endif
-
-/*  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::HID, true));*/
+  CheckDBusReply(aMsg, aParam, true);
 }
 
 static void
 InputDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
-#ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect input device");
-  CheckForError(aMsg, aParam, errorStr);
-#endif
-
-/*  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::HID, false));*/
+  CheckDBusReply(aMsg, aParam, false);
 }
 
 static void
 SinkConnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
-#ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to connect sink");
-  CheckForError(aMsg, aParam, errorStr);
-#endif
-
-/*  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, true));*/
+  CheckDBusReply(aMsg, aParam, true);
 }
 
 static void
 SinkDisconnectCallback(DBusMessage* aMsg, void* aParam)
 {
   LOG("[B] %s", __FUNCTION__);
-#ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to disconnect sink");
-  CheckForError(aMsg, aParam, errorStr);
-#endif
-
-/*  NS_DispatchToMainThread(
-    new ConnectDisconnectCallback(BluetoothServiceClass::A2DP, false));*/
+  CheckDBusReply(aMsg, aParam, false);
 }
 
 static bool
@@ -2120,10 +2080,20 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
   MOZ_ASSERT(!aObjectPath.IsEmpty());
   MOZ_ASSERT(aInterface);
 
+  BluetoothServiceClass* serviceClass = new BluetoothServiceClass();
+  if (!strcmp(aInterface, DBUS_SINK_IFACE)) {
+    *serviceClass = BluetoothServiceClass::A2DP;
+  } else if (!strcmp(aInterface, DBUS_INPUT_IFACE)) {
+    *serviceClass = BluetoothServiceClass::HID;
+  } else {
+    BT_WARNING("Invalid interface");
+    return NS_ERROR_FAILURE;
+  }
+
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
                                   aCallback,
-                                  nullptr,
+                                  static_cast<void*>(serviceClass),
                                   NS_ConvertUTF16toUTF8(aObjectPath).get(),
                                   aInterface,
                                   NS_ConvertUTF16toUTF8(aMessage).get(),
@@ -3356,10 +3326,17 @@ BluetoothDBusService::SendPlayStatus(int64_t aDuration,
 static void
 ControlCallback(DBusMessage* aMsg, void* aParam)
 {
-#ifdef DEBUG
-  NS_NAMED_LITERAL_STRING(errorStr, "Failed to update playstatus");
-  CheckForError(aMsg, aParam, errorStr);
-#endif
+  if (!aMsg) {
+    BT_WARNING("Send message to DBUS_CTL_IFACE failed.");
+    return;
+  }
+
+  BluetoothValue v;
+  nsAutoString replyError;
+  UnpackVoidMessage(aMsg, nullptr, v, replyError);
+  if(!v.get_bool()) {
+    BT_WARNING(NS_ConvertUTF16toUTF8(replyError).get());
+  }
 }
 
 void

@@ -1,4 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -36,8 +36,8 @@ public:
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController) = 0;
   virtual void Disconnect(BluetoothProfileController* aController) = 0;
-  virtual void OnConnectReply(const nsAString& aErrorStr) = 0;
-  virtual void OnDisconnectReply(const nsAString& aErrorStr) = 0;
+  virtual void OnConnect(const nsAString& aErrorStr) = 0;
+  virtual void OnDisconnect(const nsAString& aErrorStr) = 0;
 };
 
 END_BLUETOOTH_NAMESPACE

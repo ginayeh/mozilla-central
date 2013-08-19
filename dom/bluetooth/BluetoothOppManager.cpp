@@ -285,7 +285,7 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
     mL2capSocket = nullptr;
   }
 
-  MOZ_ASSERT(!mController);
+  MOZ_ASSERT(aController && !mController);
 
   mController = aController;
   mSocket =
@@ -296,13 +296,15 @@ void
 BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[O] %s", __FUNCTION__);
-  mController = aController;
 
   if (!mSocket) {
-    OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     return;
   }
 
+  MOZ_ASSERT(aController && !mController);
+
+  mController = aController;
   mSocket->Disconnect();
   mSocket = nullptr;
 }
@@ -1430,11 +1432,9 @@ BluetoothOppManager::OnSocketConnectError(BluetoothSocket* aSocket)
 {
   LOG("[O] %s", __FUNCTION__);
 
-  mSocket = nullptr;
   mRfcommSocket = nullptr;
   mL2capSocket = nullptr;
 
-  Listen();
   OnConnect(NS_LITERAL_STRING("SocketConnectionError"));
 }
 
@@ -1467,8 +1467,6 @@ BluetoothOppManager::OnSocketDisconnect(BluetoothSocket* aSocket)
   mConnectedDeviceAddress.AssignLiteral(BLUETOOTH_ADDRESS_NONE);
   mSuccessFlag = false;
 
-  mSocket = nullptr;
-  Listen();
   OnDisconnect(EmptyString());
 }
 
@@ -1489,8 +1487,6 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
       mNeedsUpdatingSdpRecords = false;
       bs->UpdateSdpRecords(aDeviceAddress, this);
     } else {
-      mSocket = nullptr;
-      Listen();
       OnConnect(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
     }
 
@@ -1498,8 +1494,6 @@ BluetoothOppManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
   }
 
   if (!mSocket->Connect(NS_ConvertUTF16toUTF8(aDeviceAddress), aChannel)) {
-    mSocket = nullptr;
-    Listen();
     OnConnect(NS_LITERAL_STRING("SocketConnectionError"));
   }
 }
@@ -1518,8 +1512,6 @@ BluetoothOppManager::OnUpdateSdpRecords(const nsAString& aDeviceAddress)
   BluetoothUuidHelper::GetString(BluetoothServiceClass::OBJECT_PUSH, uuid);
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
-    mSocket = nullptr;
-    Listen();
     OnConnect(NS_LITERAL_STRING(ERR_SERVICE_CHANNEL_NOT_FOUND));
   }
 }
@@ -1542,6 +1534,11 @@ BluetoothOppManager::AcquireSdcardMountLock()
 void
 BluetoothOppManager::OnConnect(const nsAString& aErrorStr)
 {
+  if (!aErrorStr.IsEmpty()) {
+    mSocket = nullptr;
+    Listen();
+  }
+
   /**
    * On the one hand, notify the controller that we've done for outbound
    * connections. On the other hand, we do nothing for inbound connections.
@@ -1555,6 +1552,9 @@ BluetoothOppManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothOppManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  mSocket = nullptr;
+  Listen();
+
   /**
    * On the one hand, notify the controller that we've done for outbound
    * connections. On the other hand, we do nothing for inbound connections.

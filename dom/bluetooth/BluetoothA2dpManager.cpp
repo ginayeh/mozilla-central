@@ -165,47 +165,72 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
-  NS_ENSURE_FALSE_VOID(sInShutdown);
-  NS_ENSURE_FALSE_VOID(mA2dpConnected);
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs || sInShutdown) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
+
+  if (mA2dpConnected) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+    return;
+  }
+
+  MOZ_ASSERT(aController && !mController);
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
 
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
-  bs->SendSinkMessage(aDeviceAddress,
-                      NS_LITERAL_STRING("Connect"));
+  bs->SendSinkMessage(aDeviceAddress, NS_LITERAL_STRING("Connect"));
 }
 
 void
 BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[A2dp] %s, mA2dpConnected: %d, mDeviceAddress: %s", __FUNCTION__, mA2dpConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
-  NS_ENSURE_TRUE_VOID(mA2dpConnected);
-
-  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-  mController = aController;
 
   BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
+  if (!bs || sInShutdown) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
+
+  if (!mA2dpConnected) {
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    return;
+  }
+
+  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aController && !mController);
+
+  mController = aController;
+
   bs->SendSinkMessage(mDeviceAddress, NS_LITERAL_STRING("Disconnect"));
 }
 
 void
-BluetoothA2dpManager::OnConnectReply()
+BluetoothA2dpManager::OnConnect(const nsAString& aErrorStr)
 {
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnConnectReply();
+  mController->OnConnect(aErrorStr);
   mController = nullptr;
 }
 
 void
-BluetoothA2dpManager::OnDisconnectReply()
+BluetoothA2dpManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnDisconnectReply();
+  mController->OnDisconnect(aErrorStr);
   mController = nullptr;
 }
 
@@ -279,7 +304,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
         break;
       } else if (mSinkState == SinkState::SINK_CONNECTING) {
         // case 3
-        OnConnectReply();
+        OnConnect(EmptyString());
       }
       mA2dpConnected = true;
       mDeviceAddress = address;
@@ -289,11 +314,11 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
     case SinkState::SINK_DISCONNECTED:
       if (mSinkState == SinkState::SINK_CONNECTING) {
         // case 2
-        OnConnectReply();
+        OnConnect(EmptyString());
         break;
       } else if (mSinkState == SinkState::SINK_DISCONNECTING) {
         // case 7
-        OnDisconnectReply();
+        OnDisconnect(EmptyString());
       }
       mA2dpConnected = false;
       NotifyConnectionStatusChanged();
@@ -370,6 +395,7 @@ BluetoothA2dpManager::GetAddress(nsAString& aDeviceAddress)
 bool
 BluetoothA2dpManager::IsConnected()
 {
+  LOG("[A2dp] %s returns %d", __FUNCTION__, mA2dpConnected);
   return mA2dpConnected;
 }
 

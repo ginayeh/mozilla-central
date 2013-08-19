@@ -110,55 +110,70 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
-  NS_ENSURE_FALSE_VOID(sInShutdown);
-  NS_ENSURE_FALSE_VOID(mConnected);
-  
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs || sInShutdown) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
+
+  if (mConnected) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+    return;
+  }
+
   MOZ_ASSERT(aController && !mController);
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
 
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
-  bs->SendInputMessage(aDeviceAddress,
-                       NS_LITERAL_STRING("Connect"));
-//                       nullptr);
-
-//  return NS_SUCCEEDED(rv);
+  bs->SendInputMessage(aDeviceAddress, NS_LITERAL_STRING("Connect"));
 }
 
 void
 BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
 {
-  NS_ENSURE_TRUE_VOID(mConnected);
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs || sInShutdown) {
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
+
+  if (!mConnected) {
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    return;
+  }
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
   MOZ_ASSERT(aController && !mController);
 
   mController = aController;
 
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE_VOID(bs);
-  bs->SendInputMessage(mDeviceAddress,
-                       NS_LITERAL_STRING("Disconnect"));
-//                       nullptr);
+  bs->SendInputMessage(mDeviceAddress, NS_LITERAL_STRING("Disconnect"));
 }
 
 void
-BluetoothHidManager::OnConnectReply()
+BluetoothHidManager::OnConnect(const nsAString& aErrorStr)
 {
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnConnectReply();
+  mController->OnConnect(aErrorStr);
   mController = nullptr;
 }
 
 void
-BluetoothHidManager::OnDisconnectReply()
+BluetoothHidManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->OnDisconnectReply();
+  mController->OnDisconnect(aErrorStr);
   mController = nullptr;
 }
 
@@ -187,6 +202,11 @@ BluetoothHidManager::HandleInputPropertyChanged(const BluetoothSignal& aSignal)
 
     mConnected = value.get_bool();
     NotifyStatusChanged();
+    if (mConnected) {
+      OnConnect(EmptyString());
+    } else {
+      OnDisconnect(EmptyString());
+    }
   }
 }
 

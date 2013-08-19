@@ -1073,9 +1073,8 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
     mHeadsetSocket = nullptr;
   }
 
-//  MOZ_ASSERT(!mRunnable);
+  MOZ_ASSERT(aController && !mController);
 
-//  mRunnable = aRunnable;
   mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
@@ -1130,13 +1129,17 @@ void
 BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[Hfp] %s", __FUNCTION__);
-  mController = aController;
-  if (mSocket) {
-    mSocket->Disconnect();
-    mSocket = nullptr;
-  } else {
-    OnDisconnect(NS_LITERAL_STRING());
+
+  if (!mSocket) {
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    return;
   }
+
+  MOZ_ASSERT(aController && !mController);
+
+  mController = aController;
+  mSocket->Disconnect();
+  mSocket = nullptr;
 }
 
 bool
@@ -1560,10 +1563,8 @@ BluetoothHfpManager::OnSocketDisconnect(BluetoothSocket* aSocket)
   }
 
   LOG("[Hfp] %s", __FUNCTION__);
-  mSocket = nullptr;
   DisconnectSco();
 
-  Listen();
   NotifyConnectionStatusChanged(NS_LITERAL_STRING(BLUETOOTH_HFP_STATUS_CHANGED_ID));
   DispatchConnectionStatusChanged(NS_LITERAL_STRING(HFP_STATUS_CHANGED_ID));
   Reset();
@@ -1784,12 +1785,16 @@ BluetoothHfpManager::IsScoConnected()
 void
 BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 {
+  // When we failed to create a socket, restart listening.
   if (!aErrorStr.IsEmpty()) {
     mSocket = nullptr;
     Listen();
   }
 
-  //
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnConnect(aErrorStr);
@@ -1799,6 +1804,14 @@ BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  // Start listening
+  mSocket = nullptr;
+  Listen();
+
+  /**
+   * On the one hand, notify the controller that we've done for outbound
+   * connections. On the other hand, we do nothing for inbound connections.
+   */
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnDisconnect(aErrorStr);

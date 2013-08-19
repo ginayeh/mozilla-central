@@ -41,10 +41,9 @@ public:
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
-  virtual void Disconnect(BluetoothProfileController* aController)
-                          MOZ_OVERRIDE;
-  virtual void OnConnectReply() MOZ_OVERRIDE;
-  virtual void OnDisconnectReply() MOZ_OVERRIDE;
+  virtual void Disconnect(BluetoothProfileController* aController) MOZ_OVERRIDE;
+  virtual void OnConnect(const nsAString& aErrorStr) MOZ_OVERRIDE;
+  virtual void OnDisconnect(const nsAString& aErrorStr) MOZ_OVERRIDE;
 
   // A2DP member functions
   void HandleSinkPropertyChanged(const BluetoothSignal& aSignal);
