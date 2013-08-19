@@ -522,7 +522,7 @@ BluetoothAdapter::SetDiscoverableTimeout(uint32_t aDiscoverableTimeout, ErrorRes
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::GetConnectedDevices(uint16_t aProfileId, ErrorResult& aRv)
+BluetoothAdapter::GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
   LOG("[A] %s", __FUNCTION__);
@@ -542,7 +542,7 @@ BluetoothAdapter::GetConnectedDevices(uint16_t aProfileId, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  nsresult rv = bs->GetConnectedDevicePropertiesInternal(aProfileId, results);
+  nsresult rv = bs->GetConnectedDevicePropertiesInternal(aServiceUuid, results);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -724,7 +724,7 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
 
 already_AddRefed<DOMRequest>
 BluetoothAdapter::Connect(BluetoothDevice& aDevice,
-                          const Optional<short unsigned int>& aProfile,
+                          const Optional<short unsigned int>& aServiceUuid,
                           ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
@@ -740,27 +740,27 @@ BluetoothAdapter::Connect(BluetoothDevice& aDevice,
   nsAutoString address;
   aDevice.GetAddress(address);
   uint32_t deviceClass = aDevice.Class();
-  uint16_t profileId = 0;
-  if (aProfile.WasPassed()) {
-    LOG("[A] aProfileId was passed.");
-    profileId = aProfile.Value();
+  uint16_t serviceUuid = 0;
+  if (aServiceUuid.WasPassed()) {
+    LOG("[A] aServiceUuid was passed.");
+    serviceUuid = aServiceUuid.Value();
   }
 
-  LOG("[A] Connect, address: %s, deviceClass: %X, profileId: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, profileId);
+  LOG("[A] Connect, address: %s, deviceClass: %X, serviceUuid: %X", NS_ConvertUTF16toUTF8(address).get(), deviceClass, serviceUuid);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Connect(address, deviceClass, profileId, results);
+  bs->Connect(address, deviceClass, serviceUuid, results);
 
   return request.forget();
 }
 
 already_AddRefed<DOMRequest>
 BluetoothAdapter::Disconnect(BluetoothDevice& aDevice,
-                             const Optional<short unsigned int>& aProfile,
+                             const Optional<short unsigned int>& aServiceUuid,
                              ErrorResult& aRv)
 {
   LOG("[A] %s", __FUNCTION__);
@@ -776,20 +776,20 @@ BluetoothAdapter::Disconnect(BluetoothDevice& aDevice,
 
   nsAutoString address;
   aDevice.GetAddress(address);
-  uint16_t profileId = 0;
-  if (aProfile.WasPassed()) {
-    LOG("[A] aProfileId was passed.");
-    profileId = aProfile.Value();
+  uint16_t serviceUuid = 0;
+  if (aServiceUuid.WasPassed()) {
+    LOG("[A] aServiceUuid was passed.");
+    serviceUuid = aServiceUuid.Value();
   }
 
-  LOG("[A] Disconnect, address: %s, profileId: %X", NS_ConvertUTF16toUTF8(address).get(), profileId);
+  LOG("[A] Disconnect, address: %s, serviceUuid: %X", NS_ConvertUTF16toUTF8(address).get(), serviceUuid);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Disconnect(address, profileId, results);
+  bs->Disconnect(address, serviceUuid, results);
 
   return request.forget();
 }

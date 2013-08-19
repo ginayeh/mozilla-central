@@ -395,7 +395,7 @@ BluetoothRequestParent::DoRequest(const ConnectedDevicePropertiesRequest& aReque
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TConnectedDevicePropertiesRequest);
   nsresult rv =
-    mService->GetConnectedDevicePropertiesInternal(aRequest.profileId(),
+    mService->GetConnectedDevicePropertiesInternal(aRequest.serviceUuid(),
                                                 mReplyRunnable.get());
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -476,7 +476,7 @@ BluetoothRequestParent::DoRequest(const ConnectRequest& aRequest)
 
   mService->Connect(aRequest.address(),
                     aRequest.cod(),
-                    aRequest.profileId(),
+                    aRequest.serviceUuid(),
                     mReplyRunnable.get());
 
   return true;
@@ -489,7 +489,7 @@ BluetoothRequestParent::DoRequest(const DisconnectRequest& aRequest)
   MOZ_ASSERT(mRequestType == Request::TDisconnectRequest);
 
   mService->Disconnect(aRequest.address(),
-                       aRequest.profileId(),
+                       aRequest.serviceUuid(),
                        mReplyRunnable.get());
 
   return true;

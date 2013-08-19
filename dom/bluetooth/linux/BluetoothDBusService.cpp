@@ -2244,7 +2244,7 @@ private:
 };
 
 nsresult
-BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
+BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aServiceUuid,
                                               BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -2260,12 +2260,12 @@ BluetoothDBusService::GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
 
   nsTArray<nsString> deviceAddresses;
   BluetoothProfileManagerBase* profile;
-  if (aProfileId == BluetoothServiceClass::HANDSFREE ||
-      aProfileId == BluetoothServiceClass::HEADSET) {
+  if (aServiceUuid == BluetoothServiceClass::HANDSFREE ||
+      aServiceUuid == BluetoothServiceClass::HEADSET) {
     profile = BluetoothHfpManager::Get();
-  } else if (aProfileId == BluetoothServiceClass::HID) {
+  } else if (aServiceUuid == BluetoothServiceClass::HID) {
     profile = BluetoothHidManager::Get();
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
+  } else if (aServiceUuid == BluetoothServiceClass::OBJECT_PUSH) {
     profile = BluetoothOppManager::Get();
   } else {
     DispatchBluetoothReply(aRunnable, values,
@@ -2692,17 +2692,17 @@ DestroyBluetoothProfileController()
 void
 BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
                               uint32_t aCod,
-                              uint16_t aProfileId,
+                              uint16_t aServiceUuid,
                               BluetoothReplyRunnable* aRunnable)
 {
-  LOG("[B] %s, aCod: %X, aProfileId: %X", __FUNCTION__, aCod, aProfileId);
+  LOG("[B] %s, aCod: %X, aServiceUuid: %X", __FUNCTION__, aCod, aServiceUuid);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aRunnable);
 
   BluetoothServiceClass serviceClass =
-    BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
+    BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
-  if (aProfileId) {
+  if (aServiceUuid) {
     sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
   } else {
     sController = new BluetoothProfileController(aDeviceAddress, aCod, aRunnable, DestroyBluetoothProfileController);
@@ -2713,7 +2713,7 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
 
 void
 BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
-                                 uint16_t aProfileId,
+                                 uint16_t aServiceUuid,
                                  BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -2725,10 +2725,10 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
   // once Disconnect will fail.
 //  DispatchBluetoothReply(aRunnable, BluetoothValue(true), EmptyString());
   BluetoothServiceClass serviceClass =
-    BluetoothUuidHelper::GetBluetoothServiceClass(aProfileId);
+    BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
   void (*callback)();
-  if (aProfileId) {
+  if (aServiceUuid) {
     sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
   } else {
     sController = new BluetoothProfileController(aDeviceAddress, aRunnable, DestroyBluetoothProfileController);
@@ -2738,18 +2738,18 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
 }
 
 bool
-BluetoothDBusService::IsConnected(const uint16_t aProfileId)
+BluetoothDBusService::IsConnected(const uint16_t aServiceUuid)
 {
   MOZ_ASSERT(NS_IsMainThread());
   LOG("[B] %s", __FUNCTION__);
 
   BluetoothProfileManagerBase* profile;
-  if (aProfileId == BluetoothServiceClass::HANDSFREE ||
-      aProfileId == BluetoothServiceClass::HEADSET) {
+  if (aServiceUuid == BluetoothServiceClass::HANDSFREE ||
+      aServiceUuid == BluetoothServiceClass::HEADSET) {
     profile = BluetoothHfpManager::Get();
-  } else if (aProfileId == BluetoothServiceClass::HID) {
+  } else if (aServiceUuid == BluetoothServiceClass::HID) {
     profile = BluetoothHidManager::Get();
-  } else if (aProfileId == BluetoothServiceClass::OBJECT_PUSH) {
+  } else if (aServiceUuid == BluetoothServiceClass::OBJECT_PUSH) {
     profile = BluetoothOppManager::Get();
   } else {
     NS_WARNING(ERR_UNKNOWN_PROFILE);

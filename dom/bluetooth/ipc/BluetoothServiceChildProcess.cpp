@@ -104,10 +104,10 @@ BluetoothServiceChildProcess::GetDefaultAdapterPathInternal(
 
 nsresult
 BluetoothServiceChildProcess::GetConnectedDevicePropertiesInternal(
-                                              uint16_t aProfileId,
+                                              uint16_t aServiceUuid,
                                               BluetoothReplyRunnable* aRunnable)
 {
-  SendRequest(aRunnable, ConnectedDevicePropertiesRequest(aProfileId));
+  SendRequest(aRunnable, ConnectedDevicePropertiesRequest(aServiceUuid));
   return NS_OK;
 }
 nsresult
@@ -254,23 +254,23 @@ void
 BluetoothServiceChildProcess::Connect(
   const nsAString& aDeviceAddress,
   uint32_t aCod,
-  uint16_t aProfileId,
+  uint16_t aServiceUuid,
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
               ConnectRequest(nsString(aDeviceAddress),
                              aCod,
-                             aProfileId));
+                             aServiceUuid));
 }
 
 void
 BluetoothServiceChildProcess::Disconnect(
   const nsAString& aDeviceAddress,
-  uint16_t aProfileId,
+  uint16_t aServiceUuid,
   BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable,
-              DisconnectRequest(nsString(aDeviceAddress), aProfileId));
+              DisconnectRequest(nsString(aDeviceAddress), aServiceUuid));
 }
 
 void
@@ -391,7 +391,7 @@ BluetoothServiceChildProcess::IsEnabledInternal()
 }
 
 bool
-BluetoothServiceChildProcess::IsConnected(uint16_t aProfileId)
+BluetoothServiceChildProcess::IsConnected(uint16_t aServiceUuid)
 {
   MOZ_CRASH("This should never be called!");
 }
