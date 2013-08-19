@@ -7,95 +7,72 @@
 #ifndef mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 #define mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 
-//#include "BluetoothCommon.h"
-//#include "BluetoothProfileManagerBase.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUuid.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+/*
+ * Class of Device(CoD): 32-bit unsigned integer
+ *
+ *  31   24  23    13 12     8 7      2 1 0
+ * |       | Major   | Major  | Minor  |   |
+ * |       | service | device | device |   |
+ * |       | class   | class  | class  |   |
+ * |       |<- 11  ->|<- 5  ->|<- 6  ->|   |
+ *
+ * https://www.bluetooth.org/en-us/specification/assigned-numbers/baseband
+ */
+
+// Bit 23 ~ Bit 13: Major service class
+#define GetMajorServiceClass(cod) return ((cod & 0xffe000) >> 13);
+
+// Bit 12 ~ Bit 8: Major device class
+#define GetMajorDeviceClass(cod)  return ((cod & 0x1f00) >> 8);
+
+// Bit 7 ~ Bit 2: Minor device class
+#define GetMinorDeviceClass(cod)  return ((aCod & 0xfc) >> 2);
+
+// Bit 21: Major service class = 0x100, Audio
+#define HAS_AUDIO(cod)            return ((cod & 0x200000) >> 21);
+
+// Bit 20: Major service class = 0x80, Object Transfer
+#define HAS_OBJECT_TRANSFER(cod)  return ((cod & 0x100000) >> 20);
+
+// Bit 18: Major service class = 0x20, Rendering
+#define HAS_RENDING(cod)          return ((cod & 0x40000) >> 18);
+
+// Bit 11 and Bit 9: Major device class = 0xA, Peripheral
+#define IS_PERIPHERAL(cod)        return ((cod & 0x200) >> 9) && ((cod & 0x800) >> 11);
+
+// Bit 10: Major device class = 0x4, Audio/Video
+// Bit 2: Minor device class = 0x1, Wearable Headset Device 
+#define IS_HEADSET(cod)           return ((cod & 0x400) >> 10) && ((cod & 0x4)  >> 2);
+
 class BluetoothProfileManagerBase;
-typedef void (*Callback)();
-
-class BluetoothCodHelper
-{
-public:
-  /*
-   * Class of Device(CoD): 32-bit unsigned integer
-   *
-   *  31   24  23    13 12     8 7      2 1 0
-   * |       | major   | major  | minor  |   |
-   * |       | service | device | device |   |
-   * |       | class   | class  | class  |   |
-   * |       |<- 11  ->|<- 5  ->|<- 6  ->|   |
-   *
-   * bit 23 - bit 13: major service class
-   * bit 12 - bit  8: major device class
-   * bit  7 - bit  2: minor device class
-   *
-   * https://www.bluetooth.org/en-us/specification/assigned-numbers/baseband
-   */
-
-  static uint16_t GetMajorServiceClass(uint32_t aCod)
-  {
-    return ((aCod & 0xffe000) >> 13);
-  }
-
-  static uint8_t GetMajorDeviceClass(uint32_t aCod)
-  {
-    return ((aCod & 0x1f00) >> 8);
-  }
-
-  static uint8_t GetMinorDeviceClass(uint32_t aCod)
-  {
-    return ((aCod & 0xfc) >> 2);
-  }
-
-  static bool HasAudio(uint32_t aCod)
-  {
-    // Extract bit 21
-    return ((aCod & 0x200000) >> 21);
-  }
-
-  static bool HasObjectTransfer(uint32_t aCod)
-  {
-    // Extract bit 20
-    return ((aCod & 0x100000) >> 20);
-  }
-
-  static bool HasRendering(uint32_t aCod)
-  {
-    // Extract bit 18
-    return ((aCod & 0x40000) >> 18);
-  }
-
-  static bool IsHeadset(uint32_t aCod)
-  {
-    // Extract bit 10
-    bool isAudioVideo = (aCod & 0x400) >> 10;
-
-    // Extract bit 2
-    bool isHeadset = (aCod & 0x4)  >> 2;
-
-    return (isAudioVideo && isHeadset);
-  }
-};
+typedef void (*BluetoothProfileControllerCallback)();
 
 class BluetoothProfileController
 {
 public:
-  BluetoothProfileController(
-                  const nsAString& aDeviceAddress,
-                  BluetoothServiceClass aClass,
-                  BluetoothReplyRunnable* aRunnable,
-                  Callback aCallback);
+  // Connect/Disconnect to a specific service UUID.
+  BluetoothProfileController(const nsAString& aDeviceAddress,
+                             BluetoothServiceClass aClass,
+                             BluetoothReplyRunnable* aRunnable,
+                             BluetoothProfileControllerCallback aCallback);
+
+  // Based on the class of device(CoD), connect to multiple profiles
+  // sequencely.
   BluetoothProfileController(const nsAString& aDeviceAddress,
                              uint32_t aCod,
                              BluetoothReplyRunnable* aRunnable,
-                             Callback aCallback);
+                             BluetoothProfileControllerCallback aCallback);
+
+  // Disconnect all connected profiles.
   BluetoothProfileController(const nsAString& aDeviceAddress,
                              BluetoothReplyRunnable* aRunnable,
-                             Callback aCallback);
+                             BluetoothProfileControllerCallback aCallback);
+
   ~BluetoothProfileController();
 
   void Connect();
@@ -107,20 +84,20 @@ public:
   uint32_t GetCod();
 
 private:
+  void Init(const nsAString& aDeviceAddress,
+            BluetoothReplyRunnable* aRunnable,
+            BluetoothProfileControllerCallback aCallback);
+
   void ConnectNext();
   void DisconnectNext();
 
-  void Init(const nsAString& aDeviceAddress,
-            BluetoothReplyRunnable* aRunnable,
-            Callback aCallback);
-
-  nsTArray<BluetoothProfileManagerBase*> mProfiles;
-  BluetoothReplyRunnable* mRunnable;
   int8_t mProfilesIndex;
+  nsTArray<BluetoothProfileManagerBase*> mProfiles;
+
   uint32_t mCod;
   nsString mDeviceAddress;
-  nsString mErrorString;
-  Callback mCallback;
+  BluetoothReplyRunnable* mRunnable;
+  BluetoothProfileControllerCallback mCallback;
 };
 
 END_BLUETOOTH_NAMESPACE

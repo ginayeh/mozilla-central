@@ -26,24 +26,26 @@ USING_BLUETOOTH_NAMESPACE
 #endif
 
 BluetoothProfileController::BluetoothProfileController(
-                                              const nsAString& aDeviceAddress,
-                                              uint32_t aCod,
-                                              BluetoothReplyRunnable* aRunnable,
-                                              Callback aCallback)
+                                   const nsAString& aDeviceAddress,
+                                   uint32_t aCod,
+                                   BluetoothReplyRunnable* aRunnable,
+                                   BluetoothProfileControllerCallback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
 
-  bool hasAudio = BluetoothCodHelper::HasAudio(aCod);
-  bool hasObjectTransfer = BluetoothCodHelper::HasObjectTransfer(aCod);
-  bool hasRendering = BluetoothCodHelper::HasRendering(aCod);
+  bool hasAudio = HAS_AUDIO(aCod);
+  bool hasObjectTransfer = HAS_OBJECT_TRANSFER(aCod);
+  bool hasRendering = HAS_RENDERING(aCod);
+  bool isPeripheral = IS_PERIPHERAL(aCod);
 
-  NS_ENSURE_FALSE_VOID(!hasAudio && !hasObjectTransfer && !hasRendering);
+  NS_ENSURE_FALSE_VOID(!hasAudio && !hasObjectTransfer &&
+                       !hasRendering && !IS_PERIPHERAL);
 
   mCod = aCod;
   Init(aDeviceAddress, aRunnable, aCallback);
 
   /**
-   * We connect HFP/HSP first. Then, connect A2DP if Rendering bit is set.
+   * Connect to HFP/HSP first. Then, connect A2DP if Rendering bit is set.
    * It's almost impossible to send file to a remote device which is an Audio
    * device or a Rendering device, so we won't connect OPP in that case.
    */
@@ -56,13 +58,16 @@ BluetoothProfileController::BluetoothProfileController(
   if (hasObjectTransfer && !hasAudio && !hasRendering) {
     mProfiles.AppendElement(BluetoothOppManager::Get());
   }
+  if (isPeripheral) {
+    mProfiles.AppendElement(BluetoothHidManager::Get());
+  }
 }
 
 BluetoothProfileController::BluetoothProfileController(
-                                              const nsAString& aDeviceAddress,
-                                              BluetoothServiceClass aClass,
-                                              BluetoothReplyRunnable* aRunnable,
-                                              Callback aCallback)
+                                   const nsAString& aDeviceAddress,
+                                   BluetoothServiceClass aClass,
+                                   BluetoothReplyRunnable* aRunnable,
+                                   BluetoothProfileControllerCallback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
 
@@ -89,9 +94,9 @@ BluetoothProfileController::BluetoothProfileController(
 }
 
 BluetoothProfileController::BluetoothProfileController(
-                                              const nsAString& aDeviceAddress,
-                                              BluetoothReplyRunnable* aRunnable,
-                                              Callback aCallback)
+                                   const nsAString& aDeviceAddress,
+                                   BluetoothReplyRunnable* aRunnable,
+                                   BluetoothProfileControllerCallback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
 
@@ -127,7 +132,7 @@ BluetoothProfileController::~BluetoothProfileController()
 void
 BluetoothProfileController::Init(const nsAString& aDeviceAddress,
                                  BluetoothReplyRunnable* aRunnable,
-                                 Callback aCallback)
+                                 BluetoothProfileControllerCallback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
