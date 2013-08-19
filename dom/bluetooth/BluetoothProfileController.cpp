@@ -27,19 +27,51 @@ USING_BLUETOOTH_NAMESPACE
 
 BluetoothProfileController::BluetoothProfileController(
                                    const nsAString& aDeviceAddress,
+                                   BluetoothServiceClass aClass,
+                                   BluetoothReplyRunnable* aRunnable,
+                                   BluetoothProfileControllerCallback aCallback)
+{
+  LOG("[C] %s", __FUNCTION__);
+
+  // Put the specific profile into array
+  BluetoothProfileManagerBase* profile;
+  switch (aClass) {
+    case BluetoothServiceClass::HANDSFREE:
+    case BluetoothServiceClass::HEADSET:
+      profile = BluetoothHfpManager::Get();
+      break;
+    case BluetoothServiceClass::A2DP:
+      profile = BluetoothA2dpManager::Get();
+      break;
+    case BluetoothServiceClass::OBJECT_PUSH:
+      profile = BluetoothOppManager::Get();
+      break;
+    case BluetoothServiceClass::HID:
+      profile = BluetoothHidManager::Get();
+      break;
+  }
+
+  NS_ENSURE_TRUE_VOID(profile);
+  Init(aDeviceAddress, aRunnable, aCallback);
+  mProfiles.AppendElement(profile);
+}
+
+BluetoothProfileController::BluetoothProfileController(
+                                   const nsAString& aDeviceAddress,
                                    uint32_t aCod,
                                    BluetoothReplyRunnable* aRunnable,
                                    BluetoothProfileControllerCallback aCallback)
 {
   LOG("[C] %s", __FUNCTION__);
 
+  // Put multiple profiles into array and connect to all of them sequencely
   bool hasAudio = HAS_AUDIO(aCod);
   bool hasObjectTransfer = HAS_OBJECT_TRANSFER(aCod);
   bool hasRendering = HAS_RENDERING(aCod);
   bool isPeripheral = IS_PERIPHERAL(aCod);
 
   NS_ENSURE_FALSE_VOID(!hasAudio && !hasObjectTransfer &&
-                       !hasRendering && !IS_PERIPHERAL);
+                       !hasRendering && !isPeripheral);
 
   mCod = aCod;
   Init(aDeviceAddress, aRunnable, aCallback);
@@ -65,36 +97,6 @@ BluetoothProfileController::BluetoothProfileController(
 
 BluetoothProfileController::BluetoothProfileController(
                                    const nsAString& aDeviceAddress,
-                                   BluetoothServiceClass aClass,
-                                   BluetoothReplyRunnable* aRunnable,
-                                   BluetoothProfileControllerCallback aCallback)
-{
-  LOG("[C] %s", __FUNCTION__);
-
-  BluetoothProfileManagerBase* profile;
-  switch (aClass) {
-    case BluetoothServiceClass::HANDSFREE:
-    case BluetoothServiceClass::HEADSET:
-      profile = BluetoothHfpManager::Get();
-      break;
-    case BluetoothServiceClass::A2DP:
-      profile = BluetoothA2dpManager::Get();
-      break;
-    case BluetoothServiceClass::OBJECT_PUSH:
-      profile = BluetoothOppManager::Get();
-      break;
-    case BluetoothServiceClass::HID:
-      profile = BluetoothHidManager::Get();
-      break;
-  }
-
-  NS_ENSURE_TRUE_VOID(profile);
-  Init(aDeviceAddress, aRunnable, aCallback);
-  mProfiles.AppendElement(profile);
-}
-
-BluetoothProfileController::BluetoothProfileController(
-                                   const nsAString& aDeviceAddress,
                                    BluetoothReplyRunnable* aRunnable,
                                    BluetoothProfileControllerCallback aCallback)
 {
@@ -102,6 +104,7 @@ BluetoothProfileController::BluetoothProfileController(
 
   Init(aDeviceAddress, aRunnable, aCallback);
 
+  // Put all connected profiles into array and disconnect all of them
   BluetoothProfileManagerBase* profile;
   profile = BluetoothHfpManager::Get();
   if (profile->IsConnected()) {
@@ -124,6 +127,7 @@ BluetoothProfileController::BluetoothProfileController(
 BluetoothProfileController::~BluetoothProfileController()
 {
   LOG("[C] %s", __FUNCTION__);
+  mProfilesIndex = -1;
   mProfiles.Clear();
   mRunnable = nullptr;
   mCallback = nullptr;
@@ -142,7 +146,6 @@ BluetoothProfileController::Init(const nsAString& aDeviceAddress,
   mDeviceAddress = aDeviceAddress;
   mRunnable = aRunnable;
   mCallback = aCallback;
-  mProfilesIndex = 0;
   mProfiles.Clear();
 }
 
@@ -158,20 +161,20 @@ void
 BluetoothProfileController::ConnectNext()
 {
   LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(!mDeviceAddress.IsEmpty());
 
   if (mProfilesIndex < mProfiles.Length()) {
-    mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
-  } else {
-    LOG("[C] all profiles connect complete.");
-    // All profiles has been tried
-    mDeviceAddress.Truncate();
-    mProfilesIndex = -1;
-    mProfiles.Clear();
+    MOZ_ASSERT(!mDeviceAddress.IsEmpty());
 
-    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
-    mCallback();
+    mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
+    return;
   }
+
+  LOG("[C] all profiles connect complete.");
+  MOZ_ASSERT(mRunnable && mCallback);
+  // The action has been completed, so the dom request is replied and then
+  // the callback is invoked
+  DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
+  mCallback();
 }
 
 void
@@ -196,15 +199,15 @@ BluetoothProfileController::DisconnectNext()
   LOG("[C] %s", __FUNCTION__);
   if (mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Disconnect(this);
-  } else {
-    LOG("[C] all profiles disconnect complete.");
-    mDeviceAddress.Truncate();
-    mProfilesIndex = -1;
-    mProfiles.Clear();
-
-    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
-    mCallback();
+    return;
   }
+
+  LOG("[C] all profiles disconnect complete.");
+  MOZ_ASSERT(mRunnable && mCallback);
+  // The action has been completed, so the dom request is replied and then
+  // the callback is invoked
+  DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
+  mCallback();
 }
 
 void
@@ -215,9 +218,3 @@ BluetoothProfileController::OnDisconnectReply()
   DisconnectNext();
 }
 
-uint32_t
-BluetoothProfileController::GetCod()
-{
-  LOG("[C] %s", __FUNCTION__);
-  return mCod;
-}

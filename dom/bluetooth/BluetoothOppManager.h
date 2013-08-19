@@ -45,17 +45,6 @@ public:
   void ClientDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
   void ServerDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
 
-  /*
-   * If an application wants to send a file, first, it needs to
-   * call Connect() to create a valid RFCOMM connection. After
-   * that, call SendFile()/StopSendingFile() to control file-sharing
-   * process. During the file transfering process, the application
-   * will receive several system messages which contain the processed
-   * percentage of file. At the end, the application will get another
-   * system message indicating that the process is complete, then it can
-   * either call Disconnect() to close RFCOMM connection or start another
-   * file-sending thread via calling SendFile() again.
-   */
   bool Listen();
 
   bool SendFile(const nsAString& aDeviceAddress, BlobParent* aBlob);
@@ -88,6 +77,18 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual bool IsConnected() MOZ_OVERRIDE;
+
+  /*
+   * If an application wants to send a file, first, it needs to
+   * call Connect() to create a valid RFCOMM connection. After
+   * that, call SendFile()/StopSendingFile() to control file-sharing
+   * process. During the file transfering process, the application
+   * will receive several system messages which contain the processed
+   * percentage of file. At the end, the application will get another
+   * system message indicating that the process is complete, then it can
+   * either call Disconnect() to close RFCOMM connection or start another
+   * file-sending thread via calling SendFile() again.
+   */
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController)
                        MOZ_OVERRIDE;
