@@ -2673,9 +2673,13 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
   if (aServiceUuid) {
-    sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
+    sController =
+      new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable,
+                                     DestroyBluetoothProfileController);
   } else {
-    sController = new BluetoothProfileController(aDeviceAddress, aCod, aRunnable, DestroyBluetoothProfileController);
+    sController =
+      new BluetoothProfileController(aDeviceAddress, aCod, aRunnable,
+                                     DestroyBluetoothProfileController);
   }
 
   sController->Connect();
@@ -2690,18 +2694,17 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(aRunnable);
   LOG("[B] %s", __FUNCTION__);
 
-  // Currently, just fire success because Disconnect() doesn't fail,
-  // but we still make aRunnable pass into this function for future
-  // once Disconnect will fail.
-//  DispatchBluetoothReply(aRunnable, BluetoothValue(true), EmptyString());
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
-  void (*callback)();
   if (aServiceUuid) {
-    sController = new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable, DestroyBluetoothProfileController);
+    sController =
+      new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable,
+                                     DestroyBluetoothProfileController);
   } else {
-    sController = new BluetoothProfileController(aDeviceAddress, aRunnable, DestroyBluetoothProfileController);
+    sController =
+      new BluetoothProfileController(aDeviceAddress, aRunnable,
+                                     DestroyBluetoothProfileController);
   }
 
   sController->Disconnect();

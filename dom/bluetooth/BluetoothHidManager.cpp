@@ -144,7 +144,7 @@ BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
   }
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-  MOZ_ASSERT(aController && !mController);
+  MOZ_ASSERT(!mController);
 
   mController = aController;
 

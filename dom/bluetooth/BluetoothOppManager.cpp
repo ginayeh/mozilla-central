@@ -302,7 +302,7 @@ BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
     return;
   }
 
-  MOZ_ASSERT(aController && !mController);
+  MOZ_ASSERT(!mController);
 
   mController = aController;
   mSocket->Disconnect();

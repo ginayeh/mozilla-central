@@ -77,8 +77,7 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void GetAddress(nsAString& aDeviceAddress) MOZ_OVERRIDE;
   virtual void Connect(const nsAString& aDeviceAddress,
-                       BluetoothProfileController* aController)
-                       MOZ_OVERRIDE;
+                       BluetoothProfileController* aController) MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController) MOZ_OVERRIDE;
   virtual void OnConnect(const nsAString& aErrorStr) MOZ_OVERRIDE;
   virtual void OnDisconnect(const nsAString& AErrorStr) MOZ_OVERRIDE;

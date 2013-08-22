@@ -1048,7 +1048,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   }
 
   mNeedsUpdatingSdpRecords = true;
-  mIsHandsfree = !IS_HEADSET(aController->GetCod());    
+  mIsHandsfree = !IS_HEADSET(aController->GetCod());
 
   nsString uuid;
   if (mIsHandsfree) {
@@ -1135,7 +1135,7 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
     return;
   }
 
-  MOZ_ASSERT(aController && !mController);
+  MOZ_ASSERT(!mController);
 
   mController = aController;
   mSocket->Disconnect();

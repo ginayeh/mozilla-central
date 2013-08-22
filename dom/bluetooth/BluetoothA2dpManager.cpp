@@ -201,7 +201,7 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   }
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-  MOZ_ASSERT(aController && !mController);
+  MOZ_ASSERT(!mController);
 
   mController = aController;
 
@@ -285,8 +285,8 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
 //  NS_ENSURE_TRUE_VOID(address.Equals(mDeviceAddress));
   NS_ENSURE_TRUE_VOID(name.EqualsLiteral("State"));
-  const BluetoothValue& value = arr[0].value();
 
+  const BluetoothValue& value = arr[0].value();
   MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
   SinkState state = StatusStringToSinkState(value.get_nsString());
 
@@ -301,6 +301,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
   switch (state) {
     case SinkState::SINK_CONNECTED:
       if (mSinkState == SinkState::SINK_PLAYING) {
+        // case 4
         break;
       } else if (mSinkState == SinkState::SINK_CONNECTING) {
         // case 3

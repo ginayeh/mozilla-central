@@ -90,8 +90,7 @@ public:
    * file-sending thread via calling SendFile() again.
    */
   virtual void Connect(const nsAString& aDeviceAddress,
-                       BluetoothProfileController* aController)
-                       MOZ_OVERRIDE;
+                       BluetoothProfileController* aController) MOZ_OVERRIDE;
   virtual void Disconnect(BluetoothProfileController* aController) MOZ_OVERRIDE;
   virtual void OnConnect(const nsAString& aErrorStr) MOZ_OVERRIDE;
   virtual void OnDisconnect(const nsAString& aErrorStr) MOZ_OVERRIDE;
