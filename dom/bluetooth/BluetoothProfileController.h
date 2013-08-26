@@ -41,11 +41,11 @@ BEGIN_BLUETOOTH_NAMESPACE
 // Bit 18: Major service class = 0x20, Rendering
 #define HAS_RENDERING(cod)       (cod & 0x40000)
 
-// Bit 11 and Bit 9: Major device class = 0xA, Peripheral
-#define IS_PERIPHERAL(cod)       (GET_MAJOR_DEVICE_CLASS(cod) == 0xA)
+// Major device class = 0xA, Peripheral
+#define IS_PERIPHERAL(cod)       (GET_MAJOR_DEVICE_CLASS(cod) == 0xa)
 
-// Bit 10: Major device class = 0x4, Audio/Video
-// Bit 2: Minor device class = 0x1, Wearable Headset device
+// Major device class = 0x4, Audio/Video
+// Minor device class = 0x1, Wearable Headset device
 #define IS_HEADSET(cod)          ((GET_MAJOR_SERVICE_CLASS(cod) == 0x4) && \
                                   (GET_MINOR_DEVICE_CLASS(cod) == 0x1))
 

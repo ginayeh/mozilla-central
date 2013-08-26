@@ -51,7 +51,7 @@ BluetoothProfileController::BluetoothProfileController(
       break;
   }
 
-  if (profile) {
+  if (!profile) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
     aCallback();
@@ -76,8 +76,10 @@ BluetoothProfileController::BluetoothProfileController(
   bool hasRendering = HAS_RENDERING(aCod);
   bool isPeripheral = IS_PERIPHERAL(aCod);
 
-  NS_ENSURE_FALSE_VOID(!hasAudio && !hasObjectTransfer &&
-                       !hasRendering && !isPeripheral);
+  NS_ENSURE_TRUE_VOID(hasAudio || hasObjectTransfer ||
+                      hasRendering || isPeripheral);
+
+  LOG("[C] hasAudio: %d, hasObjectTransfer: %d, hasRendering: %d, isPeripheral: %d", hasAudio, hasObjectTransfer, hasRendering, isPeripheral);
 
   mCod = aCod;
   Init(aDeviceAddress, aRunnable, aCallback);
@@ -162,6 +164,7 @@ BluetoothProfileController::Init(const nsAString& aDeviceAddress,
   MOZ_ASSERT(aRunnable);
   MOZ_ASSERT(aCallback);
 
+  mProfilesIndex = -1;
   mDeviceAddress = aDeviceAddress;
   mRunnable = aRunnable;
   mCallback = aCallback;
@@ -172,7 +175,6 @@ void
 BluetoothProfileController::Connect()
 {
   LOG("[C] %s", __FUNCTION__);
-//  mProfilesIndex = -1;
   ConnectNext();
 }
 

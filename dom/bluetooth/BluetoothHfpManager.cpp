@@ -1136,6 +1136,9 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
   }
 
   MOZ_ASSERT(!mController);
+  if (aController) {
+    LOG("[Hfp] aController: %p", aController);
+  }
 
   mController = aController;
   mSocket->Disconnect();
@@ -1567,9 +1570,9 @@ BluetoothHfpManager::OnSocketDisconnect(BluetoothSocket* aSocket)
 
   NotifyConnectionStatusChanged(NS_LITERAL_STRING(BLUETOOTH_HFP_STATUS_CHANGED_ID));
   DispatchConnectionStatusChanged(NS_LITERAL_STRING(HFP_STATUS_CHANGED_ID));
-  Reset();
-
   OnDisconnect(EmptyString());
+
+  Reset();
 }
 
 void
@@ -1785,6 +1788,7 @@ BluetoothHfpManager::IsScoConnected()
 void
 BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   // When we failed to create a socket, restart listening.
   if (!aErrorStr.IsEmpty()) {
     mSocket = nullptr;
@@ -1804,6 +1808,7 @@ BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  LOG("[Hfp] %s", __FUNCTION__);
   // Start listening
   mSocket = nullptr;
   Listen();
@@ -1812,6 +1817,9 @@ BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
    * On the one hand, notify the controller that we've done for outbound
    * connections. On the other hand, we do nothing for inbound connections.
    */
+  if (!mController) {
+    LOG("[Hfp] no mController");
+  }
   NS_ENSURE_TRUE_VOID(mController);
 
   mController->OnDisconnect(aErrorStr);
