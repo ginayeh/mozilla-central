@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 #define mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 
-#include "BluetoothReplyRunnable.h"
 #include "BluetoothUuid.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -46,11 +45,12 @@ BEGIN_BLUETOOTH_NAMESPACE
 #define IS_PERIPHERAL(cod)       (GET_MAJOR_DEVICE_CLASS(cod) == 0xA)
 
 // Bit 10: Major device class = 0x4, Audio/Video
-// Bit 2: Minor device class = 0x1, Wearable Headset device 
+// Bit 2: Minor device class = 0x1, Wearable Headset device
 #define IS_HEADSET(cod)          ((GET_MAJOR_SERVICE_CLASS(cod) == 0x4) && \
                                   (GET_MINOR_DEVICE_CLASS(cod) == 0x1))
 
 class BluetoothProfileManagerBase;
+class BluetoothReplyRunnable;
 typedef void (*BluetoothProfileControllerCallback)();
 
 class BluetoothProfileController

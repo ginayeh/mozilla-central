@@ -51,7 +51,13 @@ BluetoothProfileController::BluetoothProfileController(
       break;
   }
 
-  NS_ENSURE_TRUE_VOID(profile);
+  if (profile) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
+    aCallback();
+    return;
+  }
+
   Init(aDeviceAddress, aRunnable, aCallback);
   mProfiles.AppendElement(profile);
 }
@@ -81,17 +87,26 @@ BluetoothProfileController::BluetoothProfileController(
    * It's almost impossible to send file to a remote device which is an Audio
    * device or a Rendering device, so we won't connect OPP in that case.
    */
+  BluetoothProfileManagerBase* profile;
   if (hasAudio) {
-    mProfiles.AppendElement(BluetoothHfpManager::Get());
+    profile = BluetoothHfpManager::Get();
+    NS_ENSURE_TRUE_VOID(profile);
+    mProfiles.AppendElement(profile);
   }
   if (hasRendering) {
-    mProfiles.AppendElement(BluetoothA2dpManager::Get());
+    profile = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE_VOID(profile);
+    mProfiles.AppendElement(profile);
   }
   if (hasObjectTransfer && !hasAudio && !hasRendering) {
-    mProfiles.AppendElement(BluetoothOppManager::Get());
+    profile = BluetoothOppManager::Get();
+    NS_ENSURE_TRUE_VOID(profile);
+    mProfiles.AppendElement(profile);
   }
   if (isPeripheral) {
-    mProfiles.AppendElement(BluetoothHidManager::Get());
+    profile = BluetoothHidManager::Get();
+    NS_ENSURE_TRUE_VOID(profile);
+    mProfiles.AppendElement(profile);
   }
 }
 
@@ -107,20 +122,24 @@ BluetoothProfileController::BluetoothProfileController(
   // Put all connected profiles into array and disconnect all of them
   BluetoothProfileManagerBase* profile;
   profile = BluetoothHfpManager::Get();
+  NS_ENSURE_TRUE_VOID(profile);
   if (profile->IsConnected()) {
-    mProfiles.AppendElement(BluetoothHfpManager::Get());
+    mProfiles.AppendElement(profile);
   }
   profile = BluetoothOppManager::Get();
+  NS_ENSURE_TRUE_VOID(profile);
   if (profile->IsConnected()) {
-    mProfiles.AppendElement(BluetoothOppManager::Get());
+    mProfiles.AppendElement(profile);
   }
   profile = BluetoothHidManager::Get();
+  NS_ENSURE_TRUE_VOID(profile);
   if (profile->IsConnected()) {
-    mProfiles.AppendElement(BluetoothHidManager::Get());
+    mProfiles.AppendElement(profile);
   }
   profile = BluetoothA2dpManager::Get();
+  NS_ENSURE_TRUE_VOID(profile);
   if (profile->IsConnected()) {
-    mProfiles.AppendElement(BluetoothA2dpManager::Get());
+    mProfiles.AppendElement(profile);
   }
 }
 
@@ -153,7 +172,7 @@ void
 BluetoothProfileController::Connect()
 {
   LOG("[C] %s", __FUNCTION__);
-  mProfilesIndex = 0;
+//  mProfilesIndex = -1;
   ConnectNext();
 }
 
@@ -162,7 +181,7 @@ BluetoothProfileController::ConnectNext()
 {
   LOG("[C] %s", __FUNCTION__);
 
-  if (mProfilesIndex < mProfiles.Length()) {
+  if (++mProfilesIndex < mProfiles.Length()) {
     MOZ_ASSERT(!mDeviceAddress.IsEmpty());
 
     mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
@@ -185,7 +204,6 @@ BluetoothProfileController::OnConnect(const nsAString& aErrorStr)
     BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
   }
 
-  mProfilesIndex++;
   ConnectNext();
 }
 
@@ -193,7 +211,7 @@ void
 BluetoothProfileController::Disconnect()
 {
   LOG("[C] %s", __FUNCTION__);
-  mProfilesIndex = 0;
+  mProfilesIndex = -1;
   DisconnectNext();
 }
 
@@ -201,7 +219,7 @@ void
 BluetoothProfileController::DisconnectNext()
 {
   LOG("[C] %s", __FUNCTION__);
-  if (mProfilesIndex < mProfiles.Length()) {
+  if (++mProfilesIndex < mProfiles.Length()) {
     mProfiles[mProfilesIndex]->Disconnect(this);
     return;
   }
@@ -222,7 +240,6 @@ BluetoothProfileController::OnDisconnect(const nsAString& aErrorStr)
     BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
   }
 
-  mProfilesIndex++;
   DisconnectNext();
 }
 

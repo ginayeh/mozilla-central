@@ -97,7 +97,6 @@ USING_BLUETOOTH_NAMESPACE
 
 #define ERR_A2DP_IS_DISCONNECTED      "A2dpIsDisconnected"
 #define ERR_AVRCP_IS_DISCONNECTED     "AvrcpIsDisconnected"
-#define ERR_UNKNOWN_PROFILE           "UnknownProfileError"
 
 /**
  * To not lock Bluetooth switch button on Settings UI because of any accident,

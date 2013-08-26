@@ -78,6 +78,9 @@ extern bool gBluetoothDebugFlag;
 #define BLUETOOTH_ADDRESS_LENGTH 17
 #define BLUETOOTH_ADDRESS_NONE   "00:00:00:00:00:00"
 
+// Error string
+#define ERR_UNKNOWN_PROFILE "UnknownProfileError"
+
 BEGIN_BLUETOOTH_NAMESPACE
 
 enum BluetoothSocketType {
