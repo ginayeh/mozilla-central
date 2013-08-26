@@ -573,6 +573,7 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
 {
   LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(!NS_IsMainThread());
+
   NS_ENSURE_TRUE_VOID(aMsg);
 
   BluetoothValue v;

@@ -109,6 +109,7 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aController && !mController);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
@@ -121,8 +122,6 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
     return;
   }
 
-  MOZ_ASSERT(aController && !mController);
-
   mDeviceAddress = aDeviceAddress;
   mController = aController;
 
@@ -132,14 +131,20 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
 void
 BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs && aController) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+  if (!bs) {
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    }
     return;
   }
 
   if (!mConnected) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    }
     return;
   }
 

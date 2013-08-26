@@ -164,6 +164,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
   LOG("[A2dp] %s, mA2dpConnected: %d", __FUNCTION__, mA2dpConnected);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aController && !mController);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
@@ -175,8 +176,6 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
     aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
     return;
   }
-
-  MOZ_ASSERT(aController && !mController);
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
@@ -190,13 +189,17 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   LOG("[A2dp] %s, mA2dpConnected: %d, mDeviceAddress: %s", __FUNCTION__, mA2dpConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
 
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs && aController) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+  if (!bs) {
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    }
     return;
   }
 
   if (!mA2dpConnected) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    }
     return;
   }
 

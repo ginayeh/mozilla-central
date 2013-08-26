@@ -8,7 +8,6 @@
 
 #include "BluetoothHfpManager.h"
 
-//#include "BluetoothA2dpManager.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
@@ -1031,6 +1030,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
   LOG("[Hfp] %s, address: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aDeviceAddress).get());
+  MOZ_ASSERT(aController && !mController);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
@@ -1048,7 +1048,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   }
 
   mNeedsUpdatingSdpRecords = true;
-  mIsHandsfree = !IS_HEADSET(aController->GetCod());    
+  mIsHandsfree = !IS_HEADSET(aController->GetCod());
 
   nsString uuid;
   if (mIsHandsfree) {
@@ -1072,8 +1072,6 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
     mHeadsetSocket->Disconnect();
     mHeadsetSocket = nullptr;
   }
-
-  MOZ_ASSERT(aController && !mController);
 
   mController = aController;
   mSocket =
@@ -1131,14 +1129,13 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
   LOG("[Hfp] %s", __FUNCTION__);
 
   if (!mSocket) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    }
     return;
   }
 
   MOZ_ASSERT(!mController);
-  if (aController) {
-    LOG("[Hfp] aController: %p", aController);
-  }
 
   mController = aController;
   mSocket->Disconnect();

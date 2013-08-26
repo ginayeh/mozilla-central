@@ -5,6 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "BluetoothProfileController.h"
+#include "BluetoothReplyRunnable.h"
 
 #include "BluetoothA2dpManager.h"
 #include "BluetoothHfpManager.h"
@@ -213,7 +214,6 @@ void
 BluetoothProfileController::Disconnect()
 {
   LOG("[C] %s", __FUNCTION__);
-  mProfilesIndex = -1;
   DisconnectNext();
 }
 

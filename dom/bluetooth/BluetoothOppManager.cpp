@@ -248,6 +248,7 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
 {
   LOG("[O] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aController && !mController);
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
@@ -285,8 +286,6 @@ BluetoothOppManager::Connect(const nsAString& aDeviceAddress,
     mL2capSocket = nullptr;
   }
 
-  MOZ_ASSERT(aController && !mController);
-
   mController = aController;
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
@@ -298,7 +297,9 @@ BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
   LOG("[O] %s", __FUNCTION__);
 
   if (!mSocket) {
-    aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    if (aController) {
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+    }
     return;
   }
 

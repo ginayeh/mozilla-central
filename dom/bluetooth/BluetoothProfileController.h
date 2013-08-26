@@ -8,6 +8,7 @@
 #define mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 
 #include "BluetoothUuid.h"
+#include "nsAutoPtr.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -33,21 +34,21 @@ BEGIN_BLUETOOTH_NAMESPACE
 #define GET_MINOR_DEVICE_CLASS(cod)  ((cod & 0xfc) >> 2)
 
 // Bit 21: Major service class = 0x100, Audio
-#define HAS_AUDIO(cod)           (cod & 0x200000)
+#define HAS_AUDIO(cod)               (cod & 0x200000)
 
 // Bit 20: Major service class = 0x80, Object Transfer
-#define HAS_OBJECT_TRANSFER(cod) (cod & 0x100000)
+#define HAS_OBJECT_TRANSFER(cod)     (cod & 0x100000)
 
 // Bit 18: Major service class = 0x20, Rendering
-#define HAS_RENDERING(cod)       (cod & 0x40000)
+#define HAS_RENDERING(cod)           (cod & 0x40000)
 
 // Major device class = 0xA, Peripheral
-#define IS_PERIPHERAL(cod)       (GET_MAJOR_DEVICE_CLASS(cod) == 0xa)
+#define IS_PERIPHERAL(cod)           (GET_MAJOR_DEVICE_CLASS(cod) == 0xa)
 
 // Major device class = 0x4, Audio/Video
 // Minor device class = 0x1, Wearable Headset device
-#define IS_HEADSET(cod)          ((GET_MAJOR_SERVICE_CLASS(cod) == 0x4) && \
-                                  (GET_MINOR_DEVICE_CLASS(cod) == 0x1))
+#define IS_HEADSET(cod)              ((GET_MAJOR_SERVICE_CLASS(cod) == 0x4) && \
+                                     (GET_MINOR_DEVICE_CLASS(cod) == 0x1))
 
 class BluetoothProfileManagerBase;
 class BluetoothReplyRunnable;
@@ -100,7 +101,7 @@ private:
 
   uint32_t mCod;
   nsString mDeviceAddress;
-  BluetoothReplyRunnable* mRunnable;
+  nsRefPtr<BluetoothReplyRunnable> mRunnable;
   BluetoothProfileControllerCallback mCallback;
 };
 
