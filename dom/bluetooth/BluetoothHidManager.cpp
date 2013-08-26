@@ -133,8 +133,8 @@ void
 BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
 {
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs || sInShutdown) {
-    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+  if (!bs && aController) {
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 

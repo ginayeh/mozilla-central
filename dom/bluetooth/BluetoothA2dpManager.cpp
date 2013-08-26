@@ -190,8 +190,8 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   LOG("[A2dp] %s, mA2dpConnected: %d, mDeviceAddress: %s", __FUNCTION__, mA2dpConnected, NS_ConvertUTF16toUTF8(mDeviceAddress).get());
 
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs || sInShutdown) {
-    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+  if (!bs && aController) {
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 

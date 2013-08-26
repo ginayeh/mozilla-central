@@ -527,18 +527,53 @@ GetVoidCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
                   UnpackVoidMessage);
 }
 
-static void
-GetIntCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable)
+class ReplyErrorToProfileManager : public nsRunnable
 {
-  LOGV("[B] %s", __FUNCTION__);
-  RunDBusCallback(aMsg, aBluetoothReplyRunnable,
-                  UnpackIntMessage);
-}
+public:
+  ReplyErrorToProfileManager(BluetoothServiceClass aServiceClass,
+                             bool aConnect,
+                             const nsAString& aErrorString)
+    : mServiceClass(aServiceClass)
+    , mConnect(aConnect)
+    , mErrorString(aErrorString)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  nsresult Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    BluetoothProfileManagerBase* profile;
+    if (mServiceClass == BluetoothServiceClass::HID) {
+      profile = BluetoothHidManager::Get();
+    } else if (mServiceClass == BluetoothServiceClass::A2DP) {
+      profile = BluetoothA2dpManager::Get();
+    } else {
+      BT_WARNING("Invalid profile");
+      return NS_ERROR_FAILURE;
+    }
+
+    if (mConnect) {
+      profile->OnConnect(mErrorString);
+    } else {
+      profile->OnDisconnect(mErrorString);
+    }
+
+    return NS_OK;
+  }
+
+private:
+  BluetoothServiceClass mServiceClass;
+  bool mConnect;
+  nsString mErrorString;
+};
 
 static void
 CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
 {
   LOG("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(!NS_IsMainThread());
   NS_ENSURE_TRUE_VOID(aMsg);
 
   BluetoothValue v;
@@ -549,30 +584,25 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
     static_cast<BluetoothServiceClass*>(aServiceClass);
   LOG("[B] serviceClass: %X", *serviceClass);
 
-  if (replyError.IsEmpty()) {
-    delete serviceClass;
-    return;
-  }
+/*  nsRefPtr<nsRunnable> task;
+  if (replyError.EqualsLiteral("Already Connected")) {
+    BluetoothSignal signal(NS_LITERAL_STRING("State"), );
+    if (*serviceClass == BluetoothServiceClass::A2DP) {
+      task = new SinkPropertyChangedHandler(signal);
+    }
+    task = new SinkPropertyChangedHandler(signal);
+      } else if (signalInterface.EqualsLiteral(DBUS_CTL_IFACE)) {
+            task = new ControlPropertyChangedHandler(signal);
+              } else if (signalInterface.EqualsLiteral(DBUS_INPUT_IFACE)) {
+                    task = new InputPropertyChangedHandler(signal);
 
-  // Error occured when sending message to DBus
-  BluetoothProfileManagerBase* profile;
-  if (*serviceClass == BluetoothServiceClass::HID) {
-    profile = BluetoothHidManager::Get();
-  } else if (*serviceClass == BluetoothServiceClass::A2DP) {
-    profile = BluetoothA2dpManager::Get();
-  } else {
-    BT_WARNING("Invalid profile");
-    delete serviceClass;
-    return;
+    
+  } else*/ if (!replyError.IsEmpty()) {
+    NS_DispatchToMainThread(
+      new ReplyErrorToProfileManager(*serviceClass, aConnect, replyError));
   }
 
   delete serviceClass;
-
-  if (aConnect) {
-    profile->OnConnect(replyError);
-  } else {
-    profile->OnDisconnect(replyError);
-  }
 }
 
 static void

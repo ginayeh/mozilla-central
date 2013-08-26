@@ -1048,7 +1048,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   }
 
   mNeedsUpdatingSdpRecords = true;
-  mIsHandsfree = !IS_HEADSET(aController->GetCod());
+  mIsHandsfree = !IS_HEADSET(aController->GetCod());    
 
   nsString uuid;
   if (mIsHandsfree) {

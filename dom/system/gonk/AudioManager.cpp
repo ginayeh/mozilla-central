@@ -228,7 +228,6 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
                                            const nsCString aAddress)
 {
 #ifdef MOZ_B2G_BT
-  LOG("[Audio] topic: %s, address: %s", aTopic, aAddress.get());
   bool status;
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID)) {
     BluetoothHfpManager* hfp =
@@ -239,8 +238,6 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
       static_cast<BluetoothProfileManagerBase*>(aSubject);
     status = profile->IsConnected();
   }
-
-  LOG("[Audio] status: %d", status);
 
   audio_policy_dev_state_t audioState = status ?
     AUDIO_POLICY_DEVICE_STATE_AVAILABLE :
@@ -286,7 +283,6 @@ AudioManager::Observe(nsISupports* aSubject,
                       const char* aTopic,
                       const PRUnichar* aData)
 {
-  LOG("[Audio] %s", aTopic);
   if ((strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID) == 0) ||
       (strcmp(aTopic, BLUETOOTH_HFP_STATUS_CHANGED_ID) == 0) ||
       (strcmp(aTopic, BLUETOOTH_A2DP_STATUS_CHANGED_ID) == 0)) {
