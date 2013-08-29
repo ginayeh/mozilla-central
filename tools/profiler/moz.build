@@ -19,6 +19,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     EXPORTS += [
         'GeckoProfilerFunc.h',
         'GeckoProfilerImpl.h',
+        'GeckoTaskTracerImpl.h',
         'ProfilerMarkers.h',
         'PseudoStack.h',
         'shared-libraries.h',
@@ -44,6 +45,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'ProfilerIOInterposeObserver.cpp',
         'ProfilerMarkers.cpp',
         'SyncProfile.cpp',
+        'TaskTracerCommon.cpp',
+        'TracedRunnable.cpp',
     ]
 
     if CONFIG['OS_TARGET'] in ('Android', 'Linux'):
@@ -86,6 +89,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
 
 EXPORTS += [
     'GeckoProfiler.h',
+		'GeckoTaskTracer.h',
 ]
 
 EXPORTS.mozilla += [

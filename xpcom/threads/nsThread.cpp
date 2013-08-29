@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "GeckoTaskTracer.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsMemoryPressure.h"
 #include "nsThread.h"
@@ -42,6 +43,7 @@
 #endif
 
 using namespace mozilla;
+using namespace mozilla::tasktracer;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *
@@ -279,6 +281,10 @@ nsThread::ThreadFunc(void *arg)
   // Release any observer of the thread here.
   self->SetObserver(nullptr);
 
+#ifdef MOZ_TASK_TRACER
+  FreeTracedInfo();
+#endif
+
   NS_RELEASE(self);
 }
 
@@ -373,6 +379,10 @@ nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
   LOG(("THRD(%p) Dispatch [%p %x]\n", this, event, flags));
 
   NS_ENSURE_ARG_POINTER(event);
+
+#ifdef MOZ_TASK_TRACER
+  event = CreateTracedRunnable(event);
+#endif
 
   if (gXPCOMThreadsShutDown && MAIN_THREAD != mIsMainThread) {
     return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;

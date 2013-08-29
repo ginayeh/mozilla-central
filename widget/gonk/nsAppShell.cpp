@@ -42,6 +42,7 @@
 #include "mozilla/TextEvents.h"
 #include "nsAppShell.h"
 #include "mozilla/dom/Touch.h"
+#include "GeckoTaskTracer.h"
 #include "nsGkAtoms.h"
 #include "nsIObserverService.h"
 #include "nsIScreen.h"
@@ -81,6 +82,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::services;
 using namespace mozilla::widget;
+using namespace mozilla::tasktracer;
 
 bool gDrawRequest = false;
 static nsAppShell *gAppShell = NULL;
@@ -514,12 +516,27 @@ GeckoInputDispatcher::dispatchOnce()
             gAppShell->NotifyNativeEvent();
     }
 
+#ifdef MOZ_TASK_TRACER
+    uint64_t savedTaskId = *GetCurrentThreadTaskIdPtr();
+    uint64_t newTaskId = GenNewUniqueTaskId();
+    // Install new task Id.
+    *GetCurrentThreadTaskIdPtr() = newTaskId;
+#endif
+
     switch (data.type) {
     case UserInputData::MOTION_DATA: {
         nsEventStatus status = nsEventStatus_eIgnore;
         if ((data.action & AMOTION_EVENT_ACTION_MASK) !=
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
+#ifdef MOZ_TASK_TRACER
+            // FIXME Encapsulate using TracedTaskSource.
+            LOG("Task id: %lld: sendTouchEvent(). Touch count: %d, coords[0]: (%d, %d)",
+                newTaskId,
+                data.motion.touchCount,
+                data.motion.touches[0].coords.getX(),
+                data.motion.touches[0].coords.getY());
+#endif
             status = sendTouchEvent(data, &captured);
             if (captured) {
                 return;
@@ -527,22 +544,34 @@ GeckoInputDispatcher::dispatchOnce()
         }
 
         uint32_t msg;
+        const char *msgText = "";
         switch (data.action & AMOTION_EVENT_ACTION_MASK) {
         case AMOTION_EVENT_ACTION_DOWN:
             msg = NS_MOUSE_BUTTON_DOWN;
+            msgText = "mousedown";
             break;
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_POINTER_UP:
         case AMOTION_EVENT_ACTION_MOVE:
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
+          msgText = "mousemove";
             msg = NS_MOUSE_MOVE;
             break;
         case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_CANCEL:
         case AMOTION_EVENT_ACTION_UP:
+          msgText = "mouseup";
             msg = NS_MOUSE_BUTTON_UP;
             break;
         }
+#ifdef MOZ_TASK_TRACER
+        // FIXME Encapsulate using TracedTaskSource.
+        LOG("Task id: %lld: sendMouseEvent(). type=%s coords[0]: (%d, %d)",
+            newTaskId,
+            msgText,
+            data.motion.touches[0].coords.getX(),
+            data.motion.touches[0].coords.getY());
+#endif
         sendMouseEvent(msg,
                        data.timeMs,
                        data.motion.touches[0].coords.getX(),
@@ -551,11 +580,21 @@ GeckoInputDispatcher::dispatchOnce()
         break;
     }
     case UserInputData::KEY_DATA:
+#ifdef MOZ_TASK_TRACER
+      // FIXME Encapsulate using TracedTaskSource.
+      LOG("Task id: %lld: maybeSendKeyEvent(). keycode: %d",
+          newTaskId,
+          data.key.keyCode);
+#endif
         maybeSendKeyEvent(data.key.keyCode,
                           data.action == AKEY_EVENT_ACTION_DOWN,
                           data.timeMs);
         break;
     }
+#ifdef MOZ_TASK_TRACER
+    // Restore new task Id.
+    *GetCurrentThreadTaskIdPtr() = savedTaskId;
+#endif
 }
 
 
