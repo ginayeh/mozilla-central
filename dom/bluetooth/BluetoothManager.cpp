@@ -229,7 +229,6 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow)
 bool
 BluetoothManager::CheckPermission(nsPIDOMWindow* aWindow)
 {
-  LOG("[M] %s", __FUNCTION__);
   NS_ASSERTION(aWindow, "Null pointer!");
 
   nsCOMPtr<nsIPermissionManager> permMgr =
@@ -241,7 +240,7 @@ BluetoothManager::CheckPermission(nsPIDOMWindow* aWindow)
     permMgr->TestPermissionFromWindow(aWindow, "bluetooth",
                                       &permission);
   NS_ENSURE_SUCCESS(rv, false);
-
+  LOG("[M] %s, %d", __FUNCTION__, permission == nsIPermissionManager::ALLOW_ACTION);
   return permission == nsIPermissionManager::ALLOW_ACTION;
 }
 

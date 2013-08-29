@@ -967,6 +967,7 @@ BluetoothAdapter::SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorRe
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
+  LOG("[A] title: %s\n[A] artist: %s\n[A] album: %s\n[A] mediaNumber: %lld\n[A] totalMediaCount: %lld\n[A] duration: %lld", NS_ConvertUTF16toUTF8(aMediaMetaData.mTitle).get(), NS_ConvertUTF16toUTF8(aMediaMetaData.mArtist).get(), NS_ConvertUTF16toUTF8(aMediaMetaData.mAlbum).get(), aMediaMetaData.mMediaNumber, aMediaMetaData.mTotalMediaCount, aMediaMetaData.mDuration);
   bs->SendMetaData(aMediaMetaData.mTitle,
                    aMediaMetaData.mArtist,
                    aMediaMetaData.mAlbum,
@@ -997,6 +998,7 @@ BluetoothAdapter::SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, E
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
+  LOG("[A] duration: %lld\n[A] position: %lld\n[A] playStatus: %s", aMediaPlayStatus.mDuration, aMediaPlayStatus.mPosition, NS_ConvertUTF16toUTF8(aMediaPlayStatus.mPlayStatus).get());
   bs->SendPlayStatus(aMediaPlayStatus.mDuration,
                      aMediaPlayStatus.mPosition,
                      aMediaPlayStatus.mPlayStatus,

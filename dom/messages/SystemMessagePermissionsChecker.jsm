@@ -34,6 +34,9 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-dialer-command": {
     "telephony": []
   },
+  "bluetooth-avrcp-playstatus": {
+    "bluetooth": []
+  },
   "bluetooth-cancel": {
     "bluetooth": []
   },

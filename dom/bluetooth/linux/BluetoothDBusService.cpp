@@ -355,36 +355,29 @@ IsDBusMessageError(DBusMessage* aMsg, DBusError* aErr, nsAString& aErrorStr)
   if (aErr && dbus_error_is_set(aErr)) {
     aErrorStr = NS_ConvertUTF8toUTF16(aErr->message);
     LOG_AND_FREE_DBUS_ERROR(aErr);
-    LOG("111");
     return true;
   }
 
   DBusError err;
   dbus_error_init(&err);
   if (dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_ERROR) {
-    LOG("222");
     const char* error_msg;
     if (!dbus_message_get_args(aMsg, &err, DBUS_TYPE_STRING,
                                &error_msg, DBUS_TYPE_INVALID) ||
         !error_msg) {
-      LOG("333");
       if (dbus_error_is_set(&err)) {
         aErrorStr = NS_ConvertUTF8toUTF16(err.message);
         LOG_AND_FREE_DBUS_ERROR(&err);
-        LOG("444");
         return true;
       } else {
         aErrorStr.AssignLiteral("Unknown Error");
-        LOG("555");
         return true;
       }
     } else {
-      LOG("666");
       aErrorStr = NS_ConvertUTF8toUTF16(error_msg);
       return true;
     }
   }
-  LOG("777");
   return false;
 }
 
@@ -514,7 +507,6 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
   }
-  LOG("error string: %s", NS_ConvertUTF16toUTF8(aErrorStr).get());
   aValue = aErrorStr.IsEmpty();
 }
 
@@ -1430,17 +1422,21 @@ public:
 
   nsresult Run()
   {
+    LOG("[B] SendPlayStatusTask::Run");
     MOZ_ASSERT(NS_IsMainThread());
 
     BluetoothA2dpManager* a2dp = BluetoothA2dpManager::Get();
     NS_ENSURE_TRUE(a2dp, NS_ERROR_FAILURE);
 
-    BluetoothService* bs = BluetoothService::Get();
+    BroadcastSystemMessage(NS_LITERAL_STRING("bluetooth-avrcp-playstatus"),
+                           InfallibleTArray<BluetoothNamedValue>());
+
+/*    BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
 
     bs->UpdatePlayStatus(a2dp->GetDuration(),
                          a2dp->GetPosition(),
-                         a2dp->GetPlayStatus());
+                         a2dp->GetPlayStatus());*/
     return NS_OK;
   }
 };
@@ -3210,7 +3206,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   const char* mediaNumber = tempMediaNumber.get();
   const char* totalMediaCount = tempTotalMediaCount.get();
   const char* duration = tempDuration.get();
-  LOG("[B] title: %s, album: %s, artist: %s, mediaNumber: %s, totalMediaCount: %s, duration: %s", title, album, artist, mediaNumber, totalMediaCount, duration);
+  LOG("[B] title: %s\n[B] album: %s\n[B] artist: %s\n[B] mediaNumber: %s\n[B] totalMediaCount: %s\n[B] duration: %s", title, album, artist, mediaNumber, totalMediaCount, duration);
 
   nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
 
@@ -3320,6 +3316,7 @@ BluetoothDBusService::SendPlayStatus(int64_t aDuration,
   a2dp->GetAddress(address);
   nsString objectPath =
     GetObjectPathFromAddress(sAdapterPath, address);
+  LOG("[B] duration: %lld\n[B] position: %lld\n[B] playStatus: %d", aDuration, aPosition, playStatus); 
 
   nsRefPtr<BluetoothReplyRunnable> runnable(aRunnable);
 
@@ -3390,6 +3387,8 @@ BluetoothDBusService::UpdatePlayStatus(uint32_t aDuration,
   a2dp->GetAddress(address);
   nsString objectPath =
     GetObjectPathFromAddress(sAdapterPath, address);
+
+  LOG("duration: %lld\nposition: %lld\nplayStatus: %d", aDuration, aPosition, aPlayStatus);
 
   uint32_t tempPlayStatus = aPlayStatus;
   bool ret = dbus_func_args_async(mConnection,

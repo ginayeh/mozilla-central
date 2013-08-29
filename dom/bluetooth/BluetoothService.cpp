@@ -527,7 +527,7 @@ BluetoothService::StartStopBluetooth(bool aStart, bool aIsStartup)
     if (profile->IsConnected()) {
       profile->Disconnect(nullptr);
     }
-    
+
     profile = BluetoothA2dpManager::Get();
     NS_ENSURE_TRUE(profile, NS_ERROR_FAILURE);
     if (profile->IsConnected()) {

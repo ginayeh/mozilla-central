@@ -295,9 +295,9 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
   MOZ_ASSERT_IF(state == SinkState::SINK_CONNECTING,
                 mSinkState == SinkState::SINK_DISCONNECTED);
-  MOZ_ASSERT_IF(state == SinkState::SINK_CONNECTED,
+/*  MOZ_ASSERT_IF(state == SinkState::SINK_CONNECTED,
                 mSinkState == SinkState::SINK_CONNECTING ||
-                mSinkState == SinkState::SINK_PLAYING);
+                mSinkState == SinkState::SINK_PLAYING);*/
   MOZ_ASSERT_IF(state == SinkState::SINK_PLAYING,
                 mSinkState == SinkState::SINK_CONNECTED);
 

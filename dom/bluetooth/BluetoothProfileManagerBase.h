@@ -45,7 +45,7 @@ public:
 
   /**
    * Connect to a specific remote device. When it has been done, the
-   * callback "OnConnect" will be invoked. 
+   * callback "OnConnect" will be invoked.
    */
   virtual void Connect(const nsAString& aDeviceAddress,
                        BluetoothProfileController* aController) = 0;
