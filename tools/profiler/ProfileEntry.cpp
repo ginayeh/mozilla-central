@@ -15,7 +15,11 @@
 // Self
 #include "ProfileEntry.h"
 
+// Log time duration
 #include "mozilla/TimeStamp.h"
+
+// Task tracer
+#include "GeckoTaskTracerImpl.h"
 
 #if _MSC_VER
  #define snprintf _snprintf
@@ -72,6 +76,11 @@ ProfileEntry::ProfileEntry(char aTagName, char aTagChar)
   , mTagName(aTagName)
 { }
 
+ProfileEntry::ProfileEntry(char aTagName, TracedActivity *aTagActivity)
+  : mTagActivity(aTagActivity)
+  , mTagName(aTagName)
+{ }
+
 bool ProfileEntry::is_ent_hint(char hintChar) {
   return mTagName == 'h' && mTagChar == hintChar;
 }
@@ -100,6 +109,7 @@ void ProfileEntry::log()
   //   mTagLine   (int)          n,f
   //   mTagChar   (char)         h
   //   mTagFloat  (double)       r,t
+  //   mTagTask   (TracedActivity*) a
   switch (mTagName) {
     case 'm':
       LOGF("%c \"%s\"", mTagName, mTagMarker->GetMarkerName()); break;
@@ -113,6 +123,8 @@ void ProfileEntry::log()
       LOGF("%c \'%c\'", mTagName, mTagChar); break;
     case 'r': case 't':
       LOGF("%c %f", mTagName, mTagFloat); break;
+    case 'a':
+      LOGF("%c %d", mTagName, mTagActivity->originTaskId); break;
     default:
       LOGF("'%c' unknown_tag", mTagName); break;
   }

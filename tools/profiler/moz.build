@@ -15,6 +15,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     EXPORTS += [
         'GeckoProfilerFunc.h',
         'GeckoProfilerImpl.h',
+        'GeckoTaskTracerImpl.h',
         'ProfilerMarkers.h',
         'PseudoStack.h',
         'shared-libraries.h',
@@ -38,6 +39,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'SaveProfileTask.cpp',
         'SyncProfile.cpp',
         'TableTicker.cpp',
+        'TaskTracerCommon.cpp',
+        'TracedRunnable.cpp',
         'UnwinderThread2.cpp',
     ]
 
@@ -88,6 +91,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
 
 EXPORTS += [
     'GeckoProfiler.h',
+		'GeckoTaskTracer.h',
 ]
 
 EXPORTS.mozilla += [

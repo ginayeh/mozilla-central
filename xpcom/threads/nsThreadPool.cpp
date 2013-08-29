@@ -94,6 +94,7 @@ nsThreadPool::PutEvent(nsIRunnable *event)
                                     getter_AddRefs(thread));
   if (NS_WARN_IF(!thread))
     return NS_ERROR_UNEXPECTED;
+  NS_SetThreadName(thread, mName);
 
   bool killThread = false;
   {

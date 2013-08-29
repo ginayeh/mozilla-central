@@ -15,6 +15,14 @@
 
 class ThreadProfile;
 
+namespace mozilla {
+namespace tasktracer {
+class TracedActivity;
+}
+}
+
+using mozilla::tasktracer::TracedActivity;
+
 class ProfileEntry
 {
 public:
@@ -29,6 +37,7 @@ public:
   ProfileEntry(char aTagName, Address aTagAddress);
   ProfileEntry(char aTagName, int aTagLine);
   ProfileEntry(char aTagName, char aTagChar);
+  ProfileEntry(char aTagName, TracedActivity *aTagActivity);
   friend std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry);
   bool is_ent_hint(char hintChar);
   bool is_ent_hint();
@@ -54,6 +63,7 @@ private:
     uintptr_t   mTagOffset;
     int         mTagLine;
     char        mTagChar;
+    TracedActivity *mTagActivity;
   };
   char mTagName;
 };
