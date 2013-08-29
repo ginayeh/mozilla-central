@@ -2698,17 +2698,14 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
+  sController =
+    new BluetoothProfileController(aDeviceAddress, aRunnable,
+                                   DestroyBluetoothProfileController);
   if (aServiceUuid) {
-    sController =
-      new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable,
-                                     DestroyBluetoothProfileController);
+    sController->Connect(serviceClass);
   } else {
-    sController =
-      new BluetoothProfileController(aDeviceAddress, aCod, aRunnable,
-                                     DestroyBluetoothProfileController);
+    sController->Connect(aCod);
   }
-
-  sController->Connect();
 }
 
 void
@@ -2723,17 +2720,14 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
+  sController =
+    new BluetoothProfileController(aDeviceAddress, aRunnable,
+                                   DestroyBluetoothProfileController);
   if (aServiceUuid) {
-    sController =
-      new BluetoothProfileController(aDeviceAddress, serviceClass, aRunnable,
-                                     DestroyBluetoothProfileController);
+    sController->Disconnect(serviceClass);
   } else {
-    sController =
-      new BluetoothProfileController(aDeviceAddress, aRunnable,
-                                     DestroyBluetoothProfileController);
+    sController->Disconnect();
   }
-
-  sController->Disconnect();
 }
 
 bool

@@ -57,30 +57,25 @@ typedef void (*BluetoothProfileControllerCallback)();
 class BluetoothProfileController
 {
 public:
-  // Connect/Disconnect to a specific service UUID.
-  BluetoothProfileController(const nsAString& aDeviceAddress,
-                             BluetoothServiceClass aClass,
-                             BluetoothReplyRunnable* aRunnable,
-                             BluetoothProfileControllerCallback aCallback);
-
-  // Based on the class of device(CoD), connect to multiple profiles
-  // sequencely.
-  BluetoothProfileController(const nsAString& aDeviceAddress,
-                             uint32_t aCod,
-                             BluetoothReplyRunnable* aRunnable,
-                             BluetoothProfileControllerCallback aCallback);
-
-  // Disconnect all connected profiles.
   BluetoothProfileController(const nsAString& aDeviceAddress,
                              BluetoothReplyRunnable* aRunnable,
                              BluetoothProfileControllerCallback aCallback);
-
   ~BluetoothProfileController();
 
-  void Connect();
-  void OnConnect(const nsAString& aErrorStr);
+  // Connect to a specific service UUID.
+  void Connect(BluetoothServiceClass aClass);
 
-  void Disconnect();
+  // Based on the CoD, connect to multiple profiles sequencely.
+  void Connect(uint32_t aCod);
+
+  /**
+   * If aClass is assigned with specific service class, disconnect its
+   * corresponding profile. Otherwise, disconnect all profiles connected to the
+   * remote device.
+   */
+  void Disconnect(BluetoothServiceClass aClass = BluetoothServiceClass::UNKNOWN);
+  
+  void OnConnect(const nsAString& aErrorStr);
   void OnDisconnect(const nsAString& aErrorStr);
 
   uint32_t GetCod()
@@ -89,12 +84,9 @@ public:
   }
 
 private:
-  void Init(const nsAString& aDeviceAddress,
-            BluetoothReplyRunnable* aRunnable,
-            BluetoothProfileControllerCallback aCallback);
-
   void ConnectNext();
   void DisconnectNext();
+  bool SetProfileArrayWithServiceClass(BluetoothServiceClass aClass);
 
   int8_t mProfilesIndex;
   nsTArray<BluetoothProfileManagerBase*> mProfiles;

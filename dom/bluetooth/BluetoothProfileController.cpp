@@ -28,9 +28,34 @@ USING_BLUETOOTH_NAMESPACE
 
 BluetoothProfileController::BluetoothProfileController(
                                    const nsAString& aDeviceAddress,
-                                   BluetoothServiceClass aClass,
                                    BluetoothReplyRunnable* aRunnable,
                                    BluetoothProfileControllerCallback aCallback)
+  : mDeviceAddress(aDeviceAddress)
+  , mRunnable(aRunnable)
+  , mCallback(aCallback)
+{
+  LOG("[C] %s", __FUNCTION__);
+
+  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+  MOZ_ASSERT(aRunnable);
+  MOZ_ASSERT(aCallback);
+
+  mProfilesIndex = -1;
+  mProfiles.Clear();
+}
+
+BluetoothProfileController::~BluetoothProfileController()
+{
+  LOG("[C] %s", __FUNCTION__);
+  mProfilesIndex = -1;
+  mProfiles.Clear();
+  mRunnable = nullptr;
+  mCallback = nullptr;
+}
+
+bool
+BluetoothProfileController::SetProfileArrayWithServiceClass(
+                                                   BluetoothServiceClass aClass)
 {
   LOG("[C] %s", __FUNCTION__);
 
@@ -52,22 +77,29 @@ BluetoothProfileController::BluetoothProfileController(
       break;
   }
 
-  if (!profile) {
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+  NS_ENSURE_TRUE(profile, false);
+
+  mProfiles.AppendElement(profile);
+  return true;
+}
+
+void
+BluetoothProfileController::Connect(BluetoothServiceClass aClass)
+{
+  LOG("[C] %s", __FUNCTION__);
+
+  if (!SetProfileArrayWithServiceClass(aClass)) {
+    DispatchBluetoothReply(mRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
-    aCallback();
+    mCallback();
     return;
   }
 
-  Init(aDeviceAddress, aRunnable, aCallback);
-  mProfiles.AppendElement(profile);
+  ConnectNext();
 }
 
-BluetoothProfileController::BluetoothProfileController(
-                                   const nsAString& aDeviceAddress,
-                                   uint32_t aCod,
-                                   BluetoothReplyRunnable* aRunnable,
-                                   BluetoothProfileControllerCallback aCallback)
+void
+BluetoothProfileController::Connect(uint32_t aCod)
 {
   LOG("[C] %s", __FUNCTION__);
 
@@ -83,7 +115,6 @@ BluetoothProfileController::BluetoothProfileController(
   LOG("[C] hasAudio: %d, hasObjectTransfer: %d, hasRendering: %d, isPeripheral: %d", hasAudio, hasObjectTransfer, hasRendering, isPeripheral);
 
   mCod = aCod;
-  Init(aDeviceAddress, aRunnable, aCallback);
 
   /**
    * Connect to HFP/HSP first. Then, connect A2DP if Rendering bit is set.
@@ -111,16 +142,58 @@ BluetoothProfileController::BluetoothProfileController(
     NS_ENSURE_TRUE_VOID(profile);
     mProfiles.AppendElement(profile);
   }
+
+  ConnectNext();
 }
 
-BluetoothProfileController::BluetoothProfileController(
-                                   const nsAString& aDeviceAddress,
-                                   BluetoothReplyRunnable* aRunnable,
-                                   BluetoothProfileControllerCallback aCallback)
+void
+BluetoothProfileController::ConnectNext()
 {
   LOG("[C] %s", __FUNCTION__);
 
-  Init(aDeviceAddress, aRunnable, aCallback);
+  if (++mProfilesIndex < mProfiles.Length()) {
+    MOZ_ASSERT(!mDeviceAddress.IsEmpty());
+
+    mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
+    return;
+  }
+
+  LOG("[C] all profiles connect complete.");
+  MOZ_ASSERT(mRunnable && mCallback);
+
+  // The action has been completed, so the dom request is replied and then
+  // the callback is invoked
+  DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
+  mCallback();
+}
+
+void
+BluetoothProfileController::OnConnect(const nsAString& aErrorStr)
+{
+  LOG("[C] %s", __FUNCTION__);
+  if (!aErrorStr.IsEmpty()) {
+    BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
+  }
+
+  ConnectNext();
+}
+
+void
+BluetoothProfileController::Disconnect(BluetoothServiceClass aClass)
+{
+  LOG("[C] %s", __FUNCTION__);
+
+  if (aClass != BluetoothServiceClass::UNKNOWN) {
+    if (!SetProfileArrayWithServiceClass(aClass)) {
+      DispatchBluetoothReply(mRunnable, BluetoothValue(),
+                             NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
+      mCallback();
+      return;
+    }
+
+    DisconnectNext();
+    return;
+  }
 
   // Put all connected profiles into array and disconnect all of them
   BluetoothProfileManagerBase* profile;
@@ -144,76 +217,7 @@ BluetoothProfileController::BluetoothProfileController(
   if (profile->IsConnected()) {
     mProfiles.AppendElement(profile);
   }
-}
 
-BluetoothProfileController::~BluetoothProfileController()
-{
-  LOG("[C] %s", __FUNCTION__);
-  mProfilesIndex = -1;
-  mProfiles.Clear();
-  mRunnable = nullptr;
-  mCallback = nullptr;
-}
-
-void
-BluetoothProfileController::Init(const nsAString& aDeviceAddress,
-                                 BluetoothReplyRunnable* aRunnable,
-                                 BluetoothProfileControllerCallback aCallback)
-{
-  LOG("[C] %s", __FUNCTION__);
-  MOZ_ASSERT(!aDeviceAddress.IsEmpty());
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT(aCallback);
-
-  mProfilesIndex = -1;
-  mDeviceAddress = aDeviceAddress;
-  mRunnable = aRunnable;
-  mCallback = aCallback;
-  mProfiles.Clear();
-}
-
-void
-BluetoothProfileController::Connect()
-{
-  LOG("[C] %s", __FUNCTION__);
-  ConnectNext();
-}
-
-void
-BluetoothProfileController::ConnectNext()
-{
-  LOG("[C] %s", __FUNCTION__);
-
-  if (++mProfilesIndex < mProfiles.Length()) {
-    MOZ_ASSERT(!mDeviceAddress.IsEmpty());
-
-    mProfiles[mProfilesIndex]->Connect(mDeviceAddress, this);
-    return;
-  }
-
-  LOG("[C] all profiles connect complete.");
-  MOZ_ASSERT(mRunnable && mCallback);
-  // The action has been completed, so the dom request is replied and then
-  // the callback is invoked
-  DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
-  mCallback();
-}
-
-void
-BluetoothProfileController::OnConnect(const nsAString& aErrorStr)
-{
-  LOG("[C] %s", __FUNCTION__);
-  if (!aErrorStr.IsEmpty()) {
-    BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
-  }
-
-  ConnectNext();
-}
-
-void
-BluetoothProfileController::Disconnect()
-{
-  LOG("[C] %s", __FUNCTION__);
   DisconnectNext();
 }
 
