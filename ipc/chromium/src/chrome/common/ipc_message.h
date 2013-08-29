@@ -336,6 +336,9 @@ class Message : public Pickle {
     uint32_t interrupt_local_stack_depth;
     // Sequence number
     int32_t seqno;
+#ifdef MOZ_TASK_TRACER
+    uint64_t orig_task_id;
+#endif
   };
 
   Header* header() {

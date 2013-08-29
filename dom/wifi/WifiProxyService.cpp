@@ -205,6 +205,7 @@ WifiProxyService::Start(nsIWifiEventListener* aListener,
       return NS_ERROR_FAILURE;
     }
   }
+//  NS_SetThreadName(mEventThread, "wifi event");
 
   rv = NS_NewThread(getter_AddRefs(mControlThread));
   if (NS_FAILED(rv)) {
@@ -212,6 +213,7 @@ WifiProxyService::Start(nsIWifiEventListener* aListener,
     Shutdown();
     return NS_ERROR_FAILURE;
   }
+  NS_SetThreadName(mControlThread, "wifi control");
 
   mListener = aListener;
 

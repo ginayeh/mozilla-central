@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "GeckoTaskTracer.h"
 #include "mozilla/Atomics.h"
 #include "base/compiler_specific.h"
 #include "base/lazy_instance.h"
@@ -76,8 +77,6 @@ static LPTOP_LEVEL_EXCEPTION_FILTER GetTopSEHFilter() {
 }
 
 #endif  // defined(OS_WIN)
-
-//------------------------------------------------------------------------------
 
 // static
 MessageLoop* MessageLoop::current() {
@@ -271,6 +270,11 @@ void MessageLoop::PostNonNestableDelayedTask(
 void MessageLoop::PostIdleTask(
     const tracked_objects::Location& from_here, Task* task) {
   DCHECK(current() == this);
+
+#ifdef MOZ_TASK_TRACER
+  task = mozilla::tasktracer::CreateTracedTask(task);
+#endif
+
   task->SetBirthPlace(from_here);
   PendingTask pending_task(task, false);
   deferred_non_nestable_work_queue_.push(pending_task);
@@ -280,8 +284,12 @@ void MessageLoop::PostIdleTask(
 void MessageLoop::PostTask_Helper(
     const tracked_objects::Location& from_here, Task* task, int delay_ms,
     bool nestable) {
-  task->SetBirthPlace(from_here);
 
+#ifdef MOZ_TASK_TRACER
+  task = mozilla::tasktracer::CreateTracedTask(task);
+#endif
+
+  task->SetBirthPlace(from_here);
   PendingTask pending_task(task, nestable);
 
   if (delay_ms > 0) {
