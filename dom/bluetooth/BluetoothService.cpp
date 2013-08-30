@@ -143,7 +143,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    LOG("[S] ToggleBtAck::Run");
+    LOG("[S] ToggleBtAck::Run, mEnabled: %d", mEnabled);
     MOZ_ASSERT(NS_IsMainThread());
 
     if (!gBluetoothService) {
@@ -199,7 +199,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    LOG("[S] ToggleBtTask::Run");
+    LOG("[S] ToggleBtTask::Run, mEnabled: %d, mIsStartup: %d", mEnabled, mIsStartup);
     MOZ_ASSERT(!NS_IsMainThread());
 
     /**
@@ -486,7 +486,7 @@ BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 nsresult
 BluetoothService::StartStopBluetooth(bool aStart, bool aIsStartup)
 {
-  LOG("[S] %s", __FUNCTION__);
+  LOG("[S] %s, aIsStartup: %d", __FUNCTION__, aIsStartup);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (gInShutdown) {
@@ -512,7 +512,8 @@ BluetoothService::StartStopBluetooth(bool aStart, bool aIsStartup)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (!aStart) {
+  if (!aStart && !aIsStartup) {
+    LOG("[B] get hfp and disconnect");
     BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
     hfp->Disconnect();
 
