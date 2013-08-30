@@ -498,6 +498,8 @@ public:
   static const int32_t kFontVariantNumericKTable[];
   static const int32_t kFontVariantPositionKTable[];
   static const int32_t kFontWeightKTable[];
+  static const int32_t kImageOrientationKTable[];
+  static const int32_t kImageOrientationFlipKTable[];
   static const int32_t kIMEModeKTable[];
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];
@@ -530,8 +532,10 @@ public:
   static const int32_t kTableLayoutKTable[];
   static const int32_t kTextAlignKTable[];
   static const int32_t kTextAlignLastKTable[];
+  static const int32_t kTextCombineHorizontalKTable[];
   static const int32_t kTextDecorationLineKTable[];
   static const int32_t kTextDecorationStyleKTable[];
+  static const int32_t kTextOrientationKTable[];
   static const int32_t kTextOverflowKTable[];
   static const int32_t kTextTransformKTable[];
   static const int32_t kTransitionTimingFunctionKTable[];

@@ -41,7 +41,9 @@
 #include "nsDOMCSSDeclaration.h"
 #include "nsStyleTransformMatrix.h"
 #include "mozilla/dom/Element.h"
+#include "prtime.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsUTF8Utils.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -1719,8 +1721,7 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(" ");
     }
-    SetCssTextToCoord(tokenString, aGradient->mAngle);
-    aString.Append(tokenString);
+    nsStyleUtil::AppendAngleValue(aGradient->mAngle, aString);
     needSep = true;
   }
 
@@ -2645,6 +2646,27 @@ nsComputedDOMStyle::DoGetTextAlignLast()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetTextCombineHorizontal()
+{
+  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
+  uint8_t tch = StyleText()->mTextCombineHorizontal;
+
+  if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_ALL) {
+    val->SetIdent(
+      nsCSSProps::ValueToKeywordEnum(tch,
+                                     nsCSSProps::kTextCombineHorizontalKTable));
+  } else if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2) {
+    val->SetString(NS_LITERAL_STRING("digits 2"));
+  } else if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_3) {
+    val->SetString(NS_LITERAL_STRING("digits 3"));
+  } else {
+    val->SetString(NS_LITERAL_STRING("digits 4"));
+  }
+
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetTextDecoration()
 {
   nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
@@ -2747,6 +2769,16 @@ nsComputedDOMStyle::DoGetTextIndent()
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
   SetValueToCoord(val, StyleText()->mTextIndent, false,
                   &nsComputedDOMStyle::GetCBContentWidth);
+  return val;
+}
+
+CSSValue*
+nsComputedDOMStyle::DoGetTextOrientation()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleText()->mTextOrientation,
+                                   nsCSSProps::kTextOrientationKTable));
   return val;
 }
 
@@ -3274,6 +3306,27 @@ nsComputedDOMStyle::DoGetForceBrokenImageIcon()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
   val->SetNumber(StyleUIReset()->mForceBrokenImageIcon);
+  return val;
+}
+
+CSSValue*
+nsComputedDOMStyle::DoGetImageOrientation()
+{
+  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
+  nsAutoString string;
+  nsStyleImageOrientation orientation = StyleVisibility()->mImageOrientation;
+
+  if (orientation.IsFromImage()) {
+    string.AppendLiteral("from-image");
+  } else {
+    nsStyleUtil::AppendAngleValue(orientation.AngleAsCoord(), string);
+
+    if (orientation.IsFlipped()) {
+      string.AppendLiteral(" flip");
+    }
+  }
+
+  val->SetString(string);
   return val;
 }
 
@@ -4999,6 +5052,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(font_variant_position,         FontVariantPosition),
     COMPUTED_STYLE_MAP_ENTRY(font_weight,                   FontWeight),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(height,                 Height),
+    COMPUTED_STYLE_MAP_ENTRY(image_orientation,             ImageOrientation),
     COMPUTED_STYLE_MAP_ENTRY(ime_mode,                      IMEMode),
     COMPUTED_STYLE_MAP_ENTRY(justify_content,               JustifyContent),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(left,                   Left),
@@ -5050,8 +5104,10 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     //// COMPUTED_STYLE_MAP_ENTRY(size,                     Size),
     COMPUTED_STYLE_MAP_ENTRY(table_layout,                  TableLayout),
     COMPUTED_STYLE_MAP_ENTRY(text_align,                    TextAlign),
+    COMPUTED_STYLE_MAP_ENTRY(text_combine_horizontal,       TextCombineHorizontal),
     COMPUTED_STYLE_MAP_ENTRY(text_decoration,               TextDecoration),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(text_indent,            TextIndent),
+    COMPUTED_STYLE_MAP_ENTRY(text_orientation,              TextOrientation),
     COMPUTED_STYLE_MAP_ENTRY(text_overflow,                 TextOverflow),
     COMPUTED_STYLE_MAP_ENTRY(text_shadow,                   TextShadow),
     COMPUTED_STYLE_MAP_ENTRY(text_transform,                TextTransform),

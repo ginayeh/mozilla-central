@@ -212,6 +212,7 @@ let FormAssistant = {
   scrollIntoViewTimeout: null,
   _focusedElement: null,
   _focusCounter: 0, // up one for every time we focus a new element
+  _observer: null,
   _documentEncoder: null,
   _editor: null,
   _editing: false,
@@ -230,12 +231,18 @@ let FormAssistant = {
   },
 
   setFocusedElement: function fa_setFocusedElement(element) {
+    let self = this;
+
     if (element === this.focusedElement)
       return;
 
     if (this.focusedElement) {
       this.focusedElement.removeEventListener('mousedown', this);
       this.focusedElement.removeEventListener('mouseup', this);
+      if (this._observer) {
+        this._observer.disconnect();
+        this._observer = null;
+      }
       if (!element) {
         this.focusedElement.blur();
       }
@@ -265,6 +272,24 @@ let FormAssistant = {
         // element.
         this._editor.addEditorObserver(this);
       }
+
+      // If our focusedElement is removed from DOM we want to handle it properly
+      let MutationObserver = element.ownerDocument.defaultView.MutationObserver;
+      this._observer = new MutationObserver(function(mutations) {
+        var del = [].some.call(mutations, function(m) {
+          return [].some.call(m.removedNodes, function(n) {
+            return n === element;
+          });
+        });
+        if (del && element === self.focusedElement) {
+          // item was deleted, fake a blur so all state gets set correctly
+          self.handleEvent({ target: element, type: "blur" });
+        }
+      });
+
+      this._observer.observe(element.parentNode, {
+        childList: true
+      });
     }
 
     this.focusedElement = element;
@@ -301,12 +326,13 @@ let FormAssistant = {
           break;
         }
 
-        if (target instanceof HTMLDocument ||
-            // Bug 811177, we don't support editing the entire document.
-            target instanceof HTMLBodyElement ||
-            target == content) {
-          break;
-        }
+        // Focusing on Window, Document or iFrame should focus body
+        if (target instanceof HTMLHtmlElement)
+          target = target.document.body;
+        else if (target instanceof HTMLDocument)
+          target = target.body;
+        else if (target instanceof HTMLIFrameElement)
+          target = target.contentDocument.body;
 
         if (isContentEditable(target)) {
           this.showKeyboard(this.getTopLevelEditable(target));
@@ -603,24 +629,11 @@ let FormAssistant = {
 
   getTopLevelEditable: function fa_getTopLevelEditable(element) {
     function retrieveTopLevelEditable(element) {
-      // Retrieve the top element that is editable
-      if (element instanceof HTMLHtmlElement)
-        element = element.ownerDocument.body;
-      else if (element instanceof HTMLDocument)
-        element = element.body;
-
       while (element && !isContentEditable(element))
         element = element.parentNode;
 
-      // Return the container frame if we are into a nested editable frame
-      if (element &&
-          element instanceof HTMLBodyElement &&
-          element.ownerDocument.defaultView != content.document.defaultView)
-        return element.ownerDocument.defaultView.frameElement;
-    }
-
-    if (element instanceof HTMLIFrameElement)
       return element;
+    }
 
     return retrieveTopLevelEditable(element) || element;
   },
@@ -685,14 +698,6 @@ function isContentEditable(element) {
   }
 
   if (element.isContentEditable || element.designMode == "on")
-    return true;
-
-  // If a body element is editable and the body is the child of an
-  // iframe we can assume this is an advanced HTML editor
-  if (element instanceof HTMLIFrameElement &&
-      element.contentDocument &&
-      (element.contentDocument.body.isContentEditable ||
-       element.contentDocument.designMode == "on"))
     return true;
 
   return element.ownerDocument && element.ownerDocument.designMode == "on";
@@ -1003,6 +1008,9 @@ function replaceSurroundingText(element, text, selectionStart, beforeLength,
   }
 
   if (text) {
+    // We don't use CR but LF
+    // see https://bugzilla.mozilla.org/show_bug.cgi?id=902847
+    text = text.replace(/\r/g, '\n');
     // Insert the text to be replaced with.
     editor.insertText(text);
   }

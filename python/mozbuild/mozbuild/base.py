@@ -87,7 +87,7 @@ class MozbuildObject(ProcessExecutionMixin):
         self._config_environment = None
 
     @classmethod
-    def from_environment(cls):
+    def from_environment(cls, cwd=None):
         """Create a MozbuildObject by detecting the proper one from the env.
 
         This examines environment state like the current working directory and
@@ -111,6 +111,7 @@ class MozbuildObject(ProcessExecutionMixin):
         If we're not inside a srcdir or objdir, an exception is raised.
         """
 
+        cwd = cwd or os.getcwd()
         topsrcdir = None
         topobjdir = None
         mozconfig = None
@@ -122,7 +123,7 @@ class MozbuildObject(ProcessExecutionMixin):
             mozconfig = info.get('mozconfig')
             return topsrcdir, topobjdir, mozconfig
 
-        for dir_path in ancestors(os.getcwd()):
+        for dir_path in ancestors(cwd):
             # If we find a mozinfo.json, we are in the objdir.
             mozinfo_path = os.path.join(dir_path, 'mozinfo.json')
             if os.path.isfile(mozinfo_path):
@@ -509,6 +510,17 @@ class MachCommandBase(MozbuildObject):
                     print(line)
 
             sys.exit(1)
+
+
+class MachCommandConditions(object):
+    """A series of commonly used condition functions which can be applied to
+    mach commands with providers deriving from MachCommandBase.
+    """
+
+    @staticmethod
+    def is_b2g(cls):
+        """Must have a Boot to Gecko build."""
+        return cls.substs.get('MOZ_WIDGET_TOOLKIT') == 'gonk'
 
 
 class PathArgument(object):

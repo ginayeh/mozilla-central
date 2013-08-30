@@ -53,6 +53,42 @@ struct SharedTextureDescriptor {
   bool inverted;
 };
 
+struct BasicShmTileDescriptor {
+  Shmem reusableSurface;
+};
+
+struct BasicTileDescriptor {
+  uintptr_t reusableSurface;
+};
+
+struct PlaceholderTileDescriptor {
+};
+
+union TileDescriptor {
+  BasicTileDescriptor;
+  BasicShmTileDescriptor;
+  PlaceholderTileDescriptor;
+};
+
+struct SurfaceDescriptorTiles {
+  nsIntRegion validRegion;
+  nsIntRegion paintedRegion;
+  TileDescriptor[] tiles;
+  int         retainedWidth;
+  int         retainedHeight;
+  float       resolution;
+};
+
+struct NewSurfaceDescriptorGralloc {
+  PGrallocBuffer buffer;
+  /**
+   * android::GraphicBuffer has a size information. But there are cases
+   * that GraphicBuffer's size and actual video's size are different.
+   * Extra size member is necessary. See Bug 850566.
+   */
+  IntSize size;
+};
+
 // XXX - soon to be removed
 struct SurfaceDescriptorGralloc {
   PGrallocBuffer buffer;
@@ -134,6 +170,7 @@ union SurfaceDescriptor {
   SurfaceDescriptorX11;
   SharedTextureDescriptor;
   SurfaceStreamDescriptor;
+  NewSurfaceDescriptorGralloc;
   YCbCrImage;                 // XXX - deprecated
   SurfaceDescriptorGralloc;   // XXX - deprecated
   Shmem;                      // XXX - deprecated

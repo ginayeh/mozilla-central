@@ -60,7 +60,7 @@ class HashMap
     {
         typedef Key KeyType;
         static const Key &getKey(TableEntry &e) { return e.key; }
-        static void setKey(TableEntry &e, Key &k) { const_cast<Key &>(e.key) = k; }
+        static void setKey(TableEntry &e, Key &k) { HashPolicy::rekey(const_cast<Key &>(e.key), k); }
     };
 
     typedef detail::HashTable<TableEntry, MapHashPolicy, AllocPolicy> Impl;
@@ -253,7 +253,7 @@ class HashMap
     void rekey(const Lookup &old_key, const Key &new_key) {
         if (old_key != new_key) {
             if (Ptr p = lookup(old_key))
-                impl.rekey(p, new_key, new_key);
+                impl.rekeyAndMaybeRehash(p, new_key, new_key);
         }
     }
 
@@ -295,7 +295,7 @@ class HashSet
     {
         typedef T KeyType;
         static const KeyType &getKey(const T &t) { return t; }
-        static void setKey(T &t, KeyType &k) { t = k; }
+        static void setKey(T &t, KeyType &k) { HashPolicy::rekey(t, k); }
     };
 
     typedef detail::HashTable<const T, SetOps, AllocPolicy> Impl;
@@ -452,7 +452,7 @@ class HashSet
     void rekey(const Lookup &old_key, const T &new_key) {
         if (old_key != new_key) {
             if (Ptr p = lookup(old_key))
-                impl.rekey(p, new_key, new_key);
+                impl.rekeyAndMaybeRehash(p, new_key, new_key);
         }
     }
 
@@ -517,6 +517,9 @@ struct PointerHasher
         JS_ASSERT(!JS::IsPoisonedPtr(l));
         return k == l;
     }
+    static void rekey(Key &k, const Key& newKey) {
+        k = newKey;
+    }
 };
 
 // Default hash policy: just use the 'lookup' value. This of course only
@@ -534,6 +537,9 @@ struct DefaultHasher
     static bool match(const Key &k, const Lookup &l) {
         // Use builtin or overloaded operator==.
         return k == l;
+    }
+    static void rekey(Key &k, const Key& newKey) {
+        k = newKey;
     }
 };
 
@@ -808,7 +814,7 @@ class HashTable : private AllocPolicy
         // a new key at the new Lookup position.  |front()| is invalid after
         // this operation until the next call to |popFront()|.
         void rekeyFront(const Lookup &l, const Key &k) {
-            table.rekey(*this->cur, l, k);
+            table.rekeyWithoutRehash(*this->cur, l, k);
             rekeyed = true;
             this->validEntry = false;
         }
@@ -1456,7 +1462,7 @@ class HashTable : private AllocPolicy
         checkUnderloaded();
     }
 
-    void rekey(Ptr p, const Lookup &l, const Key &k)
+    void rekeyWithoutRehash(Ptr p, const Lookup &l, const Key &k)
     {
         JS_ASSERT(table);
         mozilla::ReentrancyGuard g(*this);
@@ -1465,6 +1471,12 @@ class HashTable : private AllocPolicy
         HashPolicy::setKey(t, const_cast<Key &>(k));
         remove(*p.entry_);
         putNewInfallible(l, mozilla::Move(t));
+    }
+
+    void rekeyAndMaybeRehash(Ptr p, const Lookup &l, const Key &k)
+    {
+        rekeyWithoutRehash(p, l, k);
+        checkOverRemoved();
     }
 
 #undef METER

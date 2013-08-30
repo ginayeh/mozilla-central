@@ -8,6 +8,7 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
+Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 
 let WebProgressListener = {
   init: function() {
@@ -186,6 +187,23 @@ let SecurityUI = {
   }
 };
 
+let ControllerCommands = {
+  init: function () {
+    addMessageListener("ControllerCommands:Do", this);
+  },
+
+  receiveMessage: function(message) {
+    switch(message.name) {
+      case "ControllerCommands:Do":
+        if (docShell.isCommandEnabled(message.data))
+          docShell.doCommand(message.data);
+        break;
+    }
+  }
+}
+
+ControllerCommands.init()
+
 addEventListener("DOMTitleChanged", function (aEvent) {
   let document = content.document;
   switch (aEvent.type) {
@@ -206,4 +224,6 @@ addEventListener("ImageContentLoaded", function (aEvent) {
     sendAsyncMessage("ImageDocumentLoaded", { width: req.image.width,
                                               height: req.image.height });
   }
-}, false)
+}, false);
+
+RemoteAddonsChild.init(this);

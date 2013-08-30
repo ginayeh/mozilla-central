@@ -35,7 +35,7 @@
 
 using namespace js;
 using namespace js::frontend;
-using namespace js::ion;
+using namespace js::jit;
 
 using mozilla::AddToHash;
 using mozilla::ArrayLength;
@@ -1276,6 +1276,8 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 
     bool failName(ParseNode *pn, const char *fmt, PropertyName *name) {
+        // This function is invoked without the caller properly rooting its locals.
+        gc::AutoSuppressGC suppress(cx_);
         JSAutoByteString bytes;
         if (AtomToPrintableString(cx_, name, &bytes))
             failf(pn, fmt, bytes.ptr());
@@ -1579,14 +1581,9 @@ class MOZ_STACK_CLASS ModuleCompiler
 
         // Patch everything that needs an absolute address:
 
-        // Entry points
-        for (unsigned i = 0; i < module_->numExportedFunctions(); i++)
-            module_->exportedFunction(i).patch(code);
-
         // Exit points
         for (unsigned i = 0; i < module_->numExits(); i++) {
-            module_->exit(i).patch(code);
-            module_->exitIndexToGlobalDatum(i).exit = module_->exit(i).interpCode();
+            module_->exitIndexToGlobalDatum(i).exit = module_->interpExitTrampoline(module_->exit(i));
             module_->exitIndexToGlobalDatum(i).fun = NULL;
         }
         module_->setOperationCallbackExit(code + masm_.actualOffset(operationCallbackLabel_.offset()));
@@ -2395,16 +2392,6 @@ class FunctionCompiler
             return false;
         if (!*defaultBlock)
             return true;
-        for (unsigned i = 0; i < cases->length(); i++) {
-            if (!(*cases)[i]) {
-                MBasicBlock *bb;
-                if (!newBlock(switchBlock, &bb, NULL))
-                    return false;
-                bb->end(MGoto::New(*defaultBlock));
-                (*defaultBlock)->addPredecessor(bb);
-                (*cases)[i] = bb;
-            }
-        }
         mirGraph().moveBlockToEnd(*defaultBlock);
         return true;
     }
@@ -2415,9 +2402,13 @@ class FunctionCompiler
         if (!switchBlock)
             return true;
         MTableSwitch *mir = switchBlock->lastIns()->toTableSwitch();
-        mir->addDefault(defaultBlock);
-        for (unsigned i = 0; i < cases.length(); i++)
-            mir->addCase(cases[i]);
+        size_t defaultIndex = mir->addDefault(defaultBlock);
+        for (unsigned i = 0; i < cases.length(); i++) {
+            if (!cases[i])
+                mir->addCase(defaultIndex);
+            else
+                mir->addCase(mir->addSuccessor(cases[i]));
+        }
         if (curBlock_) {
             MBasicBlock *next;
             if (!newBlock(curBlock_, &next, pn))
@@ -2575,8 +2566,6 @@ CheckFunctionHead(ModuleCompiler &m, ParseNode *fn)
     JSFunction *fun = FunctionObject(fn);
     if (fun->hasRest())
         return m.fail(fn, "rest args not allowed");
-    if (fun->hasDefaults())
-        return m.fail(fn, "default args not allowed");
     if (fun->isExprClosure())
         return m.fail(fn, "expression closures not allowed");
     if (fn->pn_funbox->hasDestructuringArgs)
@@ -2590,7 +2579,7 @@ CheckArgument(ModuleCompiler &m, ParseNode *arg, PropertyName **name)
     if (!IsDefinition(arg))
         return m.fail(arg, "duplicate argument name not allowed");
 
-    if (MaybeDefinitionInitializer(arg))
+    if (arg->pn_dflags & PND_DEFAULT)
         return m.fail(arg, "default arguments not allowed");
 
     if (!CheckIdentifier(m, arg, arg->name()))
@@ -4588,10 +4577,18 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     DebugOnly<TokenKind> tk = tokenStream.getToken();
     JS_ASSERT(tk == TOK_FUNCTION);
 
-    if (tokenStream.getToken(TokenStream::KeywordIsName) != TOK_NAME)
-        return false;  // This will throw a SyntaxError, no need to m.fail.
+    RootedPropertyName name(m.cx());
 
-    RootedPropertyName name(m.cx(), tokenStream.currentToken().name());
+    TokenKind tt = tokenStream.getToken();
+    if (tt == TOK_NAME) {
+        name = tokenStream.currentName();
+    } else if (tt == TOK_YIELD) {
+        if (!m.parser().checkYieldNameValidity())
+            return false;
+        name = m.cx()->names().yield;
+    } else {
+        return false;  // The regular parser will throw a SyntaxError, no need to m.fail.
+    }
 
     ParseNode *fn = m.parser().handler.newFunctionDefinition();
     if (!fn)
@@ -4607,14 +4604,14 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     AsmJSParseContext *outerpc = m.parser().pc;
 
     Directives directives(outerpc);
-    FunctionBox *funbox = m.parser().newFunctionBox(fn, fun, outerpc, directives);
+    FunctionBox *funbox = m.parser().newFunctionBox(fn, fun, outerpc, directives, NotGenerator);
     if (!funbox)
         return false;
 
     Directives newDirectives = directives;
     AsmJSParseContext funpc(&m.parser(), outerpc, fn, funbox, &newDirectives,
                             outerpc->staticLevel + 1, outerpc->blockidGen);
-    if (!funpc.init())
+    if (!funpc.init(m.parser().tokenStream))
         return false;
 
     if (!m.parser().functionArgsAndBodyGeneric(fn, fun, Normal, Statement, &newDirectives))
@@ -4702,14 +4699,14 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
 
     m.masm().bind(func.code());
 
-    ScopedJSDeletePtr<CodeGenerator> codegen(ion::GenerateCode(&mir, &lir, &m.masm()));
+    ScopedJSDeletePtr<CodeGenerator> codegen(jit::GenerateCode(&mir, &lir, &m.masm()));
     if (!codegen)
         return m.fail(NULL, "internal codegen failure (probably out of memory)");
 
     if (!m.collectAccesses(mir))
         return false;
 
-    ion::IonScriptCounts *counts = codegen->extractUnassociatedScriptCounts();
+    jit::IonScriptCounts *counts = codegen->extractUnassociatedScriptCounts();
     if (counts && !m.addFunctionCounts(counts)) {
         js_delete(counts);
         return false;
@@ -4819,7 +4816,7 @@ ParallelCompilationEnabled(ExclusiveContext *cx)
     if (!cx->isJSContext())
         return cx->workerThreadState()->numThreads > 1;
 
-    return OffThreadCompilationEnabled(cx->asJSContext());
+    return OffThreadIonCompilationEnabled(cx->asJSContext()->runtime());
 }
 
 // State of compilation as tracked and updated by the main thread.
@@ -5378,7 +5375,7 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     masm.reserveStack(stackDec);
     //JS_ASSERT(masm.framePushed() % 8 == 0);
     if(getenv("GDB_BREAK")) {
-        masm.breakpoint(js::ion::Assembler::Always);
+        masm.breakpoint(js::jit::Assembler::Always);
     }
     // Copy parameters out of argv into the registers/stack-slots specified by
     // the system ABI.
@@ -5471,7 +5468,7 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     if (!ionScript->addDependentAsmJSModule(cx, DependentAsmJSModuleExit(&module, exitIndex)))
         return false;
 
-    module.exitIndexToGlobalDatum(exitIndex).exit = module.exit(exitIndex).ionCode();
+    module.exitIndexToGlobalDatum(exitIndex).exit = module.ionExitTrampoline(module.exit(exitIndex));
     return true;
 }
 

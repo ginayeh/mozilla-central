@@ -7,12 +7,13 @@
 #ifndef TestBindingHeader_h
 #define TestBindingHeader_h
 
-#include "nsWrapperCache.h"
-#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/Date.h"
 #include "mozilla/dom/TypedArray.h"
-#include "nsCOMPtr.h"
 #include "mozilla/dom/UnionTypes.h"
+#include "mozilla/ErrorResult.h"
+#include "nsCOMPtr.h"
+#include "nsWrapperCache.h"
 
 // Forward declare this before we include TestCodeGenBinding.h, because that header relies on including
 // this one for it, for ParentDict. Hopefully it won't begin to rely on it in more fundamental ways.
@@ -479,6 +480,7 @@ public:
   void PassOptionalNullableObjectWithDefaultValue(JSContext*, JS::Handle<JSObject*>);
   void PassSequenceOfObject(JSContext*, const Sequence<JSObject*>&);
   void PassSequenceOfNullableObject(JSContext*, const Sequence<JSObject*>&);
+  void PassNullableSequenceOfObject(JSContext*, const Nullable<Sequence<JSObject*> >&);
   void PassOptionalNullableSequenceOfNullableSequenceOfObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
   void PassOptionalNullableSequenceOfNullableSequenceOfNullableObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
   JSObject* ReceiveObject(JSContext*);

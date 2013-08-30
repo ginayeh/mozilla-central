@@ -13,3 +13,7 @@ XPIDL_MODULE = 'dom_devicestorage'
 
 MODULE = 'dom'
 
+LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'domdevicestorage_s'
+

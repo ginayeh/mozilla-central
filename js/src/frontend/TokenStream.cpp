@@ -20,6 +20,7 @@
 #include "jscntxt.h"
 #include "jsexn.h"
 #include "jsnum.h"
+#include "jsworkers.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "js/CharacterEncoding.h"
@@ -30,6 +31,7 @@ using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
 
+using mozilla::Maybe;
 using mozilla::PodAssign;
 using mozilla::PodCopy;
 using mozilla::PodZero;
@@ -564,7 +566,7 @@ TokenStream::reportStrictModeErrorNumberVA(uint32_t offset, bool strictMode, uns
 }
 
 void
-CompileError::throwError()
+CompileError::throwError(JSContext *cx)
 {
     // If there's a runtime exception type associated with this error
     // number, set that as the pending exception.  For errors occuring at
@@ -622,12 +624,10 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
         warning = false;
     }
 
-    if (!this->cx->isJSContext())
-        return warning;
-
-    JSContext *cx = this->cx->asJSContext();
-
-    CompileError err(cx);
+    // On the main thread, report the error immediately. When compiling off
+    // thread, save the error so that the main thread can report it later.
+    CompileError tempErr;
+    CompileError &err = cx->isJSContext() ? tempErr : cx->addPendingCompileError();
 
     err.report.flags = flags;
     err.report.errorNumber = errorNumber;
@@ -697,7 +697,8 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
         err.report.uctokenptr = err.report.uclinebuf + windowOffset;
     }
 
-    err.throwError();
+    if (cx->isJSContext())
+        err.throwError(cx->asJSContext());
 
     return warning;
 }
@@ -937,10 +938,10 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp)
             return reportError(JSMSG_RESERVED_ID, kw->chars);
         }
 
-        // The keyword is not in this version. Treat it as an identifier,
-        // unless it is let or yield which we treat as TOK_STRICT_RESERVED by
-        // falling through to the code below (ES5 forbids them in strict mode).
-        if (kw->tokentype != TOK_LET && kw->tokentype != TOK_YIELD)
+        // The keyword is not in this version. Treat it as an identifier, unless
+        // it is let which we treat as TOK_STRICT_RESERVED by falling through to
+        // the code below (ES5 forbids it in strict mode).
+        if (kw->tokentype != TOK_LET)
             return true;
     }
 

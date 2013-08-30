@@ -84,7 +84,7 @@ var Downloads = {
 
     let file = this._getLocalFile(fileURI);
     try {
-      file && MetroUtils.launchInDesktop(aDownload.target.spec, "");
+      file && Services.metro.launchInDesktop(aDownload.target.spec, "");
     } catch (ex) {
       Util.dumpLn("Failed to open download, with id: "+id+", download target URI spec: " + fileURI.spec);
       Util.dumpLn("Failed download source:"+(aDownload.source && aDownload.source.spec));
@@ -195,7 +195,6 @@ var Downloads = {
         accessKey: "",
         callback: function() {
           Downloads.manager.retryDownload(aDownload.id);
-          Downloads._downloadProgressIndicator.reset();
         }
       },
       {
@@ -203,7 +202,6 @@ var Downloads = {
         accessKey: "",
         callback: function() {
           Downloads.cancelDownload(aDownload);
-          Downloads._downloadProgressIndicator.reset();
         }
       }
     ];
@@ -223,7 +221,6 @@ var Downloads = {
           let fileURI = aDownload.target;
           let file = Downloads._getLocalFile(fileURI);
           file.reveal();
-          Downloads._downloadProgressIndicator.reset();
         }
       }
     ];
@@ -244,7 +241,6 @@ var Downloads = {
         accessKey: "",
         callback: function() {
           Downloads.openDownload(aDownload);
-          Downloads._downloadProgressIndicator.reset();
         }
       });
     }
@@ -378,7 +374,6 @@ var Downloads = {
           accessKey: "",
           callback: function() {
             Downloads.cancelDownloads();
-            Downloads._downloadProgressIndicator.reset();
           }
         }
       ];
@@ -436,6 +431,7 @@ var Downloads = {
             this._showDownloadCompleteToast(download);
             this._showDownloadCompleteNotification(download);
           }
+          this._downloadProgressIndicator.reset();
           this._progressNotificationInfo.clear();
           this._downloadCount = 0;
           this._notificationBox.removeNotification(this._progressNotification);
@@ -445,6 +441,7 @@ var Downloads = {
       case "dl-failed":
         download = aSubject.QueryInterface(Ci.nsIDownload);
         this._showDownloadFailedNotification(download);
+        this._downloadProgressIndicator.reset();
         break;
       case "dl-request":
         setTimeout(function() {

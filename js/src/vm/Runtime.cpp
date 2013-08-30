@@ -39,6 +39,7 @@ using namespace js::gc;
 using mozilla::Atomic;
 using mozilla::DebugOnly;
 using mozilla::PodZero;
+using mozilla::PodArrayZero;
 using mozilla::ThreadLocal;
 
 /* static */ ThreadLocal<PerThreadData*> js::TlsPerThreadData;
@@ -106,6 +107,8 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #ifdef DEBUG
     operationCallbackOwner(NULL),
 #endif
+#endif
+#ifdef JS_WORKER_THREADS
     exclusiveAccessLock(NULL),
     exclusiveAccessOwner(NULL),
     mainThreadHasExclusiveAccess(false),
@@ -126,8 +129,8 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     bumpAlloc_(NULL),
     ionRuntime_(NULL),
     selfHostingGlobal_(NULL),
+    selfHostedClasses_(NULL),
     nativeStackBase(0),
-    nativeStackQuota(0),
     cxCallback(NULL),
     destroyCompartmentCallback(NULL),
     compartmentNameCallback(NULL),
@@ -232,11 +235,8 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
     signalHandlersInstalled_(false),
-#ifdef JS_THREADSAFE
-#ifdef JS_ION
+#ifdef JS_WORKER_THREADS
     workerThreadState(NULL),
-#endif
-    sourceCompressorThread(),
 #endif
     defaultFreeOp_(thisFromCtor(), false),
     debuggerMutations(0),
@@ -269,7 +269,9 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     parallelWarmup(0),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
-    requestedHelperThreadCount(-1)
+    requestedHelperThreadCount(-1),
+    useHelperThreadsForIonCompilation_(true),
+    useHelperThreadsForParsing_(true)
 #ifdef DEBUG
     , enteredPolicy(NULL)
 #endif
@@ -281,6 +283,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 
     PodZero(&debugHooks);
     PodZero(&atomState);
+    PodArrayZero(nativeStackQuota);
 
 #if JS_STACK_GROWTH_DIRECTION > 0
     nativeStackLimit = UINTPTR_MAX;
@@ -295,7 +298,7 @@ JitSupportsFloatingPoint()
         return false;
 
 #if defined(JS_ION) && WTF_ARM_ARCH_VERSION == 6
-    if (!js::ion::hasVFP())
+    if (!js::jit::hasVFP())
         return false;
 #endif
 
@@ -314,7 +317,9 @@ JSRuntime::init(uint32_t maxbytes)
     operationCallbackLock = PR_NewLock();
     if (!operationCallbackLock)
         return false;
+#endif
 
+#ifdef JS_WORKER_THREADS
     exclusiveAccessLock = PR_NewLock();
     if (!exclusiveAccessLock)
         return false;
@@ -369,11 +374,6 @@ JSRuntime::init(uint32_t maxbytes)
     if (!threadPool.init())
         return false;
 
-#ifdef JS_THREADSAFE
-    if (useHelperThreads() && !sourceCompressorThread.init())
-        return false;
-#endif
-
     if (!evalCache.init())
         return false;
 
@@ -391,23 +391,24 @@ JSRuntime::~JSRuntime()
 {
     mainThread.removeFromThreadList();
 
-#ifdef JS_THREADSAFE
-# ifdef JS_ION
+#ifdef JS_WORKER_THREADS
     if (workerThreadState)
         js_delete(workerThreadState);
-# endif
-    sourceCompressorThread.finish();
-
-    JS_ASSERT(!operationCallbackOwner);
-    if (operationCallbackLock)
-        PR_DestroyLock(operationCallbackLock);
 
     JS_ASSERT(!exclusiveAccessOwner);
     if (exclusiveAccessLock)
         PR_DestroyLock(exclusiveAccessLock);
 
     JS_ASSERT(!numExclusiveThreads);
-    exclusiveThreadsPaused = true; // Avoid bogus asserts during teardown.
+
+    // Avoid bogus asserts during teardown.
+    exclusiveThreadsPaused = true;
+#endif
+
+#ifdef JS_THREADSAFE
+    JS_ASSERT(!operationCallbackOwner);
+    if (operationCallbackLock)
+        PR_DestroyLock(operationCallbackLock);
 #endif
 
     /*
@@ -549,7 +550,7 @@ JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
      * handlers to halt running code.
      */
     TriggerOperationCallbackForAsmJSCode(this);
-    ion::TriggerOperationCallbackForIonCode(this, trigger);
+    jit::TriggerOperationCallbackForIonCode(this, trigger);
 #endif
 }
 
@@ -723,7 +724,7 @@ JSRuntime::activeGCInAtomsZone()
     return zone->needsBarrier() || zone->isGCScheduled() || zone->wasGCStarted();
 }
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
 
 void
 JSRuntime::setUsedByExclusiveThread(Zone *zone)
@@ -741,10 +742,14 @@ JSRuntime::clearUsedByExclusiveThread(Zone *zone)
     numExclusiveThreads--;
 }
 
+#endif // JS_WORKER_THREADS
+
+#ifdef JS_THREADSAFE
+
 bool
 js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
 {
-    PerThreadData *pt = js::TlsPerThreadData.get();
+    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
     JS_ASSERT(pt && pt->associatedWith(rt));
     return rt->ownerThread_ == PR_GetCurrentThread() || InExclusiveParallelSection();
 }
@@ -752,7 +757,7 @@ js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
 bool
 js::CurrentThreadCanAccessZone(Zone *zone)
 {
-    PerThreadData *pt = js::TlsPerThreadData.get();
+    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
     JS_ASSERT(pt && pt->associatedWith(zone->runtime_));
     return !InParallelSection() || InExclusiveParallelSection();
 }

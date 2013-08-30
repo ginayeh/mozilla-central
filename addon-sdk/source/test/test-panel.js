@@ -14,7 +14,7 @@ const { Loader } = require('sdk/test/loader');
 const { LoaderWithHookedConsole } = require("sdk/test/loader");
 const timer = require("sdk/timers");
 const self = require('sdk/self');
-const { open, close, focus } = require('sdk/window/helpers');
+const { open, close, focus, ready } = require('sdk/window/helpers');
 const { isPrivate } = require('sdk/private-browsing');
 const { isWindowPBSupported, isGlobalPBSupported } = require('sdk/private-browsing/utils');
 const { defer, all } = require('sdk/core/promise');
@@ -132,8 +132,8 @@ exports["test Document Reload"] = function(assert, done) {
   let url2 = "data:text/html;charset=utf-8,page2";
   let content =
     "<script>" +
-    "window.addEventListener('message', function() {"+
-    "  window.location = '" + url2 + "';" +
+    "window.addEventListener('message', function({ data }) {"+
+    "  if (data == 'move') window.location = '" + url2 + "';" +
     '}, false);' +
     "</script>";
   let messageCount = 0;
@@ -150,6 +150,8 @@ exports["test Document Reload"] = function(assert, done) {
       if (messageCount == 1) {
         assert.ok(/data:text\/html/.test(message), "First document had a content script; " + message);
         panel.port.emit('move');
+        assert.pass('move message was sent');
+        return;
       }
       else if (messageCount == 2) {
         assert.equal(message, url2, "Second document too; " + message);
@@ -892,6 +894,43 @@ exports['test passing DOM node as first argument'] = function (assert, done) {
     then(done, assert.fail)
 
   panel.show(widgetNode);
+};
+
+// This test is checking that `onpupshowing` events emitted by panel's children
+// are not considered.
+// See Bug 886329
+exports['test nested popups'] = function (assert, done) {
+  let loader = Loader(module);
+  let { Panel } = loader.require('sdk/panel');
+  let { getActiveView } = loader.require('sdk/view/core');
+  let url = '<select><option>1<option>2<option>3</select>';
+
+  let getContentWindow = panel => {
+    return getActiveView(panel).querySelector('iframe').contentWindow;
+  }
+
+  let panel = Panel({
+    contentURL: 'data:text/html;charset=utf-8,' + encodeURIComponent(url),
+    onShow: () => {
+      ready(getContentWindow(panel)).then(({ window, document }) => {
+        let select = document.querySelector('select');
+        let event = document.createEvent('UIEvent');
+
+        event.initUIEvent('popupshowing', true, true, window, null);
+        select.dispatchEvent(event);
+
+        assert.equal(
+          select,
+          getContentWindow(panel).document.querySelector('select'),
+          'select is still loaded in panel'
+        );
+
+        done();
+      });
+    }
+  });
+
+  panel.show();
 };
 
 if (isWindowPBSupported) {

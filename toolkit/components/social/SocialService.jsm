@@ -34,7 +34,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "etld",
 
 // Internal helper methods and state
 let SocialServiceInternal = {
-  enabled: Services.prefs.getBoolPref("social.enabled"),
+  _enabled: Services.prefs.getBoolPref("social.enabled"),
+  get enabled() this._enabled,
+  set enabled(val) {
+    this._enabled = !!val;
+    Services.prefs.setBoolPref("social.enabled", !!val);
+  },
+
   get providerArray() {
     return [p for ([, p] of Iterator(this.providers))];
   },
@@ -362,7 +368,6 @@ this.SocialService = {
 
     SocialServiceInternal.enabled = enable;
     MozSocialAPI.enabled = enable;
-    Services.obs.notifyObservers(null, "social:pref-changed", enable ? "enabled" : "disabled");
     Services.telemetry.getHistogramById("SOCIAL_TOGGLED").add(enable);
   },
 
@@ -646,13 +651,14 @@ this.SocialService = {
    * have knowledge of the currently selected provider here, we will notify
    * the front end to deal with any reload.
    */
-  updateProvider: function(aDOMDocument, aManifest, aCallback) {
-    let installOrigin = aDOMDocument.nodePrincipal.origin;
-    let installType = this.getOriginActivationType(installOrigin);
+  updateProvider: function(aUpdateOrigin, aManifest, aCallback) {
+    let originUri = Services.io.newURI(aUpdateOrigin, null, null);
+    let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
+    let installType = this.getOriginActivationType(aUpdateOrigin);
     // if we get data, we MUST have a valid manifest generated from the data
-    let manifest = this._manifestFromData(installType, aManifest, aDOMDocument.nodePrincipal);
+    let manifest = this._manifestFromData(installType, aManifest, principal);
     if (!manifest)
-      throw new Error("SocialService.installProvider: service configuration is invalid from " + installOrigin);
+      throw new Error("SocialService.installProvider: service configuration is invalid from " + aUpdateOrigin);
 
     // overwrite the preference
     let string = Cc["@mozilla.org/supports-string;1"].
@@ -671,10 +677,10 @@ this.SocialService = {
 
   },
 
-  uninstallProvider: function(origin) {
+  uninstallProvider: function(origin, aCallback) {
     let manifest = SocialServiceInternal.getManifestByOrigin(origin);
     let addon = new AddonWrapper(manifest);
-    addon.uninstall();
+    addon.uninstall(aCallback);
   }
 };
 
@@ -723,6 +729,12 @@ function SocialProvider(input) {
 }
 
 SocialProvider.prototype = {
+  reload: function() {
+    this._terminate();
+    this._activate();
+    Services.obs.notifyObservers(null, "social:provider-reload", this.origin);
+  },
+
   // Provider enabled/disabled state. Disabled providers do not have active
   // connections to their FrameWorkers.
   _enabled: false,
@@ -866,6 +878,10 @@ SocialProvider.prototype = {
     Services.obs.notifyObservers(null, "social:profile-changed", this.origin);
     if (accountChanged)
       closeAllChatWindows(this);
+  },
+
+  haveLoggedInUser: function () {
+    return !!(this.profile && this.profile.userName);
   },
 
   // Called by the workerAPI to add/update a notification icon.
@@ -1056,12 +1072,14 @@ var SocialAddonProvider = {
     aCallback([new AddonWrapper(a) for each (a in SocialServiceInternal.manifests)]);
   },
 
-  removeAddon: function(aAddon) {
+  removeAddon: function(aAddon, aCallback) {
     AddonManagerPrivate.callAddonListeners("onUninstalling", aAddon, false);
     aAddon.pendingOperations |= AddonManager.PENDING_UNINSTALL;
     Services.prefs.clearUserPref(getPrefnameFromOrigin(aAddon.manifest.origin));
     aAddon.pendingOperations -= AddonManager.PENDING_UNINSTALL;
     AddonManagerPrivate.callAddonListeners("onUninstalled", aAddon);
+    if (aCallback)
+      schedule(aCallback);
   }
 }
 
@@ -1230,16 +1248,18 @@ AddonWrapper.prototype = {
     return val;
   },
 
-  uninstall: function() {
+  uninstall: function(aCallback) {
     let prefName = getPrefnameFromOrigin(this.manifest.origin);
     if (Services.prefs.prefHasUserValue(prefName)) {
       if (ActiveProviders.has(this.manifest.origin)) {
         SocialService.removeProvider(this.manifest.origin, function() {
-          SocialAddonProvider.removeAddon(this);
+          SocialAddonProvider.removeAddon(this, aCallback);
         }.bind(this));
       } else {
-        SocialAddonProvider.removeAddon(this);
+        SocialAddonProvider.removeAddon(this, aCallback);
       }
+    } else {
+      schedule(aCallback);
     }
   },
 

@@ -21,7 +21,6 @@
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsiter.h"
@@ -41,6 +40,7 @@
 #include "jit/AsmJSModule.h"
 #include "jit/BaselineJIT.h"
 #include "js/MemoryMetrics.h"
+#include "js/OldDebugAPI.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Interpreter.h"
 #include "vm/RegExpStaticsObject.h"
@@ -1186,6 +1186,18 @@ JSObject::isSealedOrFrozen(JSContext *cx, HandleObject obj, ImmutabilityType it,
         return true;
     }
 
+    if (obj->is<TypedArrayObject>()) {
+        if (it == SEAL) {
+            // Typed arrays are always sealed.
+            *resultp = true;
+        } else {
+            // Typed arrays cannot be frozen, but an empty typed array is
+            // trivially frozen.
+            *resultp = (obj->as<TypedArrayObject>().length() == 0);
+        }
+        return true;
+    }
+
     AutoIdVector props(cx);
     if (!GetPropertyNames(cx, obj, JSITER_HIDDEN | JSITER_OWNONLY, &props))
         return false;
@@ -1531,18 +1543,18 @@ static inline JSObject *
 CreateThisForFunctionWithType(JSContext *cx, HandleTypeObject type, JSObject *parent,
                               NewObjectKind newKind)
 {
-    if (type->newScript) {
+    if (type->hasNewScript()) {
         /*
          * Make an object with the type's associated finalize kind and shape,
          * which reflects any properties that will definitely be added to the
          * object before it is read from.
          */
-        gc::AllocKind kind = type->newScript->allocKind;
+        gc::AllocKind kind = type->newScript()->allocKind;
         RootedObject res(cx, NewObjectWithType(cx, type, parent, kind, newKind));
         if (!res)
             return NULL;
         RootedObject metadata(cx, res->getMetadata());
-        RootedShape shape(cx, type->newScript->shape);
+        RootedShape shape(cx, type->newScript()->shape);
         JS_ALWAYS_TRUE(JSObject::setLastProperty(cx, res, shape));
         if (metadata && !JSObject::setMetadata(cx, res, metadata))
             return NULL;
@@ -2526,8 +2538,8 @@ JSObject::growSlots(ExclusiveContext *cx, HandleObject obj, uint32_t oldCount, u
      * type to give these objects a larger number of fixed slots when future
      * objects are constructed.
      */
-    if (!obj->hasLazyType() && !oldCount && obj->type()->newScript) {
-        gc::AllocKind kind = obj->type()->newScript->allocKind;
+    if (!obj->hasLazyType() && !oldCount && obj->type()->hasNewScript()) {
+        gc::AllocKind kind = obj->type()->newScript()->allocKind;
         uint32_t newScriptSlots = gc::GetGCKindSlots(kind);
         if (newScriptSlots == obj->numFixedSlots() &&
             gc::TryIncrementAllocKind(&kind) &&
@@ -2537,13 +2549,13 @@ JSObject::growSlots(ExclusiveContext *cx, HandleObject obj, uint32_t oldCount, u
             AutoEnterAnalysis enter(ncx);
 
             Rooted<TypeObject*> typeObj(cx, obj->type());
-            RootedShape shape(cx, typeObj->newScript->shape);
+            RootedShape shape(cx, typeObj->newScript()->shape);
             JSObject *reshapedObj = NewReshapedObject(ncx, typeObj, obj->getParent(), kind, shape);
             if (!reshapedObj)
                 return false;
 
-            typeObj->newScript->allocKind = kind;
-            typeObj->newScript->shape = reshapedObj->lastProperty();
+            typeObj->newScript()->allocKind = kind;
+            typeObj->newScript()->shape = reshapedObj->lastProperty();
             typeObj->markStateChange(ncx);
         }
     }

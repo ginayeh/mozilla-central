@@ -452,8 +452,7 @@ Navigator::GetMimeTypes(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(mWindow);
   }
 
   return mMimeTypes;
@@ -467,8 +466,7 @@ Navigator::GetPlugins(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mPlugins = new nsPluginArray(win);
+    mPlugins = new nsPluginArray(mWindow);
     mPlugins->Init();
   }
 
@@ -582,8 +580,7 @@ Navigator::JavaEnabled(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return false;
     }
-    nsWeakPtr win = do_GetWeakReference(mWindow);
-    mMimeTypes = new nsMimeTypeArray(win);
+    mMimeTypes = new nsMimeTypeArray(mWindow);
   }
 
   RefreshMIMEArray();
@@ -1118,7 +1115,7 @@ Navigator::GetMozMobileMessage()
 
 #ifdef MOZ_B2G_RIL
 
-nsIDOMMozCellBroadcast*
+CellBroadcast*
 Navigator::GetMozCellBroadcast(ErrorResult& aRv)
 {
   if (!mCellBroadcast) {
@@ -1126,11 +1123,7 @@ Navigator::GetMozCellBroadcast(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-
-    aRv = NS_NewCellBroadcast(mWindow, getter_AddRefs(mCellBroadcast));
-    if (aRv.Failed()) {
-      return nullptr;
-    }
+    mCellBroadcast = CellBroadcast::Create(mWindow, aRv);
   }
 
   return mCellBroadcast;
@@ -1452,8 +1445,7 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
     return true;
   }
 
-  nsScriptNameSpaceManager* nameSpaceManager =
-    nsJSRuntime::GetNameSpaceManager();
+  nsScriptNameSpaceManager* nameSpaceManager = GetNameSpaceManager();
   if (!nameSpaceManager) {
     return Throw<true>(aCx, NS_ERROR_NOT_INITIALIZED);
   }
@@ -1567,8 +1559,7 @@ void
 Navigator::GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& aNames,
                                ErrorResult& aRv)
 {
-  nsScriptNameSpaceManager *nameSpaceManager =
-    nsJSRuntime::GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
   if (!nameSpaceManager) {
     NS_ERROR("Can't get namespace manager.");
     aRv.Throw(NS_ERROR_UNEXPECTED);

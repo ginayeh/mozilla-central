@@ -18,7 +18,6 @@
 
 #include "jscntxt.h"
 #include "jspubtd.h"
-#include "jsversion.h"
 
 #include "js/Vector.h"
 #include "vm/RegExpObject.h"
@@ -308,17 +307,16 @@ struct Token {
 };
 
 struct CompileError {
-    JSContext *cx;
     JSErrorReport report;
     char *message;
     ErrorArgumentsType argumentsType;
-    CompileError(JSContext *cx)
-      : cx(cx), message(NULL), argumentsType(ArgumentsAreUnicode)
+    CompileError()
+      : message(NULL), argumentsType(ArgumentsAreUnicode)
     {
         mozilla::PodZero(&report);
     }
     ~CompileError();
-    void throwError();
+    void throwError(JSContext *cx);
 };
 
 // Ideally, tokenizing would be entirely independent of context.  But the
@@ -406,6 +404,13 @@ class MOZ_STACK_CLASS TokenStream
     JSPrincipals *getOriginPrincipals() const { return originPrincipals; }
     JSVersion versionNumber() const { return VersionNumber(options().version); }
     JSVersion versionWithFlags() const { return options().version; }
+
+    PropertyName *currentName() const {
+        if (isCurrentTokenType(TOK_YIELD))
+            return cx->names().yield;
+        JS_ASSERT(isCurrentTokenType(TOK_NAME));
+        return currentToken().name();
+    }
 
     bool isCurrentTokenAssignment() const {
         return TokenKindIsAssignment(currentToken().type);
