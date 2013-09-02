@@ -232,9 +232,9 @@ types::InferSpew(SpewChannel channel, const char *fmt, ...)
 
     va_list ap;
     va_start(ap, fmt);
-    fprintf(stdout, "[infer] ");
-    vfprintf(stdout, fmt, ap);
-    fprintf(stdout, "\n");
+    fprintf(stderr, "[infer] ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
     va_end(ap);
 }
 
@@ -427,47 +427,47 @@ void
 TypeSet::print()
 {
     if (flags & TYPE_FLAG_OWN_PROPERTY)
-        printf(" [own]");
+        fprintf(stderr, " [own]");
     if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
-        printf(" [configured]");
+        fprintf(stderr, " [configured]");
 
     if (definiteProperty())
-        printf(" [definite:%d]", definiteSlot());
+        fprintf(stderr, " [definite:%d]", definiteSlot());
 
     if (baseFlags() == 0 && !baseObjectCount()) {
-        printf(" missing");
+        fprintf(stderr, " missing");
         return;
     }
 
     if (flags & TYPE_FLAG_UNKNOWN)
-        printf(" unknown");
+        fprintf(stderr, " unknown");
     if (flags & TYPE_FLAG_ANYOBJECT)
-        printf(" object");
+        fprintf(stderr, " object");
 
     if (flags & TYPE_FLAG_UNDEFINED)
-        printf(" void");
+        fprintf(stderr, " void");
     if (flags & TYPE_FLAG_NULL)
-        printf(" null");
+        fprintf(stderr, " null");
     if (flags & TYPE_FLAG_BOOLEAN)
-        printf(" bool");
+        fprintf(stderr, " bool");
     if (flags & TYPE_FLAG_INT32)
-        printf(" int");
+        fprintf(stderr, " int");
     if (flags & TYPE_FLAG_DOUBLE)
-        printf(" float");
+        fprintf(stderr, " float");
     if (flags & TYPE_FLAG_STRING)
-        printf(" string");
+        fprintf(stderr, " string");
     if (flags & TYPE_FLAG_LAZYARGS)
-        printf(" lazyargs");
+        fprintf(stderr, " lazyargs");
 
     uint32_t objectCount = baseObjectCount();
     if (objectCount) {
-        printf(" object[%u]", objectCount);
+        fprintf(stderr, " object[%u]", objectCount);
 
         unsigned count = getObjectCount();
         for (unsigned i = 0; i < count; i++) {
             TypeObjectKey *object = getObject(i);
             if (object)
-                printf(" %s", TypeString(Type::ObjectType(object)));
+                fprintf(stderr, " %s", TypeString(Type::ObjectType(object)));
         }
     }
 }
@@ -568,6 +568,8 @@ TypeSet::unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc)
 // TypeSet constraints
 /////////////////////////////////////////////////////////////////////
 
+namespace {
+
 /* Standard subset constraint, propagate all types from one set to another. */
 class TypeConstraintSubset : public TypeConstraint
 {
@@ -589,6 +591,8 @@ class TypeConstraintSubset : public TypeConstraint
     }
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addSubset(JSContext *cx, TypeSet *target)
 {
@@ -601,6 +605,8 @@ HeapTypeSet::addSubset(JSContext *cx, TypeSet *target)
     JS_ASSERT(!target->purged());
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintSubset>(target));
 }
+
+namespace {
 
 enum PropertyAccessKind {
     PROPERTY_WRITE,
@@ -641,6 +647,8 @@ typedef TypeConstraintProp<PROPERTY_WRITE> TypeConstraintSetProperty;
 typedef TypeConstraintProp<PROPERTY_READ>  TypeConstraintGetProperty;
 typedef TypeConstraintProp<PROPERTY_READ_EXISTING> TypeConstraintGetPropertyExisting;
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
                              StackTypeSet *target, jsid id)
@@ -668,6 +676,8 @@ HeapTypeSet::addGetProperty(JSContext *cx, JSScript *script, jsbytecode *pc,
     JS_ASSERT(!target->purged());
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintGetProperty>(script, pc, target, id));
 }
+
+namespace {
 
 /*
  * Constraints for updating the 'this' types of callees on CALLPROP/CALLELEM.
@@ -701,6 +711,8 @@ class TypeConstraintCallProp : public TypeConstraint
 typedef TypeConstraintCallProp<PROPERTY_READ> TypeConstraintCallProperty;
 typedef TypeConstraintCallProp<PROPERTY_READ_EXISTING> TypeConstraintCallPropertyExisting;
 
+} /* anonymous namespace */
+
 void
 HeapTypeSet::addCallProperty(JSContext *cx, JSScript *script, jsbytecode *pc, jsid id)
 {
@@ -715,6 +727,8 @@ HeapTypeSet::addCallProperty(JSContext *cx, JSScript *script, jsbytecode *pc, js
 
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintCallProperty>(script, callpc, id));
 }
+
+namespace {
 
 /*
  * Constraints for generating 'set' property constraints on a SETELEM only if
@@ -745,6 +759,8 @@ class TypeConstraintSetElement : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type);
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
                             StackTypeSet *objectTypes, StackTypeSet *valueTypes)
@@ -752,6 +768,8 @@ StackTypeSet::addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
     add(cx, cx->analysisLifoAlloc().new_<TypeConstraintSetElement>(script, pc, objectTypes,
                                                                    valueTypes));
 }
+
+namespace {
 
 /*
  * Constraints for watching call edges as they are discovered and invoking native
@@ -773,11 +791,15 @@ class TypeConstraintCall : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type);
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addCall(JSContext *cx, TypeCallsite *site)
 {
     add(cx, cx->analysisLifoAlloc().new_<TypeConstraintCall>(site));
 }
+
+namespace {
 
 /* Constraints for arithmetic operations. */
 class TypeConstraintArith : public TypeConstraint
@@ -804,12 +826,16 @@ class TypeConstraintArith : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type);
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addArith(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target,
                        TypeSet *other)
 {
     add(cx, cx->analysisLifoAlloc().new_<TypeConstraintArith>(script, pc, target, other));
 }
+
+namespace {
 
 /* Subset constraint which transforms primitive values into appropriate objects. */
 class TypeConstraintTransformThis : public TypeConstraint
@@ -828,11 +854,15 @@ class TypeConstraintTransformThis : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type);
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addTransformThis(JSContext *cx, JSScript *script, TypeSet *target)
 {
     add(cx, cx->analysisLifoAlloc().new_<TypeConstraintTransformThis>(script, target));
 }
+
+namespace {
 
 /*
  * Constraint which adds a particular type to the 'this' types of all
@@ -856,12 +886,16 @@ class TypeConstraintPropagateThis : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type);
 };
 
+} /* anonymous namespace */
+
 void
 StackTypeSet::addPropagateThis(JSContext *cx, JSScript *script, jsbytecode *pc,
                                Type type, StackTypeSet *types)
 {
     add(cx, cx->analysisLifoAlloc().new_<TypeConstraintPropagateThis>(script, pc, type, types));
 }
+
+namespace {
 
 /* Subset constraint which filters out primitive types. */
 class TypeConstraintFilterPrimitive : public TypeConstraint
@@ -883,6 +917,8 @@ class TypeConstraintFilterPrimitive : public TypeConstraint
         target->addType(cx, type);
     }
 };
+
+} /* anonymous namespace */
 
 void
 HeapTypeSet::addFilterPrimitives(JSContext *cx, TypeSet *target)
@@ -994,6 +1030,8 @@ void ScriptAnalysis::breakTypeBarriersSSA(JSContext *cx, const SSAValue &v)
     breakTypeBarriers(cx, offset, true);
 }
 
+namespace {
+
 /*
  * Subset constraint for property reads and argument passing which can add type
  * barriers on the read instead of passing types along.
@@ -1020,6 +1058,8 @@ class TypeConstraintSubsetBarrier : public TypeConstraint
         }
     }
 };
+
+} /* anonymous namespace */
 
 void
 StackTypeSet::addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target)
@@ -1634,6 +1674,8 @@ TypeConstraintTransformThis::newType(JSContext *cx, TypeSet *source, Type type)
 // Freeze constraints
 /////////////////////////////////////////////////////////////////////
 
+namespace {
+
 /* Constraint which triggers recompilation of a script if any type is added to a type set. */
 class TypeConstraintFreeze : public TypeConstraint
 {
@@ -1658,6 +1700,8 @@ class TypeConstraintFreeze : public TypeConstraint
         cx->compartment()->types.addPendingRecompile(cx, info);
     }
 };
+
+} /* anonymous namespace */
 
 void
 HeapTypeSet::addFreeze(JSContext *cx)
@@ -1754,6 +1798,8 @@ StackTypeSet::mightBeType(JSValueType type)
     return baseFlags() & PrimitiveTypeFlag(type);
 }
 
+namespace {
+
 /* Constraint which triggers recompilation if an object acquires particular flags. */
 class TypeConstraintFreezeObjectFlags : public TypeConstraint
 {
@@ -1783,6 +1829,8 @@ class TypeConstraintFreezeObjectFlags : public TypeConstraint
         }
     }
 };
+
+} /* anonymous namespace */
 
 bool
 StackTypeSet::hasObjectFlags(JSContext *cx, TypeObjectFlags flags)
@@ -1881,6 +1929,8 @@ HeapTypeSet::WatchObjectStateChange(JSContext *cx, TypeObject *obj)
                      0));
 }
 
+namespace {
+
 class TypeConstraintFreezeOwnProperty : public TypeConstraint
 {
   public:
@@ -1907,6 +1957,8 @@ class TypeConstraintFreezeOwnProperty : public TypeConstraint
         }
     }
 };
+
+} /* anonymous namespace */
 
 static void
 CheckNewScriptProperties(JSContext *cx, HandleTypeObject type, HandleFunction fun);
@@ -2217,6 +2269,8 @@ AddPendingRecompile(JSContext *cx, JSScript *script)
     cx->compartment()->types.addPendingRecompile(cx, script);
 }
 
+namespace {
+
 /*
  * As for TypeConstraintFreeze, but describes an implicit freeze constraint
  * added for stack types within a script. Applies to all compilations of the
@@ -2242,6 +2296,8 @@ class TypeConstraintFreezeStack : public TypeConstraint
         AddPendingRecompile(cx, script_);
     }
 };
+
+} /* anonymous namespace */
 
 /////////////////////////////////////////////////////////////////////
 // TypeCompartment
@@ -2976,6 +3032,7 @@ ScriptAnalysis::addSingletonTypeBarrier(JSContext *cx, const jsbytecode *pc, Typ
 void
 TypeCompartment::print(JSContext *cx, bool force)
 {
+#ifdef DEBUG
     gc::AutoSuppressGC suppressGC(cx);
 
     JSCompartment *compartment = this->compartment();
@@ -2985,25 +3042,18 @@ TypeCompartment::print(JSContext *cx, bool force)
         return;
 
     for (gc::CellIter i(compartment->zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        RootedScript script(cx, i.get<JSScript>());
-        if (script->hasAnalysis() && script->analysis()->ranInference())
-            script->analysis()->printTypes(cx);
+        // Note: use cx->runtime() instead of cx to work around IsInRequest(cx)
+        // assertion failures when we're called from DestroyContext.
+        RootedScript script(cx->runtime(), i.get<JSScript>());
+        if (script->types)
+            script->types->printTypes(cx, script);
     }
 
-#ifdef DEBUG
     for (gc::CellIter i(compartment->zone(), gc::FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
         TypeObject *object = i.get<TypeObject>();
         object->print();
     }
 #endif
-
-    printf("Counts: ");
-    for (unsigned count = 0; count < TYPE_COUNT_LIMIT; count++) {
-        if (count)
-            printf("/");
-        printf("%u", typeCounts[count]);
-    }
-    printf(" (%u over)\n", typeCountOver);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -3852,46 +3902,46 @@ void
 TypeObject::print()
 {
     TaggedProto tagged(proto);
-    printf("%s : %s",
+    fprintf(stderr, "%s : %s",
            TypeObjectString(this),
            tagged.isObject() ? TypeString(Type::ObjectType(proto))
                             : (tagged.isLazy() ? "(lazy)" : "(null)"));
 
     if (unknownProperties()) {
-        printf(" unknown");
+        fprintf(stderr, " unknown");
     } else {
         if (!hasAnyFlags(OBJECT_FLAG_SPARSE_INDEXES))
-            printf(" dense");
+            fprintf(stderr, " dense");
         if (!hasAnyFlags(OBJECT_FLAG_NON_PACKED))
-            printf(" packed");
+            fprintf(stderr, " packed");
         if (!hasAnyFlags(OBJECT_FLAG_LENGTH_OVERFLOW))
-            printf(" noLengthOverflow");
+            fprintf(stderr, " noLengthOverflow");
         if (hasAnyFlags(OBJECT_FLAG_EMULATES_UNDEFINED))
-            printf(" emulatesUndefined");
+            fprintf(stderr, " emulatesUndefined");
         if (hasAnyFlags(OBJECT_FLAG_ITERATED))
-            printf(" iterated");
+            fprintf(stderr, " iterated");
         if (interpretedFunction)
-            printf(" ifun");
+            fprintf(stderr, " ifun");
     }
 
     unsigned count = getPropertyCount();
 
     if (count == 0) {
-        printf(" {}\n");
+        fprintf(stderr, " {}\n");
         return;
     }
 
-    printf(" {");
+    fprintf(stderr, " {");
 
     for (unsigned i = 0; i < count; i++) {
         Property *prop = getProperty(i);
         if (prop) {
-            printf("\n    %s:", TypeIdString(prop->id));
+            fprintf(stderr, "\n    %s:", TypeIdString(prop->id));
             prop->types.print();
         }
     }
 
-    printf("\n}\n");
+    fprintf(stderr, "\n}\n");
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -4751,6 +4801,8 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
     TypeScript::AddFreezeConstraints(cx, script_);
 }
 
+namespace {
+
 /*
  * Persistent constraint clearing out newScript and definite properties from
  * an object should a property on another object get a getter or setter.
@@ -4783,6 +4835,8 @@ class TypeConstraintClearDefiniteGetterSetter : public TypeConstraint
     void newType(JSContext *cx, TypeSet *source, Type type) {}
 };
 
+} /* anonymous namespace */
+
 static bool
 AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, jsid id)
 {
@@ -4804,6 +4858,8 @@ AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *type, j
     }
     return true;
 }
+
+namespace {
 
 /*
  * Constraint which clears definite properties on an object should a type set
@@ -4840,6 +4896,8 @@ struct NewScriptPropertiesState
       : thisFunction(cx), baseobj(cx), initializerList(cx), accessedProperties(cx)
     {}
 };
+
+} /* anonymous namespace */
 
 static bool
 AnalyzePoppedThis(JSContext *cx, SSAUseChain *use,
@@ -5251,130 +5309,6 @@ CheckNewScriptProperties(JSContext *cx, HandleTypeObject type, HandleFunction fu
     PodCopy(newScript->initializerList,
             state.initializerList.begin(),
             state.initializerList.length());
-}
-
-/////////////////////////////////////////////////////////////////////
-// Printing
-/////////////////////////////////////////////////////////////////////
-
-void
-ScriptAnalysis::printTypes(JSContext *cx)
-{
-    AutoEnterAnalysis enter(NULL, script_->compartment());
-    TypeCompartment *compartment = &script_->compartment()->types;
-
-    /*
-     * Check if there are warnings for used values with unknown types, and build
-     * statistics about the size of type sets found for stack values.
-     */
-    for (unsigned offset = 0; offset < script_->length; offset++) {
-        if (!maybeCode(offset))
-            continue;
-
-        unsigned defCount = GetDefCount(script_, offset);
-        if (!defCount)
-            continue;
-
-        for (unsigned i = 0; i < defCount; i++) {
-            TypeSet *types = pushedTypes(offset, i);
-
-            if (types->unknown()) {
-                compartment->typeCountOver++;
-                continue;
-            }
-
-            unsigned typeCount = 0;
-
-            if (types->hasAnyFlag(TYPE_FLAG_ANYOBJECT) || types->getObjectCount() != 0)
-                typeCount++;
-            for (TypeFlags flag = 1; flag < TYPE_FLAG_ANYOBJECT; flag <<= 1) {
-                if (types->hasAnyFlag(flag))
-                    typeCount++;
-            }
-
-            /*
-             * Adjust the type counts for floats: values marked as floats
-             * are also marked as ints by the inference, but for counting
-             * we don't consider these to be separate types.
-             */
-            if (types->hasAnyFlag(TYPE_FLAG_DOUBLE)) {
-                JS_ASSERT(types->hasAnyFlag(TYPE_FLAG_INT32));
-                typeCount--;
-            }
-
-            if (typeCount > TypeCompartment::TYPE_COUNT_LIMIT) {
-                compartment->typeCountOver++;
-            } else if (typeCount == 0) {
-                /* Ignore values without types, this may be unreached code. */
-            } else {
-                compartment->typeCounts[typeCount-1]++;
-            }
-        }
-    }
-
-#ifdef DEBUG
-
-    if (script_->function())
-        printf("Function");
-    else if (script_->isCachedEval)
-        printf("Eval");
-    else
-        printf("Main");
-    printf(" #%u %s (line %d):\n", script_->id(), script_->filename(), script_->lineno);
-
-    printf("locals:");
-    printf("\n    return:");
-    TypeScript::ReturnTypes(script_)->print();
-    printf("\n    this:");
-    TypeScript::ThisTypes(script_)->print();
-
-    for (unsigned i = 0; script_->function() && i < script_->function()->nargs; i++) {
-        printf("\n    arg%u:", i);
-        TypeScript::ArgTypes(script_, i)->print();
-    }
-    printf("\n");
-
-    RootedScript script(cx, script_);
-    for (unsigned offset = 0; offset < script_->length; offset++) {
-        if (!maybeCode(offset))
-            continue;
-
-        jsbytecode *pc = script_->code + offset;
-
-        PrintBytecode(cx, script, pc);
-
-        if (js_CodeSpec[*pc].format & JOF_TYPESET) {
-            TypeSet *types = TypeScript::BytecodeTypes(script_, pc);
-            printf("  typeset %d:", (int) (types - script_->types->typeArray()));
-            types->print();
-            printf("\n");
-        }
-
-        unsigned defCount = GetDefCount(script_, offset);
-        for (unsigned i = 0; i < defCount; i++) {
-            printf("  type %d:", i);
-            pushedTypes(offset, i)->print();
-            printf("\n");
-        }
-
-        if (getCode(offset).monitoredTypes)
-            printf("  monitored\n");
-
-        TypeBarrier *barrier = getCode(offset).typeBarriers;
-        if (barrier != NULL) {
-            printf("  barrier:");
-            while (barrier) {
-                printf(" %s", TypeString(barrier->type));
-                barrier = barrier->next;
-            }
-            printf("\n");
-        }
-    }
-
-    printf("\n");
-
-#endif /* DEBUG */
-
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -6516,17 +6450,10 @@ JSCompartment::sweepNewTypeObjectTable(TypeObjectSet &table)
 
 TypeCompartment::~TypeCompartment()
 {
-    if (pendingArray)
-        js_free(pendingArray);
-
-    if (arrayTypeTable)
-        js_delete(arrayTypeTable);
-
-    if (objectTypeTable)
-        js_delete(objectTypeTable);
-
-    if (allocationSiteTable)
-        js_delete(allocationSiteTable);
+    js_free(pendingArray);
+    js_delete(arrayTypeTable);
+    js_delete(objectTypeTable);
+    js_delete(allocationSiteTable);
 }
 
 /* static */ void
@@ -6773,6 +6700,61 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes)
         rt->freeLifoAlloc.transferFrom(&oldAlloc);
     }
 }
+
+#ifdef DEBUG
+void
+TypeScript::printTypes(JSContext *cx, HandleScript script) const
+{
+    JS_ASSERT(script->types == this);
+
+    if (!bytecodeMap)
+        return;
+
+    AutoEnterAnalysis enter(NULL, script->compartment());
+
+    if (script->function())
+        fprintf(stderr, "Function");
+    else if (script->isForEval())
+        fprintf(stderr, "Eval");
+    else
+        fprintf(stderr, "Main");
+    fprintf(stderr, " #%u %s:%d ", script->id(), script->filename(), script->lineno);
+
+    if (script->function()) {
+        if (js::PropertyName *name = script->function()->name()) {
+            const jschar *chars = name->getChars(NULL);
+            JSString::dumpChars(chars, name->length());
+        }
+    }
+
+    fprintf(stderr, "\n    return:");
+    TypeScript::ReturnTypes(script)->print();
+    fprintf(stderr, "\n    this:");
+    TypeScript::ThisTypes(script)->print();
+
+    for (unsigned i = 0; script->function() && i < script->function()->nargs; i++) {
+        fprintf(stderr, "\n    arg%u:", i);
+        TypeScript::ArgTypes(script, i)->print();
+    }
+    fprintf(stderr, "\n");
+
+    for (jsbytecode *pc = script->code;
+         pc < script->code + script->length;
+         pc += GetBytecodeLength(pc))
+    {
+        PrintBytecode(cx, script, pc);
+
+        if (js_CodeSpec[*pc].format & JOF_TYPESET) {
+            TypeSet *types = TypeScript::BytecodeTypes(script, pc);
+            fprintf(stderr, "  typeset %u:", unsigned(types - typeArray()));
+            types->print();
+            fprintf(stderr, "\n");
+        }
+    }
+
+    fprintf(stderr, "\n");
+}
+#endif /* DEBUG */
 
 /////////////////////////////////////////////////////////////////////
 // Binary data
