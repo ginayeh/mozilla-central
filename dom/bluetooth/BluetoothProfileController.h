@@ -74,7 +74,7 @@ public:
    * remote device.
    */
   void Disconnect(BluetoothServiceClass aClass = BluetoothServiceClass::UNKNOWN);
-  
+
   void OnConnect(const nsAString& aErrorStr);
   void OnDisconnect(const nsAString& aErrorStr);
 
@@ -86,7 +86,9 @@ public:
 private:
   void ConnectNext();
   void DisconnectNext();
-  bool SetProfileArrayWithServiceClass(BluetoothServiceClass aClass);
+  bool AddProfile(BluetoothProfileManagerBase* aProfile,
+                  bool aCheckConnected = false);
+  bool AddProfileWithServiceClass(BluetoothServiceClass aClass);
 
   int8_t mProfilesIndex;
   nsTArray<BluetoothProfileManagerBase*> mProfiles;

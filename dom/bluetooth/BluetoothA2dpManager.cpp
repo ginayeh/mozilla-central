@@ -291,47 +291,53 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
   const BluetoothValue& value = arr[0].value();
   MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
-  SinkState state = StatusStringToSinkState(value.get_nsString());
+  SinkState prevState = mSinkState;
+  mSinkState = StatusStringToSinkState(value.get_nsString());
 
-  MOZ_ASSERT_IF(state == SinkState::SINK_CONNECTING,
-                mSinkState == SinkState::SINK_DISCONNECTED);
-/*  MOZ_ASSERT_IF(state == SinkState::SINK_CONNECTED,
-                mSinkState == SinkState::SINK_CONNECTING ||
-                mSinkState == SinkState::SINK_PLAYING);*/
-  MOZ_ASSERT_IF(state == SinkState::SINK_PLAYING,
-                mSinkState == SinkState::SINK_CONNECTED);
+  NS_ENSURE_TRUE_VOID(mSinkState != prevState);
 
-  switch (state) {
-    case SinkState::SINK_CONNECTED:
-      if (mSinkState == SinkState::SINK_PLAYING) {
-        // case 4
-        break;
-      } else if (mSinkState == SinkState::SINK_CONNECTING) {
-        // case 3
-        OnConnect(EmptyString());
-      }
-      mA2dpConnected = true;
-      mDeviceAddress = address;
-      NotifyConnectionStatusChanged();
-      DispatchConnectionStatusChanged();
-      break;
-    case SinkState::SINK_DISCONNECTED:
-      if (mSinkState == SinkState::SINK_CONNECTING) {
-        // case 2
-        OnConnect(EmptyString());
-        break;
-      } else if (mSinkState == SinkState::SINK_DISCONNECTING) {
-        // case 7
-        OnDisconnect(EmptyString());
-      }
-      mA2dpConnected = false;
-      NotifyConnectionStatusChanged();
-      DispatchConnectionStatusChanged();
-      mDeviceAddress.Truncate();
-      break;
+  // case 1: Either an incoming or outgoing connection attempt ongoing
+  MOZ_ASSERT_IF(mSinkState == SinkState::SINK_CONNECTING,
+                prevState == SinkState::SINK_DISCONNECTED);
+
+  // case 4: Audio stream active
+  MOZ_ASSERT_IF(mSinkState == SinkState::SINK_PLAYING,
+                prevState == SinkState::SINK_CONNECTED);
+
+  if (mSinkState == SinkState::SINK_CONNECTED &&
+      prevState == SinkState::SINK_PLAYING) {
+    // case 5: Audio stream suspended
+  } else if (mSinkState == SinkState::SINK_DISCONNECTED &&
+             prevState == SinkState::SINK_CONNECTING) {
+    // case 2: Connection attempt failed
+    OnConnect(EmptyString());
+  } else if (mSinkState == SinkState::SINK_CONNECTED) {
+    // case 3: Successfully connected
+    MOZ_ASSERT(prevState == SinkState::SINK_CONNECTING);
+
+    mA2dpConnected = true;
+    mDeviceAddress = address;
+    NotifyConnectionStatusChanged();
+    DispatchConnectionStatusChanged();
+
+    OnConnect(EmptyString());
+  } else if (mSinkState == SinkState::SINK_DISCONNECTED) {
+    // case 6: Disconnected from the remote device
+    // case 7: Disconnected from local
+    MOZ_ASSERT(prevState == SinkState::SINK_CONNECTED ||
+               prevState == SinkState::SINK_PLAYING ||
+               prevState == SinkState::SINK_DISCONNECTING);
+
+    mA2dpConnected = false;
+    NotifyConnectionStatusChanged();
+    DispatchConnectionStatusChanged();
+    mDeviceAddress.Truncate();
+
+    // case 7: Disconnected from local
+    if (prevState == SinkState::SINK_DISCONNECTING) {
+      OnDisconnect(EmptyString());
+    }
   }
-
-  mSinkState = state;
 }
 
 void
