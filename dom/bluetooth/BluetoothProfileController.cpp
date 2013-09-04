@@ -183,6 +183,7 @@ BluetoothProfileController::OnConnect(const nsAString& aErrorStr)
 
   if (!aErrorStr.IsEmpty()) {
     BT_WARNING(NS_ConvertUTF16toUTF8(aErrorStr).get());
+    LOG("[C] %s", NS_ConvertUTF16toUTF8(aErrorStr).get());
   }
 
   ConnectNext();
