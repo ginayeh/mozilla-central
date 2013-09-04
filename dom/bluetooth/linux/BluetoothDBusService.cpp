@@ -573,8 +573,8 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
 
-  nsAutoPtr<BluetoothServiceClass> serviceClass =
-    static_cast<BluetoothServiceClass*>(aServiceClass);
+  nsAutoPtr<BluetoothServiceClass> serviceClass(
+    static_cast<BluetoothServiceClass*>(aServiceClass));
   LOG("[B] serviceClass: %X", *serviceClass);
 
 /*  nsRefPtr<nsRunnable> task;
@@ -2103,7 +2103,7 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
   MOZ_ASSERT(!aObjectPath.IsEmpty());
   MOZ_ASSERT(aInterface);
 
-  nsAutoPtr<BluetoothServiceClass> serviceClass = new BluetoothServiceClass();
+  nsAutoPtr<BluetoothServiceClass> serviceClass(new BluetoothServiceClass());
   if (!strcmp(aInterface, DBUS_SINK_IFACE)) {
     *serviceClass = BluetoothServiceClass::A2DP;
   } else if (!strcmp(aInterface, DBUS_INPUT_IFACE)) {
