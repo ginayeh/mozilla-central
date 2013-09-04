@@ -533,6 +533,7 @@ public:
 
   nsresult Run()
   {
+    LOG("[B] ReplyErrorToProfileManager::Run");
     MOZ_ASSERT(NS_IsMainThread());
 
     BluetoothProfileManagerBase* profile;
@@ -572,7 +573,7 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
 
-  BluetoothServiceClass* serviceClass =
+  nsAutoPtr<BluetoothServiceClass> serviceClass =
     static_cast<BluetoothServiceClass*>(aServiceClass);
   LOG("[B] serviceClass: %X", *serviceClass);
 
@@ -1279,7 +1280,7 @@ public:
 
     ExtractHandles(aReply, handles);
 
-    if(!RegisterAgent(&sAgentVTable)) {
+    if (!RegisterAgent(&sAgentVTable)) {
       NS_WARNING("Failed to register agent");
     }
   }
@@ -2081,7 +2082,7 @@ BluetoothDBusService::SendInputMessage(const nsAString& aDeviceAddress,
   } else if (aMessage.EqualsLiteral("Disconnect")) {
     callback = InputDisconnectCallback;
   } else {
-    BT_WARNING("Unknown sink message");
+    MOZ_ASSERT(false);
     return NS_ERROR_FAILURE;
   }
 
@@ -2102,13 +2103,13 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
   MOZ_ASSERT(!aObjectPath.IsEmpty());
   MOZ_ASSERT(aInterface);
 
-  BluetoothServiceClass* serviceClass = new BluetoothServiceClass();
+  nsAutoPtr<BluetoothServiceClass> serviceClass = new BluetoothServiceClass();
   if (!strcmp(aInterface, DBUS_SINK_IFACE)) {
     *serviceClass = BluetoothServiceClass::A2DP;
   } else if (!strcmp(aInterface, DBUS_INPUT_IFACE)) {
     *serviceClass = BluetoothServiceClass::HID;
   } else {
-    BT_WARNING("Invalid interface");
+    MOZ_ASSERT(false);
     return NS_ERROR_FAILURE;
   }
 
@@ -2137,7 +2138,7 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
   } else if (aMessage.EqualsLiteral("Disconnect")) {
     callback = SinkDisconnectCallback;
   } else {
-    BT_WARNING("Unknown sink message");
+    MOZ_ASSERT(false);
     return NS_ERROR_FAILURE;
   }
 
@@ -2694,6 +2695,12 @@ BluetoothDBusService::Connect(const nsAString& aDeviceAddress,
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
 
+  if (sController) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
+
   sController =
     new BluetoothProfileController(aDeviceAddress, aRunnable,
                                    DestroyBluetoothProfileController);
@@ -2715,6 +2722,12 @@ BluetoothDBusService::Disconnect(const nsAString& aDeviceAddress,
 
   BluetoothServiceClass serviceClass =
     BluetoothUuidHelper::GetBluetoothServiceClass(aServiceUuid);
+
+  if (sController) {
+    DispatchBluetoothReply(aRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    return;
+  }
 
   sController =
     new BluetoothProfileController(aDeviceAddress, aRunnable,
@@ -3047,7 +3060,7 @@ BluetoothDBusService::ConnectSco(BluetoothReplyRunnable* aRunnable)
 
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   NS_ENSURE_TRUE_VOID(hfp);
-  if(!hfp->ConnectSco(aRunnable)) {
+  if (!hfp->ConnectSco(aRunnable)) {
     NS_NAMED_LITERAL_STRING(replyError,
       "SCO socket exists or HFP is not connected");
     DispatchBluetoothReply(aRunnable, BluetoothValue(), replyError);
@@ -3296,15 +3309,12 @@ BluetoothDBusService::SendPlayStatus(int64_t aDuration,
 static void
 ControlCallback(DBusMessage* aMsg, void* aParam)
 {
-  if (!aMsg) {
-    BT_WARNING("Send message to DBUS_CTL_IFACE failed.");
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(aMsg);
 
   BluetoothValue v;
   nsAutoString replyError;
   UnpackVoidMessage(aMsg, nullptr, v, replyError);
-  if(!v.get_bool()) {
+  if (!v.get_bool()) {
     BT_WARNING(NS_ConvertUTF16toUTF8(replyError).get());
   }
 }
