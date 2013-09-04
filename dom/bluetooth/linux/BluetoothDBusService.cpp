@@ -542,7 +542,7 @@ public:
     } else if (mServiceClass == BluetoothServiceClass::A2DP) {
       profile = BluetoothA2dpManager::Get();
     } else {
-      BT_WARNING("Invalid profile");
+      MOZ_ASSERT(false);
       return NS_ERROR_FAILURE;
     }
 
@@ -575,7 +575,9 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
 
   nsAutoPtr<BluetoothServiceClass> serviceClass(
     static_cast<BluetoothServiceClass*>(aServiceClass));
+  BluetoothServiceClass* temp = static_cast<BluetoothServiceClass*>(aServiceClass);
   LOG("[B] serviceClass: %X", *serviceClass);
+  LOG("[B] temp: %X", *temp);
 
 /*  nsRefPtr<nsRunnable> task;
   if (replyError.EqualsLiteral("Already Connected")) {
@@ -594,8 +596,6 @@ CheckDBusReply(DBusMessage* aMsg, void* aServiceClass, bool aConnect)
     NS_DispatchToMainThread(
       new ReplyErrorToProfileManager(*serviceClass, aConnect, replyError));
   }
-
-  delete serviceClass;
 }
 
 static void
@@ -2096,6 +2096,7 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
                                            const nsAString& aMessage,
                                            DBusCallback aCallback)
 {
+  LOG("[B] %s", __FUNCTION__);
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mConnection);
   MOZ_ASSERT(IsEnabled());
@@ -2113,10 +2114,11 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
     return NS_ERROR_FAILURE;
   }
 
+  LOG("[B] serviceClass: %X", *serviceClass);
   bool ret = dbus_func_args_async(mConnection,
                                   -1,
                                   aCallback,
-                                  static_cast<void*>(serviceClass),
+                                  static_cast<void*>(serviceClass.forget()),
                                   NS_ConvertUTF16toUTF8(aObjectPath).get(),
                                   aInterface,
                                   NS_ConvertUTF16toUTF8(aMessage).get(),
