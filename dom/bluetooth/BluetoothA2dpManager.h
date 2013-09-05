@@ -66,11 +66,8 @@ public:
 private:
   BluetoothA2dpManager();
   bool Init();
-
   void HandleSinkStateChanged(SinkState aState);
   void HandleShutdown();
-
-  void DispatchConnectionStatusChanged();
   void NotifyConnectionStatusChanged();
 
   nsString mDeviceAddress;
