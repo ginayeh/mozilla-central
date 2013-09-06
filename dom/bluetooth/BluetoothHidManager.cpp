@@ -159,6 +159,8 @@ BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
 void
 BluetoothHidManager::OnConnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   /**
    * On the one hand, notify the controller that we've done for outbound
    * connections. On the other hand, we do nothing for inbound connections.
@@ -172,6 +174,8 @@ BluetoothHidManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothHidManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   /**
    * On the one hand, notify the controller that we've done for outbound
    * connections. On the other hand, we do nothing for inbound connections.

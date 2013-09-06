@@ -1535,6 +1535,8 @@ BluetoothOppManager::AcquireSdcardMountLock()
 void
 BluetoothOppManager::OnConnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   if (!aErrorStr.IsEmpty()) {
     mSocket = nullptr;
     Listen();
@@ -1553,6 +1555,8 @@ BluetoothOppManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothOppManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   mSocket = nullptr;
   Listen();
 

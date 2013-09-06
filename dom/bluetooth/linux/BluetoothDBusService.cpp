@@ -800,6 +800,7 @@ UnpackPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
                         BluetoothValue& aValue, const char* aIface)
 {
   LOGV("[B] %s", __FUNCTION__);
+  MOZ_ASSERT(aMsg);
   Properties* propertyTypes;
   int propertyTypesLength;
 
@@ -838,7 +839,6 @@ ParsePropertyChange(DBusMessage* aMsg, BluetoothValue& aValue,
                     nsAString& aErrorStr, Properties* aPropertyTypes,
                     const int aPropertyTypeLen)
 {
-  LOGV("[B] %s", __FUNCTION__);
   DBusMessageIter iter;
   DBusError err;
   int prop_index = -1;

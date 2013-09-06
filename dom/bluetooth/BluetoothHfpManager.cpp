@@ -8,6 +8,7 @@
 
 #include "BluetoothHfpManager.h"
 
+#include "BluetoothProfileController.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
 #include "BluetoothSocket.h"
@@ -1127,6 +1128,7 @@ void
 BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
 {
   LOG("[Hfp] %s", __FUNCTION__);
+  MOZ_ASSERT(NS_IsMainThread());
 
   if (!mSocket) {
     if (aController) {
@@ -1785,6 +1787,7 @@ BluetoothHfpManager::IsScoConnected()
 void
 BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
   LOG("[Hfp] %s", __FUNCTION__);
   // When we failed to create a socket, restart listening.
   if (!aErrorStr.IsEmpty()) {
@@ -1805,6 +1808,7 @@ BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
 void
 BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
 {
+  MOZ_ASSERT(NS_IsMainThread());
   LOG("[Hfp] %s", __FUNCTION__);
   // Start listening
   mSocket = nullptr;

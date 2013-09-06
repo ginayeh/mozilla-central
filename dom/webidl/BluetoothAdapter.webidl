@@ -102,9 +102,9 @@ interface BluetoothAdapter : EventTarget {
    * Numbers" / "Service Discovery Protocol" for more information.
    *
    * Note that service UUID is optional. If it isn't passed when calling
-   * Connect, multiple profiles are tried sequencely based on the class of
+   * Connect, multiple profiles are tried sequentially based on the class of
    * device (CoD). If it isn't passed when calling Disconnect, all connected
-   * profiles are going to closed.
+   * profiles are going to be closed.
    *
    * @param device Remote device
    * @param profile 2-octets service UUID. This is optional.
