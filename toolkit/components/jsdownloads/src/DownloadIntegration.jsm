@@ -45,6 +45,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyServiceGetter(this, "gDownloadPlatform",
+                                   "@mozilla.org/toolkit/download-platform;1",
+                                   "mozIDownloadPlatform");
 XPCOMUtils.defineLazyServiceGetter(this, "gEnvironment",
                                    "@mozilla.org/process/environment;1",
                                    "nsIEnvironment");
@@ -54,19 +57,13 @@ XPCOMUtils.defineLazyServiceGetter(this, "gMIMEService",
 XPCOMUtils.defineLazyServiceGetter(this, "gExternalProtocolService",
                                    "@mozilla.org/uriloader/external-protocol-service;1",
                                    "nsIExternalProtocolService");
-
+ 
 XPCOMUtils.defineLazyGetter(this, "gParentalControlsService", function() {
   if ("@mozilla.org/parental-controls-service;1" in Cc) {
     return Cc["@mozilla.org/parental-controls-service;1"]
       .createInstance(Ci.nsIParentalControlsService);
   }
   return null;
-});
-
-// This will be replaced by "DownloadUIHelper.strings" (see bug 905123).
-XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
-  return Services.strings.
-    createBundle("chrome://mozapps/locale/downloads/downloads.properties");
 });
 
 const Timer = Components.Constructor("@mozilla.org/timer;1", "nsITimer",
@@ -116,6 +113,7 @@ this.DownloadIntegration = {
   dontCheckParentalControls: false,
   shouldBlockInTest: false,
   dontOpenFileAndFolder: false,
+  downloadDoneCalled: false,
   _deferTestOpenFile: null,
   _deferTestShowDir: null,
 
@@ -378,6 +376,28 @@ this.DownloadIntegration = {
     }
 
     return Promise.resolve(shouldBlock);
+  },
+
+  /**
+   * Performs platform-specific operations when a download is done.
+   *
+   * aParam aDownload
+   *        The Download object.
+   *
+   * @return {Promise}
+   * @resolves When all the operations completed successfully.
+   * @rejects JavaScript exception if any of the operations failed.
+   */
+  downloadDone: function(aDownload) {
+    try {
+      gDownloadPlatform.downloadDone(NetUtil.newURI(aDownload.source.url),
+                                     new FileUtils.File(aDownload.target.path),
+                                     aDownload.contentType, aDownload.source.isPrivate);
+      this.downloadDoneCalled = true;
+      return Promise.resolve();
+    } catch(ex) {
+      return Promise.reject(ex);
+    }
   },
 
   /**
@@ -698,23 +718,21 @@ this.DownloadObserver = {
   },
 
   /**
-   * Shows the confirm cancel downloads dialog.
+   * Wrapper that handles the test mode before calling the prompt that display
+   * a warning message box that informs that there are active downloads,
+   * and asks whether the user wants to cancel them or not.
    *
    * @param aCancel
    *        The observer notification subject.
    * @param aDownloadsCount
    *        The current downloads count.
-   * @param aIdTitle
-   *        The string bundle id for the dialog title.
-   * @param aIdMessageSingle
-   *        The string bundle id for the single download message.
-   * @param aIdMessageMultiple
-   *        The string bundle id for the multiple downloads message.
-   * @param aIdButton
-   *        The string bundle id for the don't cancel button text.
+   * @param aPrompter
+   *        The prompter object that shows the confirm dialog.
+   * @param aPromptType
+   *        The type of prompt notification depending on the observer.
    */
   _confirmCancelDownloads: function DO_confirmCancelDownload(
-    aCancel, aDownloadsCount, aIdTitle, aIdMessageSingle, aIdMessageMultiple, aIdButton) {
+    aCancel, aDownloadsCount, aPrompter, aPromptType) {
     // If user has already dismissed the request, then do nothing.
     if ((aCancel instanceof Ci.nsISupportsPRBool) && aCancel.data) {
       return;
@@ -724,32 +742,8 @@ this.DownloadObserver = {
       DownloadIntegration.testPromptDownloads = aDownloadsCount;
       return;
     }
-    // If there are no active downloads, then do nothing.
-    if (aDownloadsCount <= 0) {
-      return;
-    }
 
-    let win = Services.wm.getMostRecentWindow("navigator:browser");
-    let buttonFlags = (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_0) +
-                      (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_1);
-    let title = gStringBundle.GetStringFromName(aIdTitle);
-    let dontQuitButton = gStringBundle.GetStringFromName(aIdButton);
-    let quitButton;
-    let message;
-
-    if (aDownloadsCount > 1) {
-      message = gStringBundle.formatStringFromName(aIdMessageMultiple,
-                                                   [aDownloadsCount], 1);
-      quitButton = gStringBundle.formatStringFromName("cancelDownloadsOKTextMultiple",
-                                                      [aDownloadsCount], 1);
-    } else {
-      message = gStringBundle.GetStringFromName(aIdMessageSingle);
-      quitButton = gStringBundle.GetStringFromName("cancelDownloadsOKText");
-    }
-
-    let rv = Services.prompt.confirmEx(win, title, message, buttonFlags,
-                                       quitButton, dontQuitButton, null, null, {});
-    aCancel.data = (rv == 1);
+    aCancel.data = aPrompter.confirmCancelDownloads(aDownloadsCount, aPromptType);
   },
 
   ////////////////////////////////////////////////////////////////////////////
@@ -757,40 +751,22 @@ this.DownloadObserver = {
 
   observe: function DO_observe(aSubject, aTopic, aData) {
     let downloadsCount;
+    let p = DownloadUIHelper.getPrompter();
     switch (aTopic) {
       case "quit-application-requested":
         downloadsCount = this._publicInProgressDownloads.size +
                          this._privateInProgressDownloads.size;
-#ifndef XP_MACOSX
-        this._confirmCancelDownloads(aSubject, downloadsCount,
-                                     "quitCancelDownloadsAlertTitle",
-                                     "quitCancelDownloadsAlertMsg",
-                                     "quitCancelDownloadsAlertMsgMultiple",
-                                     "dontQuitButtonWin");
-#else
-        this._confirmCancelDownloads(aSubject, downloadsCount,
-                                     "quitCancelDownloadsAlertTitle",
-                                     "quitCancelDownloadsAlertMsgMac",
-                                     "quitCancelDownloadsAlertMsgMacMultiple",
-                                     "dontQuitButtonMac");
-#endif
+        this._confirmCancelDownloads(aSubject, downloadsCount, p, p.ON_QUIT);
         break;
       case "offline-requested":
         downloadsCount = this._publicInProgressDownloads.size +
                          this._privateInProgressDownloads.size;
-        this._confirmCancelDownloads(aSubject, downloadsCount,
-                                     "offlineCancelDownloadsAlertTitle",
-                                     "offlineCancelDownloadsAlertMsg",
-                                     "offlineCancelDownloadsAlertMsgMultiple",
-                                     "dontGoOfflineButton");
+        this._confirmCancelDownloads(aSubject, downloadsCount, p, p.ON_OFFLINE);
         break;
       case "last-pb-context-exiting":
-        this._confirmCancelDownloads(aSubject,
-                                     this._privateInProgressDownloads.size,
-                                     "leavePrivateBrowsingCancelDownloadsAlertTitle",
-                                     "leavePrivateBrowsingWindowsCancelDownloadsAlertMsg",
-                                     "leavePrivateBrowsingWindowsCancelDownloadsAlertMsgMultiple",
-                                     "dontLeavePrivateBrowsingButton");
+        downloadsCount = this._privateInProgressDownloads.size;
+        this._confirmCancelDownloads(aSubject, downloadsCount, p,
+                                     p.ON_LEAVE_PRIVATE_BROWSING);
         break;
     }
   },

@@ -3845,7 +3845,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
     uint32_t capacity_;
 #endif
 
-    MPhi(uint32_t slot)
+    MPhi(uint32_t slot, MIRType resultType)
       : slot_(slot),
         hasBackedgeType_(false),
         triedToSpecialize_(false),
@@ -3855,7 +3855,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
         , capacity_(0)
 #endif
     {
-        setResultType(MIRType_Value);
+        setResultType(resultType);
     }
 
   protected:
@@ -3865,7 +3865,9 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
 
   public:
     INSTRUCTION_HEADER(Phi)
-    static MPhi *New(uint32_t slot);
+    static MPhi *New(uint32_t slot, MIRType resultType = MIRType_Value) {
+        return new MPhi(slot, resultType);
+    }
 
     void setOperand(size_t index, MDefinition *operand) {
         // Note: after the initial IonBuilder pass, it is OK to change phi
@@ -6643,6 +6645,33 @@ class MDeleteProperty
     }
     PropertyName *name() const {
         return name_;
+    }
+    virtual TypePolicy *typePolicy() {
+        return this;
+    }
+};
+
+class MDeleteElement
+  : public MBinaryInstruction,
+    public BoxInputsPolicy
+{
+    MDeleteElement(MDefinition *value, MDefinition *index)
+      : MBinaryInstruction(value, index)
+    {
+        setResultType(MIRType_Boolean);
+    }
+
+  public:
+    INSTRUCTION_HEADER(DeleteElement)
+
+    static MDeleteElement *New(MDefinition *value, MDefinition *index) {
+        return new MDeleteElement(value, index);
+    }
+    MDefinition *value() const {
+        return getOperand(0);
+    }
+    MDefinition *index() const {
+        return getOperand(1);
     }
     virtual TypePolicy *typePolicy() {
         return this;

@@ -10,9 +10,11 @@ ifndef topsrcdir
 $(error topsrcdir was not set))
 endif
 
-ifndef INCLUDED_MOZCONFIG_MK
-include $(topsrcdir)/config/makefiles/mozconfig.mk
+# Define an include-at-most-once flag
+ifdef INCLUDED_RULES_MK
+$(error Do not include rules.mk twice!)
 endif
+INCLUDED_RULES_MK = 1
 
 # Integrate with mozbuild-generated make files. We first verify that no
 # variables provided by the automatically generated .mk files are
@@ -690,14 +692,6 @@ default all::
 	$(MAKE) export
 	$(MAKE) libs
 	$(MAKE) tools
-
-# Do depend as well
-alldep::
-	$(MAKE) export
-	$(MAKE) depend
-	$(MAKE) libs
-	$(MAKE) tools
-
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
@@ -712,10 +706,7 @@ endif
 # Do everything from scratch
 everything::
 	$(MAKE) clean
-	$(MAKE) alldep
-
-# Add dummy depend target for tinderboxes
-depend::
+	$(MAKE) all
 
 # Target to only regenerate makefiles
 makefiles: $(SUBMAKEFILES)
@@ -724,35 +715,6 @@ ifneq (,$(DIRS)$(TOOL_DIRS)$(PARALLEL_DIRS))
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)
 endif
-
-#########################
-# Tier traversal handling
-#########################
-define CREATE_SUBTIER_TRAVERSAL_RULE
-PARALLEL_DIRS_$(1) = $$(addsuffix _$(1),$$(PARALLEL_DIRS))
-
-.PHONY: $(1) $$(PARALLEL_DIRS_$(1))
-
-ifdef PARALLEL_DIRS
-$(1):: $$(PARALLEL_DIRS_$(1))
-
-$$(PARALLEL_DIRS_$(1)): %_$(1): %/Makefile
-	+@$$(call SUBMAKE,$(1),$$*)
-endif
-
-endef
-
-$(foreach subtier,export libs tools,$(eval $(call CREATE_SUBTIER_TRAVERSAL_RULE,$(subtier))))
-
-export:: $(SUBMAKEFILES) $(MAKE_DIRS)
-	$(LOOP_OVER_DIRS)
-	$(LOOP_OVER_TOOL_DIRS)
-
-
-tools:: $(SUBMAKEFILES) $(MAKE_DIRS)
-	$(LOOP_OVER_DIRS)
-	$(foreach dir,$(TOOL_DIRS),$(call SUBMAKE,libs,$(dir)))
-
 
 ifneq (,$(filter-out %.$(LIB_SUFFIX),$(SHARED_LIBRARY_LIBS)))
 $(error SHARED_LIBRARY_LIBS must contain .$(LIB_SUFFIX) files only)
@@ -1754,7 +1716,7 @@ documentation:
 	$(DOXYGEN) $(DEPTH)/config/doxygen.cfg
 
 ifdef ENABLE_TESTS
-check:: $(SUBMAKEFILES) $(MAKE_DIRS)
+check:: $(SUBMAKEFILES)
 	$(LOOP_OVER_PARALLEL_DIRS)
 	$(LOOP_OVER_DIRS)
 	$(LOOP_OVER_TOOL_DIRS)

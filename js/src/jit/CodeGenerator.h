@@ -232,6 +232,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitRestPar(LRestPar *lir);
     bool visitCallSetProperty(LCallSetProperty *ins);
     bool visitCallDeleteProperty(LCallDeleteProperty *lir);
+    bool visitCallDeleteElement(LCallDeleteElement *lir);
     bool visitBitNotV(LBitNotV *lir);
     bool visitBitOpV(LBitOpV *lir);
     bool emitInstanceOf(LInstruction *ins, JSObject *prototypeObject);
@@ -361,7 +362,9 @@ class CodeGenerator : public CodeGeneratorSpecific
     // Script counts created when compiling code with no associated JSScript.
     IonScriptCounts *unassociatedScriptCounts_;
 
+#if defined(JS_ION_PERF)
     PerfSpewer perfSpewer_;
+#endif
 };
 
 } // namespace jit
