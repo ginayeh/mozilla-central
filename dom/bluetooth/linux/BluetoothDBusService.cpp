@@ -502,7 +502,7 @@ UnpackVoidMessage(DBusMessage* aMsg, DBusError* aErr, BluetoothValue& aValue,
       dbus_message_get_type(aMsg) == DBUS_MESSAGE_TYPE_METHOD_RETURN &&
       !dbus_message_get_args(aMsg, &err, DBUS_TYPE_INVALID)) {
     if (dbus_error_is_set(&err)) {
-      LOG("aaa");
+      LOG("aaa %s", err.message);
       aErrorStr = NS_ConvertUTF8toUTF16(err.message);
       LOG_AND_FREE_DBUS_ERROR(&err);
     }
@@ -3293,12 +3293,15 @@ BluetoothDBusService::SendPlayStatus(int64_t aDuration,
 
   ControlEventId eventId = ControlEventId::EVENT_UNKNOWN;
   uint64_t data;
-  if (aPosition != a2dp->GetPosition()) {
-    eventId = ControlEventId::EVENT_PLAYBACK_POS_CHANGED;
-    data = aPosition;
-  } else if (playStatus != a2dp->GetPlayStatus()) {
+  if (playStatus != a2dp->GetPlayStatus()) {
     eventId = ControlEventId::EVENT_PLAYBACK_STATUS_CHANGED;
     data = tempPlayStatus;
+  } else if (aPosition != a2dp->GetPosition()) {
+    eventId = ControlEventId::EVENT_PLAYBACK_POS_CHANGED;
+    data = aPosition;
+/*  } else if (playStatus != a2dp->GetPlayStatus()) {
+    eventId = ControlEventId::EVENT_PLAYBACK_STATUS_CHANGED;
+    data = tempPlayStatus;*/
   }
 
   if (eventId != ControlEventId::EVENT_UNKNOWN) {
