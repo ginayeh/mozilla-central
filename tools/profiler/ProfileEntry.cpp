@@ -408,6 +408,13 @@ void ThreadProfile::BuildJSObject(Builder& b,
           }
         }
         break;
+      case 'n':
+        {
+          if (sample) {
+            b.DefineProperty(sample, "gina", entry.mTagLine);
+          }
+        }
+        break;
       case 't':
         {
           if (sample) {

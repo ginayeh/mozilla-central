@@ -15,6 +15,8 @@ WriteCallback(const jschar *buf, uint32_t len, void *data)
   return true;
 }
 
+extern uint64_t sCounter;
+
 nsresult
 SaveProfileTask::Run() {
   // Get file path
@@ -38,6 +40,8 @@ SaveProfileTask::Run() {
   if (NS_FAILED(rv))
     return rv;
 #endif
+
+  LOGF("SaveProfileTask, sCounter: [%lld]", sCounter);
 
   // Create a JSContext to run a JSObjectBuilder :(
   // Based on XPCShellEnvironment

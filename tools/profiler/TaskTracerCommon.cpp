@@ -7,6 +7,7 @@
 #include "GeckoTaskTracer.h"
 #include "GeckoTaskTracerImpl.h"
 #include "jsapi.h"
+#include "SaveProfileTask.h"
 
 #include "mozilla/ThreadLocal.h"
 #include "nsThreadUtils.h"
@@ -18,7 +19,8 @@
 #include <sys/types.h>
 #include <pthread.h>
 
-static bool sDebugRunnable = false;
+static bool sDebugRunnable = true;
+uint64_t sCounter = 0;
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -43,6 +45,7 @@ namespace tasktracer {
 
 static TracedInfo sAllTracedInfo[MAX_THREAD_NUM];
 static mozilla::ThreadLocal<TracedInfo *> sTracedInfo;
+static mozilla::ThreadLocal<ThreadProfile *> sThreadProfile;
 static pthread_mutex_t sTracedInfoLock = PTHREAD_MUTEX_INITIALIZER;
 
 static TracedInfo *
@@ -91,6 +94,28 @@ GetTracedInfo()
     return sTracedInfo.get();
 }
 
+ThreadProfile *
+GetThreadProfile()
+{
+    if (!sThreadProfile.initialized()) {
+        sThreadProfile.init();
+    }
+
+    if (!sThreadProfile.get()) {
+        // Get thread profile and keep it in sThreadProfile
+        std::vector<ThreadInfo*> threads = Sampler::GetRegisteredThreads();
+        for (uint32_t i = 0; i < threads.size(); i++) {
+            ThreadInfo* info = threads[i];
+            if (info->Profile() && (gettid() == info->ThreadId())) {
+                sThreadProfile.set(info->Profile());
+                LOG("sThreadProfile now is pointed to [%p]", sThreadProfile.get());
+                break;
+            }
+        }
+    }
+    return sThreadProfile.get();
+}
+
 static const char*
 GetCurrentThreadName()
 {
@@ -119,12 +144,15 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
     activity->taskId = aTid;
     activity->originTaskId = aOTid;
 
-#if 0 // Not fully implemented yet.
-    // Fill TracedActivity to ProfileEntry
-    ProfileEntry entry('a', activity);
-    ThreadProfile *threadProfile = nullptr; // TODO get thread profile.
-    threadProfile->addTag(entry);
-#endif
+    ProfileEntry entry('n', (int)activity->taskId);
+    ThreadProfile* profile = GetThreadProfile();
+    if (profile) {
+      sCounter++;
+      LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->taskId, gettid());
+      profile->addTag(entry);
+    } else {
+//      LOG("no profile, tid: %d", gettid());
+    }
 }
 
 void
