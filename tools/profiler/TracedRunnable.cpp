@@ -16,7 +16,7 @@ NS_IMPL_ISUPPORTS1(TracedRunnable, nsIRunnable)
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
-    LogAction(ACTION_START, mTaskId, mOriginTaskId);
+//    LogAction(ACTION_START, mTaskId, mOriginTaskId);
 
     SetupTracedInfo();
     nsresult rv = mFactualObj->Run();
@@ -43,7 +43,7 @@ TracedRunnable::InitOriginTaskId()
     uint64_t origintaskid = *GetCurrentThreadTaskIdPtr();
     SetOriginTaskId(origintaskid);
 
-    LogAction(ACTION_DISPATCH, mTaskId, mOriginTaskId);
+//    LogAction(ACTION_DISPATCH, mTaskId, mOriginTaskId);
 }
 
 TracedTask::~TracedTask()
@@ -63,13 +63,13 @@ TracedTask::InitOriginTaskId()
 //    }
   mOriginTaskId = originTaskId;
 
-  LogAction(ACTION_DISPATCH, mTaskId, mOriginTaskId);
+//  LogAction(ACTION_DISPATCH, mTaskId, mOriginTaskId);
 }
 
 void
 TracedTask::Run()
 {
-  LogAction(ACTION_START, mTaskId, mOriginTaskId);
+//  LogAction(ACTION_START, mTaskId, mOriginTaskId);
 
   SetupTracedInfo();
   mBackedObject->Run();

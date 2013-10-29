@@ -133,9 +133,9 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 {
     TracedInfo *info = GetTracedInfo();
 
-    if (sDebugRunnable && aOTid) {
+/*    if (sDebugRunnable && aOTid) {
         LOG("(tid: %d (%s)), task: %lld, orig: %lld", gettid(), GetCurrentThreadName(), aTid, aOTid);
-    }
+    }*/
 
     TracedActivity *activity = info->activities + info->actNext;
     info->actNext = (info->actNext + 1) % TASK_TRACE_BUF_SIZE;
@@ -144,11 +144,11 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
     activity->taskId = aTid;
     activity->originTaskId = aOTid;
 
-    ProfileEntry entry('n', (int)activity->taskId);
+    ProfileEntry entry('n', (int)activity->originTaskId);
     ThreadProfile* profile = GetThreadProfile();
     if (profile) {
       sCounter++;
-      LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->taskId, gettid());
+      LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->originTaskId, gettid());
       profile->addTag(entry);
     } else {
 //      LOG("no profile, tid: %d", gettid());
@@ -172,17 +172,17 @@ InitRunnableTrace()
 void
 LogSamplerEnter(const char *aInfo)
 {
-    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
+/*    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
         LOG("(tid: %d), task: %lld, >> %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
-    }
+    }*/
 }
 
 void
 LogSamplerExit(const char *aInfo)
 {
-    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
+/*    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
         LOG("(tid: %d), task: %lld, << %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
-    }
+    }*/
 }
 
 uint64_t *

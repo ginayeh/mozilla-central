@@ -285,11 +285,11 @@ public:
   SamplerStackFrameRAII(const char *aInfo, uint32_t line) {
     mHandle = mozilla_sampler_call_enter(aInfo, this, false, line);
     mSamplerInfo = aInfo;
-    mozilla::tasktracer::LogSamplerEnter(mSamplerInfo);
+//    mozilla::tasktracer::LogSamplerEnter(mSamplerInfo);
   }
   ~SamplerStackFrameRAII() {
     mozilla_sampler_call_exit(mHandle);
-    mozilla::tasktracer::LogSamplerExit(mSamplerInfo);
+//    mozilla::tasktracer::LogSamplerExit(mSamplerInfo);
     mSamplerInfo = nullptr;
   }
 private:
@@ -318,17 +318,17 @@ public:
 #endif
       mHandle = mozilla_sampler_call_enter(mDest, this, true, line);
       va_end(args);
-      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
+//      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
     } else {
       mHandle = mozilla_sampler_call_enter(aDefault, NULL, false, line);
       if (aDefault) {
         strcpy(mDest, aDefault);
       }
-      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
+//      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
     }
   }
   ~SamplerStackFramePrintfRAII() {
-    mozilla::tasktracer::LogSamplerExit(const_cast<char*>(mDest));
+//    mozilla::tasktracer::LogSamplerExit(const_cast<char*>(mDest));
     mozilla_sampler_call_exit(mHandle);
   }
 private:
