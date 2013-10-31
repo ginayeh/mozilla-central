@@ -1086,7 +1086,9 @@ static bool
 SetIonAssertGraphCoherency(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
+#ifdef CHECK_OSIPOINT_REGISTERS
     jit::js_IonOptions.assertGraphConsistency = ToBoolean(args.get(0));
+#endif
     args.rval().setUndefined();
     return true;
 }
