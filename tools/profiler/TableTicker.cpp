@@ -162,6 +162,20 @@ typename Builder::Object TableTicker::GetMetaJSCustomObject(Builder& b)
   return meta;
 }
 
+void TableTicker::Write(std::ostream& stream)
+{
+  for (size_t i = 0; i < sRegisteredThreads->size(); i++) {
+    // Thread not being profiled, skip it
+    if (!sRegisteredThreads->at(i)->Profile())
+      continue;
+
+    // TODO
+    ThreadProfile* profile = sRegisteredThreads->at(i)->Profile();
+    LOGF("size of profile: %d", sizeof(*profile));
+    stream << (*profile);
+  }
+}
+
 void TableTicker::ToStreamAsJSON(std::ostream& stream)
 {
   JSCustomObjectBuilder b;

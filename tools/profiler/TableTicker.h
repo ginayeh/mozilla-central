@@ -156,6 +156,7 @@ class TableTicker: public Sampler {
     return mPrimaryThreadProfile;
   }
 
+  void Write(std::ostream& stream);
   void ToStreamAsJSON(std::ostream& stream);
   virtual JSObject *ToJSObject(JSContext *aCx);
   template <typename Builder> typename Builder::Object GetMetaJSCustomObject(Builder& b);

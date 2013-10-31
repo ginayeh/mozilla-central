@@ -127,6 +127,7 @@ void ProfileEntry::log()
 
 std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 {
+//  LOGF("output entry %c", entry.mTagName);
   if (entry.mTagName == 'r' || entry.mTagName == 't') {
     stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
   } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
@@ -138,6 +139,8 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
     stream << tagBuff;
   } else if (entry.mTagName == 'd') {
     // TODO implement 'd' tag for text profile
+  } else if (entry.mTagName == 'n') {
+    stream << entry.mTagName << "-" << entry.mTagLine << "\n";
   } else {
     stream << entry.mTagName << "-" << entry.mTagData << "\n";
   }
@@ -180,6 +183,9 @@ ThreadProfile::~ThreadProfile()
   delete[] mEntries;
 }
 
+static timer_t lastTimestamp = time(NULL);
+extern uint64_t sCounter;
+
 void ThreadProfile::addTag(ProfileEntry aTag)
 {
   // Called from signal, call only reentrant functions
@@ -188,6 +194,11 @@ void ThreadProfile::addTag(ProfileEntry aTag)
   if (mWritePos >= mEntrySize) {
     mPendingGenerationFlush++;
     mWritePos = mWritePos % mEntrySize;
+    timer_t nowTimestamp = time(NULL);
+    LOGF("====== tast tracer tag [%lld] =====", sCounter);
+    LOGF("====== buffer full [%d] ======", (int)(nowTimestamp - lastTimestamp));
+    lastTimestamp = nowTimestamp;
+    sCounter = 0;
   }
   if (mWritePos == mReadPos) {
     // Keep one slot open
@@ -480,6 +491,7 @@ mozilla::Mutex* ThreadProfile::GetMutex()
 std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
 {
   int readPos = profile.mReadPos;
+  LOGF("output profile, %d - %d = %d ", profile.mLastFlushPos, readPos, profile.mLastFlushPos-readPos);
   while (readPos != profile.mLastFlushPos) {
     stream << profile.mEntries[readPos];
     readPos = (readPos + 1) % profile.mEntrySize;

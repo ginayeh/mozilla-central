@@ -148,7 +148,7 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
     ThreadProfile* profile = GetThreadProfile();
     if (profile) {
       sCounter++;
-      LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->originTaskId, gettid());
+//      LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->originTaskId, gettid());
       profile->addTag(entry);
     } else {
 //      LOG("no profile, tid: %d", gettid());

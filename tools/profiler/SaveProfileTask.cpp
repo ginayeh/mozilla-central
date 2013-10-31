@@ -5,6 +5,9 @@
 
 #include "SaveProfileTask.h"
 #include "GeckoProfiler.h"
+#include "TableTicker.h"
+
+extern mozilla::ThreadLocal<TableTicker *> tlsTicker;
 
 static bool
 WriteCallback(const jschar *buf, uint32_t len, void *data)
@@ -43,6 +46,25 @@ SaveProfileTask::Run() {
 
   LOGF("SaveProfileTask, sCounter: [%lld]", sCounter);
 
+  timer_t startTimer, endTimer;
+  startTimer = time(NULL);
+  LOGF("before write to file: %d",(int)startTimer);
+
+  std::ofstream stream;
+  stream.open(tmpPath.get());
+  if (stream.is_open()) {
+    TableTicker *t = tlsTicker.get();
+    t->Write(stream);
+    stream.close();
+  }
+  
+  endTimer = time(NULL);
+  LOGF("after write to file: %d",(int)endTimer);
+  LOGF("difference: %d", (int)(endTimer-startTimer));
+
+  startTimer = time(NULL);
+  LOGF("before write JSON to file: %d",(int)startTimer);
+
   // Create a JSContext to run a JSObjectBuilder :(
   // Based on XPCShellEnvironment
   JSRuntime *rt;
@@ -69,6 +91,7 @@ SaveProfileTask::Run() {
     };
     JSObject *obj = JS_NewGlobalObject(cx, &c, NULL, JS::FireOnNewGlobalHook);
 
+    tmpPath.AppendPrintf(".json");
     std::ofstream stream;
     stream.open(tmpPath.get());
     if (stream.is_open()) {
@@ -83,6 +106,10 @@ SaveProfileTask::Run() {
     }
   }
   JS_DestroyContext(cx);
+
+  endTimer = time(NULL);
+  LOGF("after write JSON to file: %d",(int)endTimer);
+  LOGF("difference: %d", (int)(endTimer-startTimer));
 
   return NS_OK;
 }
