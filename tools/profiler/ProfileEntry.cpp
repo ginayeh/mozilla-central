@@ -112,14 +112,12 @@ void ProfileEntry::log()
       LOGF("%c \"%s\"", mTagName, mTagData); break;
     case 'd': case 'l': case 'L': case 'B': case 'S':
       LOGF("%c %p", mTagName, mTagPtr); break;
-    case 'n': case 'f':
+    case 'n': case 'f': // case 'a':
       LOGF("%c %d", mTagName, mTagLine); break;
     case 'h':
       LOGF("%c \'%c\'", mTagName, mTagChar); break;
     case 'r': case 't':
       LOGF("%c %f", mTagName, mTagFloat); break;
-    case 'a':
-      LOGF("%c %d", mTagName, mTagActivity->originTaskId); break;
     default:
       LOGF("'%c' unknown_tag", mTagName); break;
   }
@@ -195,10 +193,8 @@ void ThreadProfile::addTag(ProfileEntry aTag)
     mPendingGenerationFlush++;
     mWritePos = mWritePos % mEntrySize;
     timer_t nowTimestamp = time(NULL);
-    LOGF("====== tast tracer tag [%lld] =====", sCounter);
-    LOGF("====== buffer full [%d] ======", (int)(nowTimestamp - lastTimestamp));
+//    LOGF("====== buffer full [%d] ======", (int)(nowTimestamp - lastTimestamp));
     lastTimestamp = nowTimestamp;
-    sCounter = 0;
   }
   if (mWritePos == mReadPos) {
     // Keep one slot open
@@ -419,13 +415,13 @@ void ThreadProfile::BuildJSObject(Builder& b,
           }
         }
         break;
-      case 'n':
+/*      case 'a':
         {
           if (sample) {
             b.DefineProperty(sample, "gina", entry.mTagLine);
           }
         }
-        break;
+        break;*/
       case 't':
         {
           if (sample) {
