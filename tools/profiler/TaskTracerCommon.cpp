@@ -9,6 +9,7 @@
 #include "jsapi.h"
 
 #include "mozilla/ThreadLocal.h"
+#include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "prenv.h"
 #include "prthread.h"
@@ -19,6 +20,7 @@
 #include <pthread.h>
 
 static bool sDebugRunnable = false;
+static nsTArray<uint64_t> sLogArray;
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -103,6 +105,19 @@ GetCurrentThreadName()
     }
 }
 
+class SaveTracedInfoTask : public nsRunnable
+{
+public:
+    SaveTracedInfoTask() {}
+
+    NS_IMETHOD
+    Run() {
+        LOG("")
+        nsCString tmpPath;
+        tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
+    }
+};
+
 void
 LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 {
@@ -110,6 +125,11 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 
     if (sDebugRunnable && aOTid) {
         LOG("(tid: %d (%s)), task: %lld, orig: %lld", gettid(), GetCurrentThreadName(), aTid, aOTid);
+        sLogArray.AppendElement(aOTid);
+        if (sLogArray.Length() > 200) {
+            nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
+            NS_DispatchToMainThread(runnable);
+        }
     }
 
     TracedActivity *activity = info->activities + info->actNext;
