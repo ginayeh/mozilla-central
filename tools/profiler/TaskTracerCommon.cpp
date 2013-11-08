@@ -28,7 +28,9 @@
 #include <fstream>
 
 static bool sDebugRunnable = true;
-static nsTArray<TracedActivity> sLogArray;
+//static nsTArray<TracedActivity> sLogArray;
+static TracedActivity sLogArray[80000];
+static uint32_t sLogArrayIndex = 0;
 static uint32_t sCounterRun = 0;
 static uint32_t sCounterSampler = 0;
 
@@ -134,9 +136,6 @@ public:
     Run() {
         MOZ_ASSERT(NS_IsMainThread());
 
-        mozilla::TimeStamp now = mozilla::TimeStamp::Now();
-        mozilla::TimeDuration diff = now - sLogTimer;
-        sLogTimer = now;
 //        nsCString tmpPath;
 //        tmpPath.AppendPrintf("/sdcard/tast_tracer_profile.txt");
 
@@ -146,7 +145,10 @@ public:
             LOG("Failed to find temporary directory.");
             return NS_ERROR_FAILURE;
         }
-        tmpPath.AppendPrintf("task_tracer_data.txt");
+
+        tmpPath.AppendPrintf("task_tracer_data_%lld.txt", (uint64_t)JS_Now());
+
+        mozilla::TimeStamp start = mozilla::TimeStamp::Now();
 
         nsresult rv = tmpFile->AppendNative(tmpPath);
         if (NS_FAILED(rv))
@@ -188,13 +190,13 @@ public:
                 JSObjectBuilder b(cx);
                 JS::RootedObject profile(cx, b.CreateObject());
 
-                LOG("%d, %d, %d, %f", sLogArray.Length(), sCounterRun, sCounterSampler, diff.ToSeconds());
-                b.DefineProperty(profile, "number", (int)sLogArray.Length());
+                LOG("%d, %d, %d", sCounterRun + sCounterSampler, sCounterRun, sCounterSampler);
+                b.DefineProperty(profile, "number", (int)sLogArrayIndex);
 
                 JSObjectBuilder::RootedArray data(b.context(), b.CreateArray());
                 b.DefineProperty(profile, "data", data);
 
-                for (uint32_t i = 0; i < sLogArray.Length(); i++) {
+                for (uint32_t i = 0; i < sLogArrayIndex; i++) {
                     TracedActivity& activity = sLogArray[i];
                     JSObjectBuilder::RootedObject runnable(b.context(), b.CreateObject());
                     b.DefineProperty(runnable, "timestamp", (int)activity.tm);
@@ -206,9 +208,11 @@ public:
                 JS::Rooted<JS::Value> val(cx, OBJECT_TO_JSVAL(profile));
                 JS_Stringify(cx, &val, JS::NullPtr(), JS::NullHandleValue, WriteCallback, &stream);
                 stream.close();
-//                LOGF("Saved to %s", tmpPath.get());
+                LOGF("Saved %d to %s", sLogArrayIndex, tmpPath.get());
+                mozilla::TimeStamp end = mozilla::TimeStamp::Now();
+                LOG("%f", mozilla::TimeDuration(end - start).ToSeconds());
 
-                sLogArray.Clear();
+                sLogArrayIndex = 0;
                 sCounterRun = 0;
                 sCounterSampler = 0;
             } else {
@@ -235,8 +239,13 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
     if (sDebugRunnable) {
 //        LOG("(tid: [%d] %d (%s)), task: %lld, orig: %lld", sLogArray.Length(), gettid(), GetCurrentThreadName(), aTid, aOTid);
         sCounterRun++;
-        sLogArray.AppendElement(*activity);
-        if (sLogArray.Length() == 2000) {
+//        sLogArray.AppendElement(*activity);
+        sLogArray[sLogArrayIndex++] = *activity;
+        mozilla::TimeStamp now = mozilla::TimeStamp::Now();
+        mozilla::TimeDuration diff = now - sLogTimer;
+
+        if (diff.ToSeconds() >= 300.0) { 
+            sLogTimer = now;
             nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
             NS_DispatchToMainThread(runnable);
         }
@@ -271,6 +280,7 @@ LogSamplerEnter(const char *aInfo)
 {
     if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
         // FIXME
+        sCounterSampler++;
 /*        sLogArray.AppendElement(0);
         sCounterSampler++;
         if (sLogArray.Length() == 2000) {
