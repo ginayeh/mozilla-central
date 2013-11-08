@@ -28,7 +28,7 @@
 #include <fstream>
 
 static bool sDebugRunnable = true;
-static nsTArray<uint64_t> sLogArray;
+static nsTArray<TracedActivity> sLogArray;
 static uint32_t sCounterRun = 0;
 static uint32_t sCounterSampler = 0;
 
@@ -195,8 +195,11 @@ public:
                 b.DefineProperty(profile, "data", data);
 
                 for (uint32_t i = 0; i < sLogArray.Length(); i++) {
+                    TracedActivity& activity = sLogArray[i];
                     JSObjectBuilder::RootedObject runnable(b.context(), b.CreateObject());
-                    b.DefineProperty(runnable, "originTaskId", (int)sLogArray[i]);
+                    b.DefineProperty(runnable, "timestamp", (int)activity.tm);
+                    b.DefineProperty(runnable, "taskId", (int)activity.taskId);
+                    b.DefineProperty(runnable, "originTaskId", (int)activity.originTaskId);
                     b.ArrayPush(data, runnable);
                 }
 
@@ -222,24 +225,24 @@ void
 LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 {
     TracedInfo *info = GetTracedInfo();
-
-//    if (sDebugRunnable && aOTid) {
-    if (sDebugRunnable) {
-//        LOG("(tid: [%d] %d (%s)), task: %lld, orig: %lld", sLogArray.Length(), gettid(), GetCurrentThreadName(), aTid, aOTid);
-        sCounterRun++;
-        sLogArray.AppendElement(aOTid);
-        if (sLogArray.Length() == 2000) {
-            nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
-            NS_DispatchToMainThread(runnable);
-        }
-    }
-
     TracedActivity *activity = info->activities + info->actNext;
     info->actNext = (info->actNext + 1) % TASK_TRACE_BUF_SIZE;
     activity->actionType = aType;
     activity->tm = (uint64_t)JS_Now();
     activity->taskId = aTid;
     activity->originTaskId = aOTid;
+
+    if (sDebugRunnable) {
+//        LOG("(tid: [%d] %d (%s)), task: %lld, orig: %lld", sLogArray.Length(), gettid(), GetCurrentThreadName(), aTid, aOTid);
+        sCounterRun++;
+        sLogArray.AppendElement(*activity);
+        if (sLogArray.Length() == 2000) {
+            nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
+            NS_DispatchToMainThread(runnable);
+        }
+    }
+
+
 
 #if 0 // Not fully implemented yet.
     // Fill TracedActivity to ProfileEntry
@@ -268,12 +271,12 @@ LogSamplerEnter(const char *aInfo)
 {
     if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
         // FIXME
-        sLogArray.AppendElement(0);
+/*        sLogArray.AppendElement(0);
         sCounterSampler++;
         if (sLogArray.Length() == 2000) {
             nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
             NS_DispatchToMainThread(runnable);
-        }
+        }*/
 //        LOG("(tid: %d), task: %lld, >> %s", gettid(), currTid, aInfo);
     }
 }
@@ -284,11 +287,11 @@ LogSamplerExit(const char *aInfo)
     if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
 //        LOG("(tid: %d), task: %lld, << %s", gettid(), currTid, aInfo);
         // FIXME
-        sLogArray.AppendElement(0);
+/*        sLogArray.AppendElement(0);
         if (sLogArray.Length() == 2000) {
             nsCOMPtr<nsIRunnable> runnable = new SaveTracedInfoTask();
             NS_DispatchToMainThread(runnable);
-        }
+        }*/
     }
 }
 
