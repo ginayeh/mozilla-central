@@ -289,7 +289,7 @@ public:
   }
   ~SamplerStackFrameRAII() {
     mozilla_sampler_call_exit(mHandle);
-    mozilla::tasktracer::LogSamplerExit(mSamplerInfo);
+//    mozilla::tasktracer::LogSamplerExit(mSamplerInfo);
     mSamplerInfo = nullptr;
   }
 private:
@@ -328,7 +328,7 @@ public:
     }
   }
   ~SamplerStackFramePrintfRAII() {
-    mozilla::tasktracer::LogSamplerExit(const_cast<char*>(mDest));
+//    mozilla::tasktracer::LogSamplerExit(const_cast<char*>(mDest));
     mozilla_sampler_call_exit(mHandle);
   }
 private:
