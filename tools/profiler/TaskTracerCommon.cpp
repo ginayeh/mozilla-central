@@ -18,7 +18,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 
-static bool sDebugRunnable = false;
+static bool sDebugRunnable = true;
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -108,7 +108,8 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 {
     TracedInfo *info = GetTracedInfo();
 
-    if (sDebugRunnable && aOTid) {
+//    if (sDebugRunnable && aOTid) {
+    if (sDebugRunnable) {
         LOG("(tid: %d (%s)), task: %lld, orig: %lld", gettid(), GetCurrentThreadName(), aTid, aOTid);
     }
 
