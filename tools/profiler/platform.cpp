@@ -802,7 +802,7 @@ bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
   // is to build with profiling OR have the profiler
   // running on startup.
   if (!profiler_is_active()) {
-    return false;
+//    return false;
   }
 #endif
 
