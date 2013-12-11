@@ -15,9 +15,13 @@
 // Self
 #include "ProfileEntry.h"
 
+#include "mozilla/TimeStamp.h"
+
 #if _MSC_VER
  #define snprintf _snprintf
 #endif
+
+static mozilla::TimeStamp sLastBufferFullTime = mozilla::TimeStamp::Now();
 
 ////////////////////////////////////////////////////////////////////////
 // BEGIN ProfileEntry
@@ -177,12 +181,18 @@ void ThreadProfile::addTag(ProfileEntry aTag)
   if (mWritePos >= mEntrySize) {
     mPendingGenerationFlush++;
     mWritePos = mWritePos % mEntrySize;
+
+    mozilla::TimeStamp now = mozilla::TimeStamp::Now();
+    mozilla::TimeDuration time = now - sLastBufferFullTime;
+    LOGF("mWritePos: %d, timestamp: %fs", mWritePos, time.ToSeconds());
+    sLastBufferFullTime = now;
   }
   if (mWritePos == mReadPos) {
     // Keep one slot open
     mEntries[mReadPos] = ProfileEntry();
     mReadPos = (mReadPos + 1) % mEntrySize;
   }
+
   // we also need to move the flush pos to ensure we
   // do not pass it
   if (mWritePos == mLastFlushPos) {
