@@ -19,6 +19,7 @@
 #include <pthread.h>
 
 static bool sDebugRunnable = true;
+uint64_t sCounter = 0;
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -43,6 +44,7 @@ namespace tasktracer {
 
 static TracedInfo sAllTracedInfo[MAX_THREAD_NUM];
 static mozilla::ThreadLocal<TracedInfo *> sTracedInfo;
+static mozilla::ThreadLocal<ThreadProfile *> sThreadProfile;
 static pthread_mutex_t sTracedInfoLock = PTHREAD_MUTEX_INITIALIZER;
 
 static TracedInfo *
@@ -103,15 +105,38 @@ GetCurrentThreadName()
     }
 }
 
+static ThreadProfile*
+GetThreadProfile()
+{
+    if (!sThreadProfile.initialized()) {
+        sThreadProfile.init();
+    }
+
+    if (!sThreadProfile.get()) {
+        // Get thread profile and keep it in sThreadProfile
+        std::vector<ThreadInfo*> threads = Sampler::GetRegisteredThreads();
+        for (uint32_t i = 0; i < threads.size(); i++) {
+            ThreadInfo* info = threads[i];
+            if (info->Profile() && (gettid() == info->ThreadId())) {
+                sThreadProfile.set(info->Profile());
+                LOG("sThreadProfile now is pointed to [%p]", sThreadProfile.get());
+                break;
+            }
+        }
+    }
+
+    return sThreadProfile.get();
+}
+
 void
 LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 {
     TracedInfo *info = GetTracedInfo();
 
 //    if (sDebugRunnable && aOTid) {
-    if (sDebugRunnable) {
+/*    if (sDebugRunnable) {
         LOG("(tid: %d (%s)), task: %lld, orig: %lld", gettid(), GetCurrentThreadName(), aTid, aOTid);
-    }
+    }*/
 
     TracedActivity *activity = info->activities + info->actNext;
     info->actNext = (info->actNext + 1) % TASK_TRACE_BUF_SIZE;
@@ -126,6 +151,16 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
     ThreadProfile *threadProfile = nullptr; // TODO get thread profile.
     threadProfile->addTag(entry);
 #endif
+
+    ProfileEntry entry('n', (int)activity->taskId);
+    ThreadProfile* profile = GetThreadProfile();
+    if (profile) {
+        sCounter++;
+        LOG("[%lld] add tag %d to tid: %d", sCounter, (int)activity->taskId, gettid());
+        profile->addTag(entry);
+    } else {
+        LOG("no profile, tid: %d", gettid());
+    }
 }
 
 void
@@ -146,7 +181,7 @@ void
 LogSamplerEnter(const char *aInfo)
 {
     if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
-        LOG("(tid: %d), task: %lld, >> %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
+//        LOG("(tid: %d), task: %lld, >> %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
     }
 }
 
@@ -154,7 +189,7 @@ void
 LogSamplerExit(const char *aInfo)
 {
     if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
-        LOG("(tid: %d), task: %lld, << %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
+//        LOG("(tid: %d), task: %lld, << %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
     }
 }
 

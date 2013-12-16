@@ -196,7 +196,7 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 
     mozilla::TimeStamp now = mozilla::TimeStamp::Now();
     mozilla::TimeDuration time = now - sLastBufferFullTime;
-    LOGF("mWritePos: %d, timestamp: %fs", mWritePos, time.ToSeconds());
+    LOGF("mEntrySize: %d, timestamp: %fs", mEntrySize, time.ToSeconds());
     sLastBufferFullTime = now;
   }
   if (mWritePos == mReadPos) {
