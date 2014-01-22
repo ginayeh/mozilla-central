@@ -17,6 +17,7 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothReplyRunnable.cpp',
         'BluetoothService.cpp',
         'BluetoothUuid.cpp',
+        'Example.cpp',
         'ipc/BluetoothChild.cpp',
         'ipc/BluetoothParent.cpp',
         'ipc/BluetoothServiceChildProcess.cpp',

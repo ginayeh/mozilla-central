@@ -563,6 +563,7 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'DeviceProximityEvent.webidl',
     'DownloadEvent.webidl',
     'ErrorEvent.webidl',
+    'ExampleEvent.webidl',
     'IccChangeEvent.webidl',
     'MediaStreamEvent.webidl',
     'MozContactChangeEvent.webidl',
