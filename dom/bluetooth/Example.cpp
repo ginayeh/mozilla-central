@@ -7,6 +7,10 @@
 #include "Example.h"
 #include "mozilla/dom/ExampleEvent.h"
 
+#include "nsIObserverService.h"
+#include "mozilla/Services.h"
+#include "ExampleNotifier.h"
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -26,7 +30,49 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(Example, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(Example, nsDOMEventTargetHelper)
 
-void Example::DispatchTrustedEvent()
+Example::Example()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+  NS_ENSURE_TRUE_VOID(obs);
+  if (NS_FAILED(obs->AddObserver(this, "example-topic", false))) {
+    NS_WARNING("Failed to add observer!");
+  }
+}
+
+Example::~Example()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+  NS_ENSURE_TRUE_VOID(obs);
+  if (NS_FAILED(obs->RemoveObserver(this, "example-topic"))) {
+    NS_WARNING("Failed to remove observer!");
+  }
+}
+
+NS_IMETHODIMP
+Example::Observe(nsISupports* aSubject,
+                 const char* aTopic,
+                 const char16_t* aData)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (!strcmp(aTopic, "example-topic")) {
+    ExampleNotifier* notifier = static_cast<ExampleNotifier*>(aSubject);
+    if (!notifier) {
+      return NS_ERROR_FAILURE;
+    }
+    int32_t value = notifier->GetValue();
+    return NS_OK;
+  }
+
+  return NS_ERROR_UNEXPECTED;
+}
+
+void
+Example::DispatchTrustedEvent()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
