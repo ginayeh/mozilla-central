@@ -26,6 +26,8 @@ public:
 
   void DispatchTrustedEvent();
 
+  void BroadcastSystemMessage();
+
   IMPL_EVENT_HANDLER(example);
 };
 

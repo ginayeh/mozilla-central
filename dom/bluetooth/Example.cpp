@@ -11,6 +11,11 @@
 #include "mozilla/Services.h"
 #include "ExampleNotifier.h"
 
+#include "nsCxPusher.h"
+#include "nsIScriptContext.h"
+#include "nsISystemMessagesInternal.h"
+#include "nsServiceManagerUtils.h"
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -82,5 +87,33 @@ Example::DispatchTrustedEvent()
   init.mValue = 0.7;
   nsRefPtr<ExampleEvent> event =
     ExampleEvent::Constructor(this, NS_LITERAL_STRING("example"), init);
+}
+
+void
+Example::BroadcastSystemMessage()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mozilla::AutoSafeJSContext cx;
+  MOZ_ASSERT(!::JS_IsExceptionPending(cx));
+
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(),
+        JS::NullPtr()));
+  NS_ENSURE_TRUE_VOID(obj);
+
+  JS::Rooted<JS::Value> val(cx);
+  val = INT_TO_JSVAL(500);
+
+  bool rv = JS_SetProperty(cx, obj, "value", val);
+  NS_ENSURE_TRUE_VOID(rv);
+
+  nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+    do_GetService("@mozilla.org/system-message-internal;1");
+  NS_ENSURE_TRUE_VOID(systemMessenger);
+
+  JS::Rooted<JS::Value> value(cx, JS::ObjectValue(*obj));
+  nsString type;
+  type.AssignLiteral("example-system-message");
+  systemMessenger->BroadcastMessage(type, value, JS::UndefinedHandleValue);
 }
 
